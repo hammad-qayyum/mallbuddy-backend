@@ -1,0 +1,12 @@
+# Dependencies
+node_modules
+
+# Environment Variables
+
+
+# Migrations
+
+
+# Media
+media/
+/src/generated/prisma

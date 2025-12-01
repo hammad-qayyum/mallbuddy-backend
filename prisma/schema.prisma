@@ -1,0 +1,129 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+  VENDOR
+  DELIVERY_PERSON
+}
+
+model User {
+  id                String     @id @default(uuid())
+
+  // `name` is used internally by Better Auth; your app can rely on firstName/lastName instead.
+  name              String?
+
+  // Make these optional so Better Auth can create the user first,
+  // then we update them in our own service right after registration.
+  firstName         String?
+  lastName          String?
+
+  email             String     @unique
+
+  // Phone may be filled after first sign-up (for email-based signups),
+  // so we keep it optional but unique when present.
+  phoneNumber       String?    @unique
+
+  // Required by Better Auth adapter (but not used in our app logic)
+  emailVerified     Boolean?
+
+  userVerified      Boolean    @default(false)
+  image             String?
+  role              Role       @default(USER)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  accounts          Account[]
+  sessions          Session[]
+  mallSelection     UserMallSelection?
+}
+
+model Account {
+  id                      String   @id @default(uuid())
+  accountId               String
+  providerId              String
+  userId                  String
+  accessToken             String?
+  refreshToken            String?
+  idToken                 String?
+  accessTokenExpiresAt    DateTime?
+  refreshTokenExpiresAt   DateTime?
+  scope                   String?
+  password                String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+}
+
+model Session {
+  id         String   @id @default(uuid())
+  token      String   @unique
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  ipAddress  String?
+  userAgent  String?
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Verification {
+  id         String   @id @default(uuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+
+model Country{
+  id      String @id @default(uuid())
+  name    String
+  cities  City[]
+}
+
+
+model City{
+   id     String  @id @default(uuid())
+   name   String
+   countryId String
+   country Country @relation(fields: [countryId], references:[id])
+   malls  Mall[]
+}
+
+
+model Mall {
+  id        String @id @default(uuid())
+  name      String
+  address   String?
+  image     String?
+  cityId    String
+  city      City   @relation(fields: [cityId], references: [id])
+  users     UserMallSelection[]
+}
+
+
+model UserMallSelection {
+  id      String @id @default(uuid())
+  userId  String @unique
+  mallId  String
+
+  user    User @relation(fields: [userId], references: [id])
+  mall    Mall @relation(fields: [mallId], references: [id])
+}
