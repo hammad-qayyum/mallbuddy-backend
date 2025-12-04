@@ -15,6 +15,11 @@ export const changePasswordSchema = z.object({
     newPassword: z.string().min(6, "New password must be atleast 6 characters"),
 });
 
+export const updateUserMallSchema = z.object({
+    mallId: z.string().uuid("Invalid mall ID"),
+  });
+  
 //Types inferred from schemas
 export type UpdateUserProfileInput = z.infer<typeof updateUserProfileSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+export type UpdateUserMallInput = z.infer<typeof updateUserMallSchema>;

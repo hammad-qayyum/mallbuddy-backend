@@ -17,69 +17,72 @@ datasource db {
 enum Role {
   USER
   ADMIN
-  VENDOR
-  DELIVERY_PERSON
+  RESTAURANT
 }
 
 model User {
-  id                String     @id @default(uuid())
+  id String @id @default(uuid())
 
   // `name` is used internally by Better Auth; your app can rely on firstName/lastName instead.
-  name              String?
-
-  // Make these optional so Better Auth can create the user first,
-  // then we update them in our own service right after registration.
-  firstName         String?
-  lastName          String?
-
-  email             String     @unique
-
-  // Phone may be filled after first sign-up (for email-based signups),
-  // so we keep it optional but unique when present.
-  phoneNumber       String?    @unique
+  name        String?
+  firstName   String?
+  lastName    String?
+  email       String  @unique
+  phoneNumber String? @unique
 
   // Required by Better Auth adapter (but not used in our app logic)
-  emailVerified     Boolean?
+  emailVerified Boolean?
 
-  userVerified      Boolean    @default(false)
-  image             String?
-  role              Role       @default(USER)
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
-  accounts          Account[]
-  sessions          Session[]
-  mallSelection     UserMallSelection?
+  image String?
+
+  // Mall selection
+  selectedCountryId String?
+  selectedCityId    String?
+  selectedMallId    String?
+
+  // Relations
+  country Country? @relation(fields: [selectedCountryId], references: [id])
+  city    City?    @relation(fields: [selectedCityId], references: [id])
+  mall    Mall?    @relation(fields: [selectedMallId], references: [id])
+
+  role      Role      @default(USER)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  accounts  Account[]
+  sessions  Session[]
+  restaurant  Restaurant?
+
 }
 
 model Account {
-  id                      String   @id @default(uuid())
-  accountId               String
-  providerId              String
-  userId                  String
-  accessToken             String?
-  refreshToken            String?
-  idToken                 String?
-  accessTokenExpiresAt    DateTime?
-  refreshTokenExpiresAt   DateTime?
-  scope                   String?
-  password                String?
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                    String    @id @default(uuid())
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([providerId, accountId])
 }
 
 model Session {
-  id         String   @id @default(uuid())
-  token      String   @unique
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  ipAddress  String?
-  userAgent  String?
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid())
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Verification {
@@ -91,39 +94,82 @@ model Verification {
   updatedAt  DateTime @updatedAt
 }
 
-
-model Country{
-  id      String @id @default(uuid())
-  name    String
-  cities  City[]
+model Country {
+  id     String @id @default(uuid())
+  name   String @unique
+  cities City[]
+  users  User[]
 }
 
+model City {
+  id        String  @id @default(uuid())
+  name      String
+  countryId String
+  country   Country @relation(fields: [countryId], references: [id])
+  malls     Mall[]
 
-model City{
-   id     String  @id @default(uuid())
-   name   String
-   countryId String
-   country Country @relation(fields: [countryId], references:[id])
-   malls  Mall[]
+  users User[]
+
+  @@unique([name, countryId])
 }
-
 
 model Mall {
-  id        String @id @default(uuid())
-  name      String
-  address   String?
-  image     String?
-  cityId    String
-  city      City   @relation(fields: [cityId], references: [id])
-  users     UserMallSelection[]
+  id      String  @id @default(uuid())
+  name    String
+  address String?
+  cityId  String
+  city    City    @relation(fields: [cityId], references: [id])
+
+  users User[]
+  restaurants Restaurant[]
+  cuisineCategories CuisineCategory[]
+
+  @@unique([name, cityId])
 }
 
+// Restaurant model
+model Restaurant {
+  userId       String @id
+  banner       String?
+  description  String?
+  location     String?
+  mallId       String
+  mainCategory String          // e.g., 'CHINESE', 'INDIAN'
+  menuCategories MenuCategory[]
 
-model UserMallSelection {
+  user         User @relation(fields: [userId], references: [id])
+  mall         Mall @relation(fields: [mallId], references: [id])
+}
+
+// CuisineCategory (Mall-specific for home page filtering)
+model CuisineCategory {
   id      String @id @default(uuid())
-  userId  String @unique
+  name    String
+  image   String?
   mallId  String
-
-  user    User @relation(fields: [userId], references: [id])
   mall    Mall @relation(fields: [mallId], references: [id])
+}
+
+// MenuCategory (restaurant-specific)
+model MenuCategory {
+  id           String     @id @default(uuid())
+  name         String
+  restaurantId String
+  sortOrder    Int?
+  items        MenuItem[]
+
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [userId])
+}
+
+// MenuItem
+model MenuItem {
+  id             String       @id @default(uuid())
+  name           String
+  description    String?
+  price          Decimal
+  preparationTime String?
+  image          String?
+
+  categoryId     String
+  category       MenuCategory @relation(fields: [categoryId], references: [id])
 }

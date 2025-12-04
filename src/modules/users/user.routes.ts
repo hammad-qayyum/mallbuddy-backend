@@ -1,6 +1,7 @@
 import {Router} from "express";
 import {userController} from "./user.controller";
 import {requireAuth} from "../../middlewares/auth.middleware";
+import { uploadProfilePicture } from "../../config/upload";
 
 const router = Router();
 
@@ -89,14 +90,70 @@ router.get("/me", requireAuth, userController.getMyProfile);
  *     security:
  *       - cookieAuth: []
  *     description: |
- *       Update user profile information. 
+ *       Update user profile information. You can either upload an image file or provide an image URL.
  *       **All fields are optional** - send only the fields you want to update.
  *       You can update any combination of: firstName, lastName, email, phoneNumber, image
+ *       **Image upload:** Use multipart/form-data with field name "image" to upload a file.
+ *       If both file and URL are provided, the uploaded file takes priority.
+ *       **Accepted image formats:** JPEG, PNG, GIF, WebP
+ *       **Maximum file size:** 5MB
  *       Note: When updating firstName or lastName, the Better Auth `name` field is automatically updated.
  *       Phone numbers are automatically normalized (non-digit characters removed).
+ *       If updating image, old local images are automatically deleted.
  *     requestBody:
  *       required: true
  *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               firstName:
+ *                 type: string
+ *                 minLength: 1
+ *                 description: User's first name (optional)
+ *                 example: "John"
+ *               lastName:
+ *                 type: string
+ *                 minLength: 1
+ *                 description: User's last name (optional)
+ *                 example: "Doe"
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: User's email address (optional)
+ *                 example: "john.doe@example.com"
+ *               phoneNumber:
+ *                 type: string
+ *                 minLength: 11
+ *                 description: User's phone number (optional, will be normalized)
+ *                 example: "12345678901"
+ *               image:
+ *                 type: string
+ *                 format: binary
+ *                 description: Profile image file (optional, JPEG, PNG, GIF, or WebP, max 5MB)
+ *           examples:
+ *             updateName:
+ *               summary: Update only name fields
+ *               value:
+ *                 firstName: "John"
+ *                 lastName: "Doe"
+ *             updateEmail:
+ *               summary: Update only email
+ *               value:
+ *                 email: "newemail@example.com"
+ *             updatePhone:
+ *               summary: Update only phone number
+ *               value:
+ *                 phoneNumber: "+12345678901"
+ *             updateWithImageFile:
+ *               summary: Update with image file upload
+ *               value:
+ *                 firstName: "John"
+ *                 image: "<file>"
+ *             updateWithImageUrl:
+ *               summary: Update with image URL
+ *               value:
+ *                 image: "https://example.com/profile.jpg"
  *         application/json:
  *           schema:
  *             $ref: '#/components/schemas/UpdateProfileRequest'
@@ -162,7 +219,7 @@ router.get("/me", requireAuth, userController.getMyProfile);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.patch("/me", requireAuth, userController.updateProfile);
+router.patch("/me", requireAuth, uploadProfilePicture.single("image"), userController.updateProfile);
 
 /**
  * @swagger
@@ -242,5 +299,84 @@ router.patch("/me/password", requireAuth, userController.changePassword);
  *               $ref: '#/components/schemas/Error'
  */
 router.delete("/me", requireAuth, userController.deleteMyProfile);
+
+/**
+ * @swagger
+ * /users/me/profile-picture:
+ *   post:
+ *     summary: Upload profile picture
+ *     tags: [Users]
+ *     security:
+ *       - cookieAuth: []
+ *     description: |
+ *       Upload a profile picture for the current user.
+ *       **Required:** multipart/form-data with a file field named "profilePicture"
+ *       **Accepted formats:** JPEG, PNG, GIF, WebP
+ *       **Maximum file size:** 5MB
+ *       The uploaded file will be stored in the uploads/profile-pictures folder and its URL will be saved in the database.
+ *       If the user already has a profile picture, the old one will be automatically deleted.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - profilePicture
+ *             properties:
+ *               profilePicture:
+ *                 type: string
+ *                 format: binary
+ *                 description: Profile picture image file (JPEG, PNG, GIF, or WebP)
+ *     responses:
+ *       200:
+ *         description: Profile picture uploaded successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Profile picture uploaded successfully
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     image:
+ *                       type: string
+ *                       description: URL to the uploaded profile picture
+ *                       example: /uploads/profile-pictures/profile-1234567890-123456789.jpg
+ *       400:
+ *         description: Validation error or upload failed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   examples:
+ *                     noFile:
+ *                       value: "No file uploaded. Please provide a profile picture."
+ *                     invalidType:
+ *                       value: "Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed."
+ *                     fileTooLarge:
+ *                       value: "File too large. Maximum size is 5MB."
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.post("/me/profile-picture", requireAuth, uploadProfilePicture.single("profilePicture"), userController.uploadProfilePicture);
+
+router.patch(
+    "/me/mall",
+    requireAuth,
+    userController.updateMyMall
+  );
 
 export default router;

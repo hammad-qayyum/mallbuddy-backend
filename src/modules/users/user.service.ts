@@ -2,10 +2,14 @@ import prisma from "../../config/prisma";
 import {
     UpdateUserProfileInput,
     ChangePasswordInput,
+    UpdateUserMallInput,
   } from "./user.schema";
 import { normalizePhoneNumber } from "../common/utils";
 import { auth } from "../../libs/betterauth";
 import { buildBetterAuthHeaders } from "../common/utils";
+import { getProfilePictureUrl, deleteImageFile } from "../../config/upload";
+import path from "path";
+import fs from "fs";
 
 export const userService = {
 
@@ -18,6 +22,12 @@ export const userService = {
 
     //update profile fields of the current user
     async updateProfile(userId: string, data: UpdateUserProfileInput){
+        // Get current user to check for existing image and name fields
+        const currentUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { image: true, firstName: true, lastName: true },
+        });
+
         const updateData: any = {};
         
         // Handle email if provided
@@ -49,17 +59,15 @@ export const userService = {
         
         // Handle image
         if (data.image !== undefined) {
+            // Delete old image if it exists and is a local file
+            if (currentUser?.image && currentUser.image.startsWith("/uploads/")) {
+                deleteImageFile(currentUser.image);
+            }
             updateData.image = data.image;
         }
         
         // If firstName or lastName is being updated, we need to also update Better Auth's `name` field
         if (data.firstName !== undefined || data.lastName !== undefined) {
-            // Get current user to merge with new values
-            const currentUser = await prisma.user.findUnique({
-                where: { id: userId },
-                select: { firstName: true, lastName: true },
-            });
-
             if (currentUser) {
                 const newFirstName = data.firstName ?? currentUser.firstName ?? "";
                 const newLastName = data.lastName ?? currentUser.lastName ?? "";
@@ -137,4 +145,67 @@ export const userService = {
         });
         return {success: true};
     },
+
+    //upload profile picture
+    async uploadProfilePicture(userId: string, filename: string){
+        // Get current user to check for existing profile picture
+        const currentUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { image: true },
+        });
+
+        // Delete old profile picture if it exists and is a local file
+        if (currentUser?.image) {
+            const oldImagePath = currentUser.image;
+            // Check if it's a local file (starts with /uploads)
+            if (oldImagePath.startsWith("/uploads/profile-pictures/")) {
+                const oldFilename = path.basename(oldImagePath);
+                const oldFilePath = path.join(process.cwd(), "uploads", "profile-pictures", oldFilename);
+                
+                // Delete old file if it exists
+                if (fs.existsSync(oldFilePath)) {
+                    try {
+                        fs.unlinkSync(oldFilePath);
+                    } catch (error) {
+                        // Log error but don't fail the upload
+                        console.error("Error deleting old profile picture:", error);
+                    }
+                }
+            }
+        }
+
+        // Generate URL for the new profile picture
+        const imageUrl = getProfilePictureUrl(filename);
+
+        // Update user's image field in database
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: { image: imageUrl },
+        });
+
+        return updatedUser;
+    },
+
+
+
+
+    async updateUserMall(userId: string, data: UpdateUserMallInput) {
+        // Check if mall exists
+        const mall = await prisma.mall.findUnique({
+          where: { id: data.mallId },
+        });
+    
+        if (!mall) {
+          throw new Error("Mall not found");
+        }
+    
+        // Update user's selected mall
+        return prisma.user.update({
+          where: { id: userId },
+          data: { selectedMallId: data.mallId },
+          include: {
+            mall: true,
+          },
+        });
+      },
 };
