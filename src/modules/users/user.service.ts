@@ -3,10 +3,13 @@ import {
     UpdateUserProfileInput,
     ChangePasswordInput,
     UpdateUserMallInput,
+    UpdateUserCountryInput,
+    UpdateUserCityInput,
   } from "./user.schema";
 import { normalizePhoneNumber } from "../common/utils";
 import { auth } from "../../libs/betterauth";
 import { buildBetterAuthHeaders } from "../common/utils";
+import { hashPassword } from "better-auth/crypto";
 import { getProfilePictureUrl, deleteImageFile } from "../../config/upload";
 import path from "path";
 import fs from "fs";
@@ -17,6 +20,11 @@ export const userService = {
     async getMyProfile(userId: string){
         return prisma.user.findUnique({
             where: {id: userId},
+            include: {
+                country: true,
+                city: true,
+                mall: true,
+            },
         });
     },
 
@@ -109,24 +117,49 @@ export const userService = {
                 },
                 headers: buildBetterAuthHeaders(req),
             });
-        } catch (error) {
+        } catch (error: any) {
             throw new Error("Current password is incorrect");
         }
 
         //3. Find the account with password to update it
-        const accounts = await prisma.account.findMany({
-            where: { userId },
+        // Better Auth uses "credential" as providerId for email/password accounts
+        let account = await prisma.account.findFirst({
+            where: { 
+                userId,
+                providerId: "credential",
+                password: { not: null }
+            },
         });
 
-        const account = accounts.find(acc => acc.password !== null && acc.password !== undefined);
+        // If not found with "credential", try "email" (some Better Auth versions use this)
+        if (!account) {
+            account = await prisma.account.findFirst({
+                where: { 
+                    userId,
+                    providerId: "email",
+                    password: { not: null }
+                },
+            });
+        }
+
+        // If still not found, try any account with password
+        if (!account) {
+            account = await prisma.account.findFirst({
+                where: { 
+                    userId,
+                    password: { not: null }
+                },
+            });
+        }
 
         if(!account){
             throw new Error("No password account found for this user");
         }
 
-        //4. Hash new password using bcrypt (Better Auth uses bcrypt with 10 rounds)
-        const { hash } = await import("bcryptjs");
-        const hashedPassword = await hash(data.newPassword, 10);
+        //4. Use Better Auth's internal password hashing mechanism
+        // Better Auth uses scrypt for password hashing
+        // Use Better Auth's exported hashPassword function to ensure correct format
+        const hashedPassword = await hashPassword(data.newPassword);
 
         //5. Update the password in the Account table
         await prisma.account.update({
@@ -208,4 +241,44 @@ export const userService = {
           },
         });
       },
-};
+
+    async updateUserCountry(userId: string, data: UpdateUserCountryInput) {
+        // Check if country exists
+        const country = await prisma.country.findUnique({
+          where: { id: data.countryId },
+        });
+    
+        if (!country) {
+          throw new Error("Country not found");
+        }
+    
+        // Update user's selected country
+        return prisma.user.update({
+          where: { id: userId },
+          data: { selectedCountryId: data.countryId },
+          include: {
+            country: true,
+          },
+        });
+      },
+
+    async updateUserCity(userId: string, data: UpdateUserCityInput) {
+        // Check if city exists
+        const city = await prisma.city.findUnique({
+          where: { id: data.cityId },
+        });
+    
+        if (!city) {
+          throw new Error("City not found");
+        }
+    
+        // Update user's selected city
+        return prisma.user.update({
+          where: { id: userId },
+          data: { selectedCityId: data.cityId },
+          include: {
+            city: true,
+          },
+        });
+      },
+    };

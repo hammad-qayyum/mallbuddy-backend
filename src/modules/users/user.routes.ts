@@ -373,10 +373,229 @@ router.delete("/me", requireAuth, userController.deleteMyProfile);
  */
 router.post("/me/profile-picture", requireAuth, uploadProfilePicture.single("profilePicture"), userController.uploadProfilePicture);
 
+/**
+ * @swagger
+ * /users/me/mall:
+ *   patch:
+ *     summary: Update user's selected mall
+ *     tags: [Users]
+ *     security:
+ *       - cookieAuth: []
+ *     description: |
+ *       Update the current user's selected mall preference.
+ *       **Required fields:** mallId (UUID)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [mallId]
+ *             properties:
+ *               mallId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: UUID of the mall to select
+ *                 example: "123e4567-e89b-12d3-a456-426614174000"
+ *           example:
+ *             mallId: "123e4567-e89b-12d3-a456-426614174000"
+ *     responses:
+ *       200:
+ *         description: Mall selected successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Mall selected successfully
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     selectedMallId:
+ *                       type: string
+ *                     mall:
+ *                       type: object
+ *       400:
+ *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ValidationError'
+ *       404:
+ *         description: Mall not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Mall not found
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.patch(
     "/me/mall",
     requireAuth,
     userController.updateMyMall
+  );
+
+/**
+ * @swagger
+ * /users/me/country:
+ *   patch:
+ *     summary: Update user's selected country
+ *     tags: [Users]
+ *     security:
+ *       - cookieAuth: []
+ *     description: |
+ *       Update the current user's selected country preference.
+ *       **Required fields:** countryId (UUID)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [countryId]
+ *             properties:
+ *               countryId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: UUID of the country to select
+ *                 example: "123e4567-e89b-12d3-a456-426614174000"
+ *           example:
+ *             countryId: "123e4567-e89b-12d3-a456-426614174000"
+ *     responses:
+ *       200:
+ *         description: Country selected successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Country selected successfully
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     selectedCountryId:
+ *                       type: string
+ *                     country:
+ *                       type: object
+ *       400:
+ *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ValidationError'
+ *       404:
+ *         description: Country not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Country not found
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.patch(
+    "/me/country",
+    requireAuth,
+    userController.updateMyCountry
+  );
+
+/**
+ * @swagger
+ * /users/me/city:
+ *   patch:
+ *     summary: Update user's selected city
+ *     tags: [Users]
+ *     security:
+ *       - cookieAuth: []
+ *     description: |
+ *       Update the current user's selected city preference.
+ *       **Required fields:** cityId (UUID)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [cityId]
+ *             properties:
+ *               cityId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: UUID of the city to select
+ *                 example: "123e4567-e89b-12d3-a456-426614174000"
+ *           example:
+ *             cityId: "123e4567-e89b-12d3-a456-426614174000"
+ *     responses:
+ *       200:
+ *         description: City selected successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: City selected successfully
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     selectedCityId:
+ *                       type: string
+ *                     city:
+ *                       type: object
+ *       400:
+ *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ValidationError'
+ *       404:
+ *         description: City not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: City not found
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.patch(
+    "/me/city",
+    requireAuth,
+    userController.updateMyCity
   );
 
 export default router;

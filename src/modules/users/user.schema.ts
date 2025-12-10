@@ -18,8 +18,18 @@ export const changePasswordSchema = z.object({
 export const updateUserMallSchema = z.object({
     mallId: z.string().uuid("Invalid mall ID"),
   });
-  
+
+export const updateUserCountrySchema = z.object({
+    countryId: z.string().uuid("Invalid country ID"),
+  });
+
+export const updateUserCitySchema = z.object({
+    cityId: z.string().uuid("Invalid city ID"),
+  });
+
 //Types inferred from schemas
 export type UpdateUserProfileInput = z.infer<typeof updateUserProfileSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type UpdateUserMallInput = z.infer<typeof updateUserMallSchema>;
+export type UpdateUserCountryInput = z.infer<typeof updateUserCountrySchema>;
+export type UpdateUserCityInput = z.infer<typeof updateUserCitySchema>;

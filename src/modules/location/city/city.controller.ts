@@ -49,6 +49,19 @@ export const cityController = {
     return res.json(city);
   },
 
+  // GET /cities/by-country/:countryId
+  async getByCountryId(req: Request, res: Response) {
+    const { countryId } = req.params;
+
+    if (!countryId) {
+      return res.status(400).json({ message: "Country ID is required" });
+    }
+
+    const cities = await cityService.getCities(countryId);
+
+    return res.json(cities);
+  },
+
   // PATCH /cities/:id
   async update(req: Request, res: Response) {
     const { id } = req.params;

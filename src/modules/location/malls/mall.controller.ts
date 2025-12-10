@@ -78,6 +78,19 @@ export const mallController = {
     return res.json(mall);
   },
 
+  // GET /malls/by-city/:cityId
+  async getByCityId(req: Request, res: Response) {
+    const { cityId } = req.params;
+
+    if (!cityId) {
+      return res.status(400).json({ message: "City ID is required" });
+    }
+
+    const malls = await mallService.getMalls(cityId);
+
+    return res.json(malls);
+  },
+
   // PATCH /malls/:id
   async update(req: Request, res: Response) {
     const { id } = req.params;

@@ -8,6 +8,9 @@ import mallRoutes from "../modules/location/malls/mall.routes";
 import cuisineRoutes from "../modules/cuisine/cuisine.routes";
 import restaurantRoutes from "../modules/restaurant/restaurant.routes";
 import menuRoutes from "../modules/menu/menu.routes";
+import cartRoutes from "../modules/cart/cart.routes";
+import favouriteCartRoutes from "../modules/favourite-cart/favourite-cart.routes";
+import productDetailRoutes from "../modules/product-detail/product-detail.routes";
 
 const router = Router();
 
@@ -37,6 +40,15 @@ router.use("/", restaurantRoutes);
 
 // Menu routes
 router.use("/", menuRoutes);
+
+// Product Detail routes (before cart)
+router.use("/product-detail", productDetailRoutes);
+
+// Cart routes (second last)
+router.use("/cart", cartRoutes);
+
+// Favourite Cart routes (last)
+router.use("/favourite-carts", favouriteCartRoutes);
 
 /**
  * @swagger

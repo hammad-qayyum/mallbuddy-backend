@@ -152,6 +152,59 @@ router.get("/city/get/:id", cityController.getById);
 
 /**
  * @swagger
+ * /cities/city/get-by-country/{countryId}:
+ *   get:
+ *     summary: Get cities by country ID
+ *     tags: [Location]
+ *     description: |
+ *       Get all cities for a specific country.
+ *       **No request body required.**
+ *     parameters:
+ *       - in: path
+ *         name: countryId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: "Country ID (UUID)"
+ *         example: "123e4567-e89b-12d3-a456-426614174000"
+ *     responses:
+ *       200:
+ *         description: List of cities for the specified country
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                   name:
+ *                     type: string
+ *                   countryId:
+ *                     type: string
+ *                   createdAt:
+ *                     type: string
+ *                     format: date-time
+ *                   updatedAt:
+ *                     type: string
+ *                     format: date-time
+ *       400:
+ *         description: Invalid country ID
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Country ID is required
+ */
+router.get("/city/get-by-country/:countryId", cityController.getByCountryId);
+
+/**
+ * @swagger
  * /cities/city/update/{id}:
  *   patch:
  *     summary: Update a city

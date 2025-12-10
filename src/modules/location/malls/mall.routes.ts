@@ -173,6 +173,62 @@ router.get("/mall/get/:id", mallController.getById);
 
 /**
  * @swagger
+ * /malls/mall/get-by-city/{cityId}:
+ *   get:
+ *     summary: Get malls by city ID
+ *     tags: [Location]
+ *     description: |
+ *       Get all malls for a specific city.
+ *       **No request body required.**
+ *     parameters:
+ *       - in: path
+ *         name: cityId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: "City ID (UUID)"
+ *         example: "123e4567-e89b-12d3-a456-426614174000"
+ *     responses:
+ *       200:
+ *         description: List of malls for the specified city
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                   name:
+ *                     type: string
+ *                   address:
+ *                     type: string
+ *                     nullable: true
+ *                   cityId:
+ *                     type: string
+ *                   createdAt:
+ *                     type: string
+ *                     format: date-time
+ *                   updatedAt:
+ *                     type: string
+ *                     format: date-time
+ *       400:
+ *         description: Invalid city ID
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: City ID is required
+ */
+router.get("/mall/get-by-city/:cityId", mallController.getByCityId);
+
+/**
+ * @swagger
  * /malls/mall/update/{id}:
  *   patch:
  *     summary: Update a mall
