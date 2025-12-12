@@ -41,6 +41,9 @@ model User {
   restaurant  Restaurant?
   cart      Cart?
   favouriteCarts FavouriteCart[]
+  deliveryAddresses DeliveryAddress[]
+  orders    Order[]
+
 
 }
 
@@ -116,18 +119,23 @@ model Mall {
 }
 
 model Restaurant {
-  userId       String @id
-  banner       String?
-  description  String?
-  location     String?
-  mallId       String
-  mainCategory String          // e.g., 'CHINESE', 'INDIAN'
-  menuCategories MenuCategory[]
-  cartItems    CartItem[]
+  userId             String    @id
+  name               String?
+  mainCategory       String?
+  banner             String?
+  description        String?
+  story              String?
+  location           String?
+  cuisineCategoryId  String?
+  isFavorite         Boolean   @default(false)
+  mallId             String
+  menuCategories     MenuCategory[]
+  cartItems          CartItem[]
   favouriteCartItems FavouriteCartItem[]
+  orders             Order[]
 
-  user         User @relation(fields: [userId], references: [id])
-  mall         Mall @relation(fields: [mallId], references: [id])
+  user               User      @relation(fields: [userId], references: [id])
+  mall               Mall      @relation(fields: [mallId], references: [id])
 }
 
 model CuisineCategory {
@@ -161,6 +169,7 @@ model MenuItem {
   favouriteCartItems FavouriteCartItem[]
   variations     ProductVariation[]
   addOns         ProductAddOn[]
+  orderItems     OrderItem[]
 }
 
 // ProductVariation (e.g., Small, Large, Extra Large)
@@ -292,3 +301,104 @@ model FavouriteCartItem {
   @@index([favouriteCartId])
   @@index([restaurantId])
 }
+
+// Delivery Address (user's saved addresses)
+model DeliveryAddress {
+  id        String   @id @default(uuid())
+  userId    String
+  label     String?  // e.g., "Home", "Office", "Address #1"
+  address   String   // Full address
+  city      String?
+  postalCode String?
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders    Order[]
+
+  @@index([userId])
+}
+
+// Order Status Enum
+enum OrderStatus {
+  PENDING      // Order placed, awaiting restaurant confirmation
+  ACCEPTED     // Restaurant accepted the order
+  PREPARING    // Restaurant is preparing the food
+  READY        // Food is ready for pickup/delivery
+  OUT_FOR_DELIVERY // Out for delivery
+  DELIVERED    // Order delivered
+  CANCELLED    // Order cancelled
+}
+
+// Payment Method Enum
+enum PaymentMethod {
+  CASH
+  CARD
+  WALLET
+  ONLINE
+}
+
+// Order Model
+model Order {
+  id                    String          @id @default(uuid())
+  orderNumber           String          @unique // e.g., "#1234"
+  userId                String
+  restaurantId          String
+  deliveryAddressId     String
+  
+  // Order Details
+  subtotal              Decimal         // Sum of item prices
+  tax                   Decimal         @default(0)
+  deliveryFee           Decimal         @default(0)
+  discount              Decimal         @default(0)
+  total                 Decimal         // Final total
+  
+  // Payment & Delivery
+  paymentMethod         PaymentMethod   @default(CASH)
+  status                OrderStatus     @default(PENDING)
+  estimatedDeliveryTime String?         // e.g., "05:00 PM"
+  actualDeliveryTime    DateTime?
+  
+  // Notes
+  specialInstructions   String?
+  
+  // Timestamps
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  
+  // Relations
+  user                  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant            Restaurant      @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
+  deliveryAddress       DeliveryAddress @relation(fields: [deliveryAddressId], references: [id], onDelete: Cascade)
+  items                 OrderItem[]
+  
+  @@index([userId])
+  @@index([restaurantId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Order Item (items in an order)
+model OrderItem {
+  id             String   @id @default(uuid())
+  orderId        String
+  menuItemId     String
+  quantity       Int
+  unitPrice      Decimal  // Price at time of order
+  totalPrice     Decimal  // quantity * unitPrice
+  itemName       String   // Snapshot of item name at order time
+  specialNotes   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem       MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([menuItemId])
+}
+
+// Add relations to User and Restaurant models
+// User.deliveryAddresses and User.orders will be added to the User model
+// Restaurant.orders will be added to the Restaurant model

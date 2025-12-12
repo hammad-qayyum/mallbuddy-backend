@@ -12,8 +12,8 @@ const router = Router();
  *     tags: [Restaurants]
  *     description: |
  *       Create a new restaurant. You can either upload a banner image file or provide a banner URL.
- *       **Required fields:** userId, mallId, mainCategory
- *       **Optional fields:** banner (URL or file upload), description, location
+ *       **Required fields:** userId, mallId
+ *       **Optional fields:** name, mainCategory, banner (URL or file upload), description, story, location, cuisineCategoryId, isFavorite
  *       **Banner upload:** Use multipart/form-data with field name "banner" to upload a file.
  *       If both file and URL are provided, the uploaded file takes priority.
  *       **Accepted image formats:** JPEG, PNG, GIF, WebP
@@ -24,7 +24,7 @@ const router = Router();
  *         multipart/form-data:
  *           schema:
  *             type: object
- *             required: [userId, mallId, mainCategory]
+ *             required: [userId, mallId]
  *             properties:
  *               userId:
  *                 type: string
@@ -34,6 +34,10 @@ const router = Router();
  *                 type: string
  *                 description: Mall ID where the restaurant is located
  *                 example: "123e4567-e89b-12d3-a456-426614174000"
+ *               name:
+ *                 type: string
+ *                 description: "Restaurant name (optional)"
+ *                 example: "Rozna Restaurant"
  *               mainCategory:
  *                 type: string
  *                 description: "Main cuisine category (e.g., 'CHINESE', 'INDIAN', 'ITALIAN')"
@@ -46,18 +50,32 @@ const router = Router();
  *                 type: string
  *                 description: "Restaurant description (optional)"
  *                 example: "Authentic Chinese cuisine"
+ *               story:
+ *                 type: string
+ *                 description: "Restaurant story/intro (optional)"
+ *                 example: "Family recipes since 1990"
  *               location:
  *                 type: string
  *                 description: "Restaurant location within the mall (optional)"
  *                 example: "Food Court, Level 2"
+ *               cuisineCategoryId:
+ *                 type: string
+ *                 description: "Cuisine category ID (optional)"
+ *                 example: "123e4567-e89b-12d3-a456-426614174999"
+ *               isFavorite:
+ *                 type: boolean
+ *                 description: "Mark as featured/favorite (optional)"
+ *                 example: false
  *           examples:
  *             withFileUpload:
  *               summary: Create with banner file upload
  *               value:
  *                 userId: "123e4567-e89b-12d3-a456-426614174000"
  *                 mallId: "123e4567-e89b-12d3-a456-426614174000"
+ *                 name: "Rozna Restaurant"
  *                 mainCategory: "CHINESE"
  *                 description: "Authentic Chinese cuisine"
+ *                 story: "Family recipes since 1990"
  *                 location: "Food Court, Level 2"
  *                 banner: "<file>"
  *             withBannerUrl:
@@ -89,6 +107,9 @@ const router = Router();
  *                   type: string
  *                 mallId:
  *                   type: string
+ *                 name:
+ *                   type: string
+ *                   nullable: true
  *                 mainCategory:
  *                   type: string
  *                 banner:
@@ -98,9 +119,18 @@ const router = Router();
  *                 description:
  *                   type: string
  *                   nullable: true
+ *                 story:
+ *                   type: string
+ *                   nullable: true
  *                 location:
  *                   type: string
  *                   nullable: true
+ *                 cuisineCategoryId:
+ *                   type: string
+ *                   nullable: true
+ *                 isFavorite:
+ *                   type: boolean
+ *                   description: "Whether the restaurant is featured/favorite"
  *       400:
  *         description: Validation error or failed to create restaurant
  *         content:
@@ -164,6 +194,9 @@ router.post("/restaurant/create", uploadRestaurantBanner.single("banner"), resta
  *                         type: string
  *                       mallId:
  *                         type: string
+ *                       name:
+ *                         type: string
+ *                         nullable: true
  *                       mainCategory:
  *                         type: string
  *                       banner:
@@ -172,9 +205,18 @@ router.post("/restaurant/create", uploadRestaurantBanner.single("banner"), resta
  *                       description:
  *                         type: string
  *                         nullable: true
+ *                       story:
+ *                         type: string
+ *                         nullable: true
  *                       location:
  *                         type: string
  *                         nullable: true
+ *                       cuisineCategoryId:
+ *                         type: string
+ *                         nullable: true
+ *                       isFavorite:
+ *                         type: boolean
+ *                         description: "Whether the restaurant is featured/favorite"
  *                       user:
  *                         type: object
  *                         properties:
@@ -232,6 +274,9 @@ router.get("/restaurant/get-all/:mallId", restaurantController.getAll);
  *                   type: string
  *                 mallId:
  *                   type: string
+ *                 name:
+ *                   type: string
+ *                   nullable: true
  *                 mainCategory:
  *                   type: string
  *                 banner:
@@ -240,9 +285,18 @@ router.get("/restaurant/get-all/:mallId", restaurantController.getAll);
  *                 description:
  *                   type: string
  *                   nullable: true
+ *                 story:
+ *                   type: string
+ *                   nullable: true
  *                 location:
  *                   type: string
  *                   nullable: true
+ *                 cuisineCategoryId:
+ *                   type: string
+ *                   nullable: true
+ *                 isFavorite:
+ *                   type: boolean
+ *                   description: "Whether the restaurant is featured/favorite"
  *                 user:
  *                   type: object
  *                   properties:
@@ -330,6 +384,10 @@ router.get("/restaurant/get-details/:restaurantId", restaurantController.getDeta
  *                 type: string
  *                 description: "Mall ID (required)"
  *                 example: "123e4567-e89b-12d3-a456-426614174000"
+ *               name:
+ *                 type: string
+ *                 description: "Restaurant name (optional)"
+ *                 example: "Rozna Restaurant"
  *               mainCategory:
  *                 type: string
  *                 description: "Main cuisine category (optional)"
@@ -342,10 +400,22 @@ router.get("/restaurant/get-details/:restaurantId", restaurantController.getDeta
  *                 type: string
  *                 description: "Restaurant description (optional)"
  *                 example: "Updated description"
+ *               story:
+ *                 type: string
+ *                 description: "Restaurant story/intro (optional)"
+ *                 example: "Family recipes since 1990"
  *               location:
  *                 type: string
  *                 description: "Restaurant location within the mall (optional)"
  *                 example: "Food Court, Level 3"
+ *               cuisineCategoryId:
+ *                 type: string
+ *                 description: "Cuisine category ID (optional)"
+ *                 example: "123e4567-e89b-12d3-a456-426614174999"
+ *               isFavorite:
+ *                 type: boolean
+ *                 description: "Mark as featured/favorite (optional)"
+ *                 example: false
  *           examples:
  *             updateDescription:
  *               summary: Update only description
@@ -376,6 +446,9 @@ router.get("/restaurant/get-details/:restaurantId", restaurantController.getDeta
  *                   type: string
  *                 mallId:
  *                   type: string
+ *                 name:
+ *                   type: string
+ *                   nullable: true
  *                 mainCategory:
  *                   type: string
  *                 banner:
@@ -384,9 +457,18 @@ router.get("/restaurant/get-details/:restaurantId", restaurantController.getDeta
  *                 description:
  *                   type: string
  *                   nullable: true
+ *                 story:
+ *                   type: string
+ *                   nullable: true
  *                 location:
  *                   type: string
  *                   nullable: true
+ *                 cuisineCategoryId:
+ *                   type: string
+ *                   nullable: true
+ *                 isFavorite:
+ *                   type: boolean
+ *                   description: "Whether the restaurant is featured/favorite"
  *       400:
  *         description: Validation error
  *         content:
@@ -481,11 +563,20 @@ router.delete("/restaurant/delete/:restaurantId", restaurantController.delete);
  *                     description:
  *                       type: string
  *                       nullable: true
+ *                     story:
+ *                       type: string
+ *                       nullable: true
  *                     location:
  *                       type: string
  *                       nullable: true
  *                     mainCategory:
  *                       type: string
+ *                     cuisineCategoryId:
+ *                       type: string
+ *                       nullable: true
+ *                     isFavorite:
+ *                       type: boolean
+ *                       description: "Whether the restaurant is featured/favorite"
  *                 menu:
  *                   type: array
  *                   description: Menu categories with items

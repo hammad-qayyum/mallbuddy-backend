@@ -9,10 +9,14 @@ export const restaurantService = {
       data: {
         userId: data.userId,
         mallId: data.mallId,
-        mainCategory: data.mainCategory,
+        ...(data.name !== undefined && { name: data.name }),
+        ...(data.mainCategory !== undefined && { mainCategory: data.mainCategory }),
         ...(data.banner !== undefined && { banner: data.banner }),
         ...(data.description !== undefined && { description: data.description }),
+        ...(data.story !== undefined && { story: data.story }),
         ...(data.location !== undefined && { location: data.location }),
+        ...(data.cuisineCategoryId !== undefined && { cuisineCategoryId: data.cuisineCategoryId }),
+        ...(data.isFavorite !== undefined && { isFavorite: data.isFavorite }),
       },
     });
   },
@@ -61,6 +65,7 @@ export const restaurantService = {
     const updateData: any = {};
     
     if (data.mallId !== undefined) updateData.mallId = data.mallId;
+    if (data.name !== undefined) updateData.name = data.name;
     if (data.mainCategory !== undefined) updateData.mainCategory = data.mainCategory;
     if (data.banner !== undefined) {
       // Delete old banner if it exists and is a local file
@@ -70,7 +75,10 @@ export const restaurantService = {
       updateData.banner = data.banner;
     }
     if (data.description !== undefined) updateData.description = data.description;
+    if (data.story !== undefined) updateData.story = data.story;
     if (data.location !== undefined) updateData.location = data.location;
+    if (data.cuisineCategoryId !== undefined) updateData.cuisineCategoryId = data.cuisineCategoryId;
+    if (data.isFavorite !== undefined) updateData.isFavorite = data.isFavorite;
     
     return prisma.restaurant.update({
       where: { userId: id },

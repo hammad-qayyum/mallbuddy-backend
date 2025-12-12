@@ -24,7 +24,6 @@ const router = Router();
  *             properties:
  *               userId:
  *                 type: string
- *                 format: uuid
  *                 description: User ID
  *                 example: "123e4567-e89b-12d3-a456-426614174000"
  *               name:
@@ -62,7 +61,6 @@ router.post("/favourite-cart/create", favouriteCartController.createFavouriteCar
  *         required: true
  *         schema:
  *           type: string
- *           format: uuid
  *         description: User ID
  *         example: "123e4567-e89b-12d3-a456-426614174000"
  *     responses:
@@ -110,7 +108,6 @@ router.get("/favourite-cart/get-all", favouriteCartController.getFavouriteCarts)
  *         required: true
  *         schema:
  *           type: string
- *           format: uuid
  *         description: User ID
  *         example: "123e4567-e89b-12d3-a456-426614174000"
  *       - in: path
@@ -147,7 +144,6 @@ router.get("/favourite-cart/get/:favouriteCartId", favouriteCartController.getFa
  *         required: true
  *         schema:
  *           type: string
- *           format: uuid
  *         description: User ID
  *         example: "123e4567-e89b-12d3-a456-426614174000"
  *       - in: path
@@ -230,7 +226,6 @@ router.put("/favourite-cart/update/:favouriteCartId", favouriteCartController.up
  *         required: true
  *         schema:
  *           type: string
- *           format: uuid
  *         description: User ID
  *         example: "123e4567-e89b-12d3-a456-426614174000"
  *       - in: path
@@ -269,7 +264,6 @@ router.delete("/favourite-cart/delete/:favouriteCartId", favouriteCartController
  *         required: true
  *         schema:
  *           type: string
- *           format: uuid
  *         description: User ID
  *         example: "123e4567-e89b-12d3-a456-426614174000"
  *       - in: path
@@ -336,7 +330,6 @@ router.post("/favourite-cart/:favouriteCartId/item/add", favouriteCartController
  *         required: true
  *         schema:
  *           type: string
- *           format: uuid
  *         description: User ID
  *         example: "123e4567-e89b-12d3-a456-426614174000"
  *       - in: path
@@ -397,7 +390,6 @@ router.put("/favourite-cart/:favouriteCartId/item/update/:itemId", favouriteCart
  *         required: true
  *         schema:
  *           type: string
- *           format: uuid
  *         description: User ID
  *         example: "123e4567-e89b-12d3-a456-426614174000"
  *       - in: path
@@ -443,7 +435,6 @@ router.delete("/favourite-cart/:favouriteCartId/item/delete/:itemId", favouriteC
  *         required: true
  *         schema:
  *           type: string
- *           format: uuid
  *         description: User ID
  *         example: "123e4567-e89b-12d3-a456-426614174000"
  *       - in: path
@@ -493,7 +484,6 @@ router.post("/favourite-cart/:favouriteCartId/restore", favouriteCartController.
  *         required: true
  *         schema:
  *           type: string
- *           format: uuid
  *         description: User ID
  *         example: "123e4567-e89b-12d3-a456-426614174000"
  *       - in: path
