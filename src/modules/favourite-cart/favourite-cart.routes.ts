@@ -255,9 +255,10 @@ router.delete("/favourite-cart/delete/:favouriteCartId", favouriteCartController
  *     summary: Add item to favourite cart
  *     tags: [Favourite Cart]
  *     description: |
- *       Add a menu item to a favourite cart.
+ *       Add a menu item to a favourite cart. If the item already exists with the same variations and add-ons,
+ *       the quantity will be increased. Otherwise, a new item will be created.
  *       **Required fields:** menuItemId, restaurantId
- *       **Optional fields:** quantity (default: 1), specialNotes
+ *       **Optional fields:** quantity (default: 1), specialNotes, selectedVariations, selectedAddOns
  *     parameters:
  *       - in: query
  *         name: userId
@@ -303,6 +304,48 @@ router.delete("/favourite-cart/delete/:favouriteCartId", favouriteCartController
  *                 type: string
  *                 description: Special requests or notes
  *                 example: "Extra spicy"
+ *               selectedVariations:
+ *                 type: array
+ *                 description: Selected variation options (e.g., size, crust type)
+ *                 items:
+ *                   type: object
+ *                   required: [variationId, selectedOptionId]
+ *                   properties:
+ *                     variationId:
+ *                       type: string
+ *                       format: uuid
+ *                       description: Variation ID (e.g., Size variation)
+ *                       example: "770e8400-e29b-41d4-a716-446655440000"
+ *                     selectedOptionId:
+ *                       type: string
+ *                       format: uuid
+ *                       description: Selected variation option ID (e.g., Large option)
+ *                       example: "880e8400-e29b-41d4-a716-446655440000"
+ *                 example:
+ *                   - variationId: "770e8400-e29b-41d4-a716-446655440000"
+ *                     selectedOptionId: "880e8400-e29b-41d4-a716-446655440000"
+ *               selectedAddOns:
+ *                 type: array
+ *                 description: Selected add-on options (e.g., extra toppings, sauces)
+ *                 items:
+ *                   type: object
+ *                   required: [addOnId, selectedOptionIds]
+ *                   properties:
+ *                     addOnId:
+ *                       type: string
+ *                       format: uuid
+ *                       description: Add-on ID (e.g., Extra Toppings add-on)
+ *                       example: "990e8400-e29b-41d4-a716-446655440000"
+ *                     selectedOptionIds:
+ *                       type: array
+ *                       description: Array of selected add-on option IDs
+ *                       items:
+ *                         type: string
+ *                         format: uuid
+ *                       example: ["aa0e8400-e29b-41d4-a716-446655440000", "bb0e8400-e29b-41d4-a716-446655440000"]
+ *                 example:
+ *                   - addOnId: "990e8400-e29b-41d4-a716-446655440000"
+ *                     selectedOptionIds: ["aa0e8400-e29b-41d4-a716-446655440000"]
  *     responses:
  *       201:
  *         description: Item added to favourite cart successfully

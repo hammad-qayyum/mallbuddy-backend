@@ -101,9 +101,10 @@ router.get("/cart/get", cartController.getCart);
  *     tags: [Cart]
  *     description: |
  *       Add a menu item to the user's cart. If the item already exists in the cart
- *       from the same restaurant, the quantity will be increased.
+ *       from the same restaurant with the same variations and add-ons, the quantity will be increased.
+ *       Otherwise, a new cart item will be created.
  *       **Required fields:** userId, menuItemId, restaurantId
- *       **Optional fields:** quantity (default: 1), specialNotes
+ *       **Optional fields:** quantity (default: 1), specialNotes, selectedVariations, selectedAddOns
  *     requestBody:
  *       required: true
  *       content:
@@ -114,7 +115,6 @@ router.get("/cart/get", cartController.getCart);
  *             properties:
  *               userId:
  *                 type: string
- *                 format: uuid
  *                 description: User ID
  *                 example: "123e4567-e89b-12d3-a456-426614174000"
  *               menuItemId:
@@ -135,6 +135,48 @@ router.get("/cart/get", cartController.getCart);
  *                 type: string
  *                 description: Special notes/requests for this item
  *                 example: "Extra spicy, no onions"
+ *               selectedVariations:
+ *                 type: array
+ *                 description: Selected variation options (e.g., size, crust type)
+ *                 items:
+ *                   type: object
+ *                   required: [variationId, selectedOptionId]
+ *                   properties:
+ *                     variationId:
+ *                       type: string
+ *                       format: uuid
+ *                       description: Variation ID (e.g., Size variation)
+ *                       example: "770e8400-e29b-41d4-a716-446655440000"
+ *                     selectedOptionId:
+ *                       type: string
+ *                       format: uuid
+ *                       description: Selected variation option ID (e.g., Large option)
+ *                       example: "880e8400-e29b-41d4-a716-446655440000"
+ *                 example:
+ *                   - variationId: "770e8400-e29b-41d4-a716-446655440000"
+ *                     selectedOptionId: "880e8400-e29b-41d4-a716-446655440000"
+ *               selectedAddOns:
+ *                 type: array
+ *                 description: Selected add-on options (e.g., extra toppings, sauces)
+ *                 items:
+ *                   type: object
+ *                   required: [addOnId, selectedOptionIds]
+ *                   properties:
+ *                     addOnId:
+ *                       type: string
+ *                       format: uuid
+ *                       description: Add-on ID (e.g., Extra Toppings add-on)
+ *                       example: "990e8400-e29b-41d4-a716-446655440000"
+ *                     selectedOptionIds:
+ *                       type: array
+ *                       description: Array of selected add-on option IDs
+ *                       items:
+ *                         type: string
+ *                         format: uuid
+ *                       example: ["aa0e8400-e29b-41d4-a716-446655440000", "bb0e8400-e29b-41d4-a716-446655440000"]
+ *                 example:
+ *                   - addOnId: "990e8400-e29b-41d4-a716-446655440000"
+ *                     selectedOptionIds: ["aa0e8400-e29b-41d4-a716-446655440000"]
  *     responses:
  *       201:
  *         description: Item added to cart successfully

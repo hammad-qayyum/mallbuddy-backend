@@ -72,6 +72,51 @@ export const cartService = {
     return cart;
   },
 
+  // Calculate item price including variations and add-ons
+  async calculateItemPrice(
+    menuItemId: string,
+    selectedVariations?: Array<{ variationId: string; selectedOptionId: string }>,
+    selectedAddOns?: Array<{ addOnId: string; selectedOptionIds: string[] }>
+  ): Promise<number> {
+    const menuItem = await prisma.menuItem.findUnique({
+      where: { id: menuItemId },
+    });
+
+    if (!menuItem) {
+      throw new Error("Menu item not found");
+    }
+
+    let totalPrice = menuItem.price.toNumber();
+
+    // Add variation option prices
+    if (selectedVariations && selectedVariations.length > 0) {
+      for (const variation of selectedVariations) {
+        const option = await prisma.variationOption.findUnique({
+          where: { id: variation.selectedOptionId },
+        });
+        if (option) {
+          totalPrice += option.priceModifier.toNumber();
+        }
+      }
+    }
+
+    // Add add-on option prices
+    if (selectedAddOns && selectedAddOns.length > 0) {
+      for (const addOn of selectedAddOns) {
+        for (const optionId of addOn.selectedOptionIds) {
+          const option = await prisma.addOnOption.findUnique({
+            where: { id: optionId },
+          });
+          if (option) {
+            totalPrice += option.price.toNumber();
+          }
+        }
+      }
+    }
+
+    return totalPrice;
+  },
+
   // Add item to cart (or update quantity if item already exists from same restaurant)
   async addToCart(userId: string, data: AddToCartServiceInput) {
     // Verify menu item exists
@@ -95,34 +140,69 @@ export const cartService = {
     // Get or create cart
     const cart = await this.getOrCreateCart(userId);
 
-    // Check if item already exists in cart from the same restaurant
-    const existingItem = await prisma.cartItem.findUnique({
+    // Find all items with the same menuItemId in this cart
+    const existingItems = await prisma.cartItem.findMany({
       where: {
-        cartId_menuItemId: {
-          cartId: cart.id,
-          menuItemId: data.menuItemId,
-        },
+        cartId: cart.id,
+        menuItemId: data.menuItemId,
+        restaurantId: data.restaurantId,
       },
     });
 
-    if (existingItem && existingItem.restaurantId === data.restaurantId) {
-      // Update quantity if item already exists from same restaurant
-      return await prisma.cartItem.update({
-        where: { id: existingItem.id },
-        data: {
-          quantity: existingItem.quantity + data.quantity,
-          ...(data.specialNotes && { specialNotes: data.specialNotes }),
-        },
-        include: {
-          menuItem: true,
-          restaurant: {
-            include: { user: true },
+    // Normalize selections for comparison
+    const normalizeSelections = (variations?: any[], addOns?: any[]) => {
+      const normVars = variations
+        ? JSON.stringify(
+            variations
+              .map((v) => ({ variationId: v.variationId, selectedOptionId: v.selectedOptionId }))
+              .sort((a, b) => a.variationId.localeCompare(b.variationId))
+          )
+        : "[]";
+      const normAddOns = addOns
+        ? JSON.stringify(
+            addOns
+              .map((a) => ({
+                addOnId: a.addOnId,
+                selectedOptionIds: a.selectedOptionIds.sort(),
+              }))
+              .sort((a, b) => a.addOnId.localeCompare(b.addOnId))
+          )
+        : "[]";
+      return `${normVars}|${normAddOns}`;
+    };
+
+    const newSelectionKey = normalizeSelections(data.selectedVariations, data.selectedAddOns);
+
+    // Check if an item with the same selections exists
+    for (const existingItem of existingItems) {
+      const existingVariations = existingItem.selectedVariations
+        ? (existingItem.selectedVariations as Array<{ variationId: string; selectedOptionId: string }>)
+        : [];
+      const existingAddOns = existingItem.selectedAddOns
+        ? (existingItem.selectedAddOns as Array<{ addOnId: string; selectedOptionIds: string[] }>)
+        : [];
+
+      const existingSelectionKey = normalizeSelections(existingVariations, existingAddOns);
+
+      if (existingSelectionKey === newSelectionKey) {
+        // Update quantity if item already exists with same configuration
+        return await prisma.cartItem.update({
+          where: { id: existingItem.id },
+          data: {
+            quantity: existingItem.quantity + data.quantity,
+            ...(data.specialNotes && { specialNotes: data.specialNotes }),
           },
-        },
-      });
+          include: {
+            menuItem: true,
+            restaurant: {
+              include: { user: true },
+            },
+          },
+        });
+      }
     }
 
-    // Create new cart item
+    // Create new cart item with variations and add-ons
     return await prisma.cartItem.create({
       data: {
         cartId: cart.id,
@@ -130,6 +210,8 @@ export const cartService = {
         restaurantId: data.restaurantId,
         quantity: data.quantity,
         specialNotes: data.specialNotes || null,
+        selectedVariations: data.selectedVariations ? (data.selectedVariations as any) : null,
+        selectedAddOns: data.selectedAddOns ? (data.selectedAddOns as any) : null,
       },
       include: {
         menuItem: true,
@@ -233,13 +315,53 @@ export const cartService = {
 
     let totalPrice = 0;
 
-    cart.items.forEach((item: any) => {
+    for (const item of cart.items) {
       if (!item || !item.menuItem || !item.restaurantId) {
-        return; // Skip invalid items
+        continue; // Skip invalid items
       }
 
       const restId = item.restaurantId;
-      const itemTotal = Number(item.menuItem.price || 0) * (item.quantity || 0);
+      
+      // Calculate item price including variations and add-ons
+      let itemUnitPrice = Number(item.menuItem.price || 0);
+      
+      // Add variation option prices
+      if (item.selectedVariations) {
+        const variations = item.selectedVariations as Array<{ variationId: string; selectedOptionId: string }>;
+        for (const variation of variations) {
+          try {
+            const option = await prisma.variationOption.findUnique({
+              where: { id: variation.selectedOptionId },
+            });
+            if (option) {
+              itemUnitPrice += option.priceModifier.toNumber();
+            }
+          } catch (error) {
+            // Option not found, skip
+          }
+        }
+      }
+      
+      // Add add-on option prices
+      if (item.selectedAddOns) {
+        const addOns = item.selectedAddOns as Array<{ addOnId: string; selectedOptionIds: string[] }>;
+        for (const addOn of addOns) {
+          for (const optionId of addOn.selectedOptionIds) {
+            try {
+              const option = await prisma.addOnOption.findUnique({
+                where: { id: optionId },
+              });
+              if (option) {
+                itemUnitPrice += option.price.toNumber();
+              }
+            } catch (error) {
+              // Option not found, skip
+            }
+          }
+        }
+      }
+      
+      const itemTotal = itemUnitPrice * (item.quantity || 0);
       totalPrice += itemTotal;
 
       if (!restaurantMap.has(restId)) {
@@ -254,7 +376,7 @@ export const cartService = {
       const restaurant = restaurantMap.get(restId)!;
       restaurant.items.push(item);
       restaurant.subtotal += itemTotal;
-    });
+    }
 
     return {
       cartId: cart.id || "",
