@@ -12,10 +12,167 @@ const swaggerDefinition = {
     },
     servers: [
         {
+            // The application mounts API routes under `/api` in `app.ts`.
+            // Point Swagger requests to the mounted API so "Try it" calls hit the correct paths.
             url: "http://localhost:5000/api",
-            description: "Development server",
+            description: "Development server (API root)",
         },
     ],
+    paths: {
+        "/restaurant/{restaurantId}/gallery": {
+            post: {
+                tags: ["Restaurants"],
+                summary: "Upload gallery images for a restaurant",
+                parameters: [
+                    {
+                        name: "restaurantId",
+                        in: "path",
+                        required: true,
+                        schema: { type: "string" },
+                        description: "Restaurant (user) id",
+                    },
+                ],
+                requestBody: {
+                    required: false,
+                    content: {
+                        "multipart/form-data": {
+                            schema: {
+                                type: "object",
+                                properties: {
+                                    images: {
+                                        type: "array",
+                                        items: { type: "string", format: "binary" },
+                                        description: "One or more image files",
+                                    },
+                                    imageUrls: {
+                                        type: "string",
+                                        description: "Optional comma-separated image URLs or JSON array string",
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+                responses: {
+                    "200": {
+                        description: "Gallery images added",
+                        content: {
+                            "application/json": {
+                                schema: { type: "array", items: { $ref: "#/components/schemas/RestaurantGallery" } },
+                            },
+                        },
+                    },
+                    "400": { description: "Bad request", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+                },
+                security: [{ cookieAuth: [] }],
+            },
+        },
+        "/restaurant/{restaurantId}/gallery/{galleryId}": {
+            delete: {
+                tags: ["Restaurants"],
+                summary: "Delete a gallery image",
+                parameters: [
+                    { name: "restaurantId", in: "path", required: true, schema: { type: "string" } },
+                    { name: "galleryId", in: "path", required: true, schema: { type: "string" } },
+                ],
+                responses: {
+                    "200": { description: "Deleted gallery image", content: { "application/json": { schema: { $ref: "#/components/schemas/RestaurantGallery" } } } },
+                    "404": { description: "Not found", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+                },
+                security: [{ cookieAuth: [] }],
+            },
+        },
+        "/restaurant/test/{restaurantId}": {
+            get: {
+                tags: ["Restaurants"],
+                summary: "Get test bundle for a restaurant (details + explore + gallery + story)",
+                parameters: [{ name: "restaurantId", in: "path", required: true, schema: { type: "string" } }],
+                responses: {
+                    "200": { description: "Test bundle", content: { "application/json": { schema: { $ref: "#/components/schemas/TestRestaurantBundle" } } } },
+                },
+            },
+        },
+        "/explore/restaurants": {
+            get: {
+                tags: ["Restaurants"],
+                summary: "Get explore restaurants (cards)",
+                responses: {
+                    "200": { description: "List of explore restaurants", content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/ExploreRestaurantSummary" } } } } },
+                },
+            },
+        },
+        "/explore/restaurants/{restaurantId}": {
+            get: {
+                tags: ["Restaurants"],
+                summary: "Get explore restaurant detail",
+                parameters: [{ name: "restaurantId", in: "path", required: true, schema: { type: "string" } }],
+                responses: {
+                    "200": { description: "Explore restaurant detail", content: { "application/json": { schema: { $ref: "#/components/schemas/ExploreRestaurantDetail" } } } },
+                },
+            },
+        },
+        "/explore/restaurants/{restaurantId}/gallery": {
+            get: {
+                tags: ["Restaurants"],
+                summary: "Get only gallery images for an explore restaurant",
+                parameters: [{ name: "restaurantId", in: "path", required: true, schema: { type: "string" } }],
+                responses: {
+                    "200": { description: "Gallery images", content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/RestaurantGallery" } } } } },
+                },
+            },
+        },
+        "/explore/restaurants/{restaurantId}/story": {
+            get: {
+                tags: ["Restaurants"],
+                summary: "Get only story for an explore restaurant",
+                parameters: [{ name: "restaurantId", in: "path", required: true, schema: { type: "string" } }],
+                responses: {
+                    "200": { description: "Story text", content: { "application/json": { schema: { type: "object", properties: { story: { type: "string", nullable: true } } } } } },
+                },
+            },
+        },
+        "/search": {
+            get: {
+                tags: ["Search"],
+                summary: "Search restaurants or foods by query string",
+                parameters: [
+                    { name: "q", in: "query", required: true, schema: { type: "string" }, description: "Search query string" }
+                ],
+                responses: {
+                    "200": {
+                        description: "Search results (restaurants list)",
+                        content: {
+                            "application/json": {
+                                schema: {
+                                    type: "object",
+                                    properties: {
+                                        success: { type: "boolean" },
+                                        totalResults: { type: "integer" },
+                                        data: {
+                                            type: "array",
+                                            items: {
+                                                type: "object",
+                                                properties: {
+                                                    id: { type: "string" },
+                                                    name: { type: "string" },
+                                                    image: { type: "string", nullable: true },
+                                                    location: { type: "string", nullable: true },
+                                                    isFavorite: { type: "boolean" },
+                                                    cuisine: { type: "string", nullable: true },
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": { description: "No restaurant results found - returns 'Sorry Not found'" },
+                    "400": { description: "Invalid request" },
+                }
+            }
+        },
+    },
     components: {
         securitySchemes: {
             cookieAuth: {
@@ -502,6 +659,11 @@ const swaggerDefinition = {
                         description: "Banner image URL (optional, if not uploading a file). Can also be uploaded as a file using multipart/form-data with field name 'banner'.",
                         example: "https://example.com/restaurant-banner.jpg",
                     },
+                    cuisineCategoryId: {
+                        type: "string",
+                        description: "Optional cuisine category id (references CuisineCategory)",
+                        example: "123e4567-e89b-12d3-a456-426614174000",
+                    },
                     description: {
                         type: "string",
                         description: "Restaurant description (optional)",
@@ -532,6 +694,11 @@ const swaggerDefinition = {
                         type: "string",
                         description: "Banner image URL (optional, if not uploading a file). Can also be uploaded as a file using multipart/form-data with field name 'banner'.",
                         example: "https://example.com/updated-banner.jpg",
+                    },
+                    cuisineCategoryId: {
+                        type: "string",
+                        description: "Optional cuisine category id (references CuisineCategory)",
+                        example: "123e4567-e89b-12d3-a456-426614174000",
                     },
                     description: {
                         type: "string",
@@ -564,6 +731,17 @@ const swaggerDefinition = {
                         description: "Main cuisine category",
                         example: "CHINESE",
                     },
+                    name: {
+                        type: "string",
+                        description: "Restaurant name",
+                        example: "John's Noodles",
+                    },
+                    cuisineCategoryId: {
+                        type: "string",
+                        nullable: true,
+                        description: "Cuisine category id assigned to this restaurant (nullable)",
+                        example: "123e4567-e89b-12d3-a456-426614174000",
+                    },
                     banner: {
                         type: "string",
                         nullable: true,
@@ -582,6 +760,13 @@ const swaggerDefinition = {
                         description: "Restaurant location within the mall",
                         example: "Food Court, Level 2",
                     },
+                    gallery: {
+                        type: "array",
+                        description: "List of gallery images for this restaurant (if any)",
+                        items: {
+                            $ref: "#/components/schemas/RestaurantGallery",
+                        },
+                    },
                     createdAt: {
                         type: "string",
                         format: "date-time",
@@ -594,6 +779,54 @@ const swaggerDefinition = {
                         description: "Last update timestamp",
                         example: "2024-01-01T00:00:00.000Z",
                     },
+                },
+            },
+            RestaurantGallery: {
+                type: "object",
+                description: "Single gallery image entry for a restaurant",
+                properties: {
+                    id: {
+                        type: "string",
+                        description: "Gallery image id",
+                        example: "gallery-001",
+                    },
+                    imageUrl: {
+                        type: "string",
+                        description: "Image path or URL",
+                        example: "/uploads/restaurants/gallery-001.jpg",
+                    },
+                },
+            },
+            ExploreRestaurantSummary: {
+                type: "object",
+                description: "Minimal restaurant card used in Explore lists",
+                properties: {
+                    userId: { type: "string" },
+                    name: { type: "string" },
+                    banner: { type: "string", nullable: true },
+                    mainCategory: { type: "string" },
+                    cuisineCategoryId: { type: "string", nullable: true },
+                    description: { type: "string", nullable: true },
+                    location: { type: "string", nullable: true },
+                },
+            },
+            ExploreRestaurantDetail: {
+                type: "object",
+                description: "Detailed explore response for a single restaurant",
+                properties: {
+                    restaurant: { $ref: "#/components/schemas/Restaurant" },
+                    story: { type: "string", nullable: true },
+                    gallery: { type: "array", items: { $ref: "#/components/schemas/RestaurantGallery" } },
+                },
+            },
+            TestRestaurantBundle: {
+                type: "object",
+                description: "Combined bundle for testing: details, explore-format data, gallery and story",
+                properties: {
+                    details: { $ref: "#/components/schemas/Restaurant" },
+                    explore: { $ref: "#/components/schemas/ExploreRestaurantSummary" },
+                    gallery: { type: "array", items: { $ref: "#/components/schemas/RestaurantGallery" } },
+                    story: { type: "string", nullable: true },
                 },
             },
             // Menu Schemas

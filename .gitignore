@@ -4,7 +4,7 @@ node_modules
 # Environment Variables
 .env
 
-
+# Migrations
 
 
 # Media

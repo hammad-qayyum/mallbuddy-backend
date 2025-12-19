@@ -7,6 +7,9 @@ import cityRoutes from "../modules/location/city/city.routes";
 import mallRoutes from "../modules/location/malls/mall.routes";
 import cuisineRoutes from "../modules/cuisine/cuisine.routes";
 import restaurantRoutes from "../modules/restaurant/restaurant.routes";
+import exploreRoutes from "../modules/restaurant/explore.routes";
+import galleryRoutes from "../modules/restaurant/gallery.routes";
+import searchRoutes from "../modules/search/search.routes";
 import menuRoutes from "../modules/menu/menu.routes";
 import cartRoutes from "../modules/cart/cart.routes";
 import favouriteCartRoutes from "../modules/favourite-cart/favourite-cart.routes";
@@ -39,6 +42,17 @@ router.use("/malls", mallRoutes);
 router.use("/", cuisineRoutes);
 
 // Restaurant routes
+
+// Mount explore routes under `/explore` to separate public Explore APIs
+router.use("/explore", exploreRoutes);
+
+// Gallery routes (separate file)
+router.use("/", galleryRoutes);
+
+// Search routes
+router.use("/", searchRoutes);
+
+// Restaurant admin / owner routes
 router.use("/", restaurantRoutes);
 
 // Menu routes
@@ -83,5 +97,36 @@ router.use("/favourite-carts", favouriteCartRoutes);
 router.get("/", (req, res) => {
     res.json({message: "Mall Delivery Backend API is running"});
 });
+
+// Debug helper: list registered routes under this router
+router.get('/restaurant/debug/routes', (req, res) => {
+    try {
+        // iterate router stack and collect routes
+        // @ts-ignore
+        const stack = (router as any).stack || (router as any)._router?.stack || [];
+        const routes: string[] = [];
+
+        // express Router stores layers differently; inspect both possibilities
+        stack.forEach((layer: any) => {
+            if (layer.route && layer.route.path) {
+                const methods = Object.keys(layer.route.methods || {}).map(m => m.toUpperCase()).join(',');
+                routes.push(`${methods} ${layer.route.path}`);
+            } else if (layer.name === 'router' && layer.handle && layer.handle.stack) {
+                layer.handle.stack.forEach((r: any) => {
+                    if (r.route && r.route.path) {
+                        const methods = Object.keys(r.route.methods || {}).map((m: any) => m.toUpperCase()).join(',');
+                        routes.push(`${methods} ${r.route.path}`);
+                    }
+                });
+            }
+        });
+
+        res.json({ success: true, routes });
+    } catch (err) {
+        res.status(500).json({ success: false, error: String(err) });
+    }
+});
+
+
 
 export default router;

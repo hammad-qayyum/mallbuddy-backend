@@ -74,6 +74,11 @@ export const uploadRestaurantBanner = multer({
   ...multerOptions,
 });
 
+export const uploadRestaurantGallery = multer({
+  storage: createStorage(uploadDirs.restaurants),
+  ...multerOptions,
+});
+
 export const uploadMallImage = multer({
   storage: createStorage(uploadDirs.malls),
   ...multerOptions,
