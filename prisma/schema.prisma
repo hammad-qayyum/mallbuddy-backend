@@ -129,11 +129,20 @@ model Restaurant {
   mallId             String
   menuCategories     MenuCategory[]
   cartItems          CartItem[]
+  gallery            RestaurantGallery[]
   favouriteCartItems FavouriteCartItem[]
   orders             Order[]
 
   user User @relation(fields: [userId], references: [id])
   mall Mall @relation(fields: [mallId], references: [id])
+}
+
+model RestaurantGallery {
+  id           String     @id @default(cuid())
+  restaurantId String
+  imageUrl     String
+  createdAt    DateTime   @default(now())
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [userId])
 }
 
 model CuisineCategory {

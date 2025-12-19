@@ -6,7 +6,7 @@ export const checkoutSchema = z.object({
   userId: z.string().min(1, "User ID is required"),
   deliveryAddressId: z.string().min(1, "Delivery address ID is required").uuid("Invalid address ID"),
   paymentMethod: z.enum(["CASH", "CARD", "WALLET", "ONLINE"], {
-    errorMap: () => ({ message: "Invalid payment method" }),
+    message: "Invalid payment method",
   }),
   specialInstructions: z.string().optional().nullable(),
   appliedDiscount: z.number().min(0).default(0),
@@ -17,7 +17,7 @@ export const checkoutSchema = z.object({
 // Schema for updating order status
 export const updateOrderStatusSchema = z.object({
   status: z.enum(["PENDING", "ACCEPTED", "PREPARING", "READY", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED"], {
-    errorMap: () => ({ message: "Invalid order status" }),
+    message: "Invalid order status",
   }),
   estimatedDeliveryTime: z.string().optional(),
 });

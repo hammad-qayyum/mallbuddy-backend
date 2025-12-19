@@ -12,8 +12,8 @@ import cartRoutes from "../modules/cart/cart.routes";
 import favouriteCartRoutes from "../modules/favourite-cart/favourite-cart.routes";
 import productDetailRoutes from "../modules/product-detail/product-detail.routes";
 import checkoutRoutes from "../modules/checkout/checkout.routes";
-import orderDetailRoutes from "../modules/order-detail/order-detail.routes";
 import trackOrderRoutes from "../modules/track-order/track-order.routes";
+import ordersRoutes from "../modules/orders/orders.routes";
 
 const router = Router();
 
@@ -53,11 +53,11 @@ router.use("/cart", cartRoutes);
 // Checkout routes
 router.use("/checkout", checkoutRoutes);
 
-// Order Detail routes
-router.use("/order-detail", orderDetailRoutes);
-
 // Track Order routes
 router.use("/track-order", trackOrderRoutes);
+
+// Orders routes (active, past, cancel, reorder)
+router.use("/orders", ordersRoutes);
 
 // Favourite Cart routes (last)
 router.use("/favourite-carts", favouriteCartRoutes);
