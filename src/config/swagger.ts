@@ -18,10 +18,11 @@ const swaggerDefinition = {
             description: "Development server (API root)",
         },
     ],
+    // top-level tags are declared further below in the file; avoid duplicate `tags` keys
     paths: {
         "/restaurant/{restaurantId}/gallery": {
             post: {
-                tags: ["Restaurants"],
+                tags: ["Gallery"],
                 summary: "Upload gallery images for a restaurant",
                 parameters: [
                     {
@@ -69,7 +70,7 @@ const swaggerDefinition = {
         },
         "/restaurant/{restaurantId}/gallery/{galleryId}": {
             delete: {
-                tags: ["Restaurants"],
+                tags: ["Gallery"],
                 summary: "Delete a gallery image",
                 parameters: [
                     { name: "restaurantId", in: "path", required: true, schema: { type: "string" } },
@@ -82,19 +83,9 @@ const swaggerDefinition = {
                 security: [{ cookieAuth: [] }],
             },
         },
-        "/restaurant/test/{restaurantId}": {
-            get: {
-                tags: ["Restaurants"],
-                summary: "Get test bundle for a restaurant (details + explore + gallery + story)",
-                parameters: [{ name: "restaurantId", in: "path", required: true, schema: { type: "string" } }],
-                responses: {
-                    "200": { description: "Test bundle", content: { "application/json": { schema: { $ref: "#/components/schemas/TestRestaurantBundle" } } } },
-                },
-            },
-        },
         "/explore/restaurants": {
             get: {
-                tags: ["Restaurants"],
+                tags: ["Explore"],
                 summary: "Get explore restaurants (cards)",
                 responses: {
                     "200": { description: "List of explore restaurants", content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/ExploreRestaurantSummary" } } } } },
@@ -103,7 +94,7 @@ const swaggerDefinition = {
         },
         "/explore/restaurants/{restaurantId}": {
             get: {
-                tags: ["Restaurants"],
+                tags: ["Explore"],
                 summary: "Get explore restaurant detail",
                 parameters: [{ name: "restaurantId", in: "path", required: true, schema: { type: "string" } }],
                 responses: {
@@ -113,7 +104,7 @@ const swaggerDefinition = {
         },
         "/explore/restaurants/{restaurantId}/gallery": {
             get: {
-                tags: ["Restaurants"],
+                tags: ["Gallery"],
                 summary: "Get only gallery images for an explore restaurant",
                 parameters: [{ name: "restaurantId", in: "path", required: true, schema: { type: "string" } }],
                 responses: {
@@ -123,7 +114,7 @@ const swaggerDefinition = {
         },
         "/explore/restaurants/{restaurantId}/story": {
             get: {
-                tags: ["Restaurants"],
+                tags: ["Explore"],
                 summary: "Get only story for an explore restaurant",
                 parameters: [{ name: "restaurantId", in: "path", required: true, schema: { type: "string" } }],
                 responses: {
@@ -797,6 +788,117 @@ const swaggerDefinition = {
                     },
                 },
             },
+            RestaurantInfo: {
+                type: "object",
+                description: "Restaurant information with address, phone, delivery time and business hours",
+                properties: {
+                    success: {
+                        type: "boolean",
+                        example: true,
+                    },
+                    data: {
+                        type: "object",
+                        properties: {
+                            userId: {
+                                type: "string",
+                                description: "Restaurant ID (same as userId)",
+                                example: "123e4567-e89b-12d3-a456-426614174000",
+                            },
+                            name: {
+                                type: "string",
+                                description: "Restaurant name",
+                                example: "John's Noodles",
+                            },
+                            address: {
+                                type: "string",
+                                nullable: true,
+                                description: "Restaurant address",
+                                example: "123 Main Street, Food Court Level 2",
+                            },
+                            phoneNumber: {
+                                type: "string",
+                                nullable: true,
+                                description: "Restaurant phone number",
+                                example: "+1-555-123-4567",
+                            },
+                            estimatedDeliveryTime: {
+                                type: "string",
+                                nullable: true,
+                                description: "Estimated delivery time",
+                                example: "30-45 mins",
+                            },
+                            banner: {
+                                type: "string",
+                                nullable: true,
+                                description: "Restaurant banner image URL",
+                                example: "/uploads/restaurants/banner-001.jpg",
+                            },
+                            description: {
+                                type: "string",
+                                nullable: true,
+                                description: "Restaurant description",
+                                example: "Authentic Chinese cuisine",
+                            },
+                            businessHours: {
+                                type: "array",
+                                description: "Business hours for each day of the week",
+                                items: {
+                                    $ref: "#/components/schemas/BusinessHours",
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            BusinessHours: {
+                type: "object",
+                description: "Business hours for a specific day",
+                properties: {
+                    id: {
+                        type: "string",
+                        description: "Business hours record ID",
+                        example: "hours-001",
+                    },
+                    restaurantId: {
+                        type: "string",
+                        description: "Restaurant ID",
+                        example: "123e4567-e89b-12d3-a456-426614174000",
+                    },
+                    dayOfWeek: {
+                        type: "string",
+                        enum: ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"],
+                        description: "Day of the week",
+                        example: "MONDAY",
+                    },
+                    openTime: {
+                        type: "string",
+                        description: "Opening time in HH:mm format (24-hour)",
+                        example: "09:00",
+                    },
+                    closeTime: {
+                        type: "string",
+                        description: "Closing time in HH:mm format (24-hour)",
+                        example: "22:00",
+                    },
+                    isClosed: {
+                        type: "boolean",
+                        description: "Whether restaurant is closed on this day",
+                        example: false,
+                    },
+                    createdAt: {
+                        type: "string",
+                        format: "date-time",
+                        description: "Creation timestamp",
+                        example: "2024-01-01T00:00:00.000Z",
+                    },
+                    updatedAt: {
+                        type: "string",
+                        format: "date-time",
+                        description: "Last update timestamp",
+                        example: "2024-01-01T00:00:00.000Z",
+                    },
+                },
+            },
             ExploreRestaurantSummary: {
                 type: "object",
                 description: "Minimal restaurant card used in Explore lists",
@@ -817,16 +919,6 @@ const swaggerDefinition = {
                     restaurant: { $ref: "#/components/schemas/Restaurant" },
                     story: { type: "string", nullable: true },
                     gallery: { type: "array", items: { $ref: "#/components/schemas/RestaurantGallery" } },
-                },
-            },
-            TestRestaurantBundle: {
-                type: "object",
-                description: "Combined bundle for testing: details, explore-format data, gallery and story",
-                properties: {
-                    details: { $ref: "#/components/schemas/Restaurant" },
-                    explore: { $ref: "#/components/schemas/ExploreRestaurantSummary" },
-                    gallery: { type: "array", items: { $ref: "#/components/schemas/RestaurantGallery" } },
-                    story: { type: "string", nullable: true },
                 },
             },
             // Menu Schemas
@@ -2629,6 +2721,23 @@ const swaggerDefinition = {
         {
             name: "Favourite Cart",
             description: "Favourite cart management endpoints for saved orders",
+        },
+        // Additional tags for the new modules
+        {
+            name: "Explore",
+            description: "Public Explore APIs (restaurant cards, details, story)",
+        },
+        {
+            name: "Gallery",
+            description: "Restaurant gallery upload and management",
+        },
+        {
+            name: "Restaurant Info",
+            description: "Restaurant information and business hours management",
+        },
+        {
+            name: "Search",
+            description: "Search APIs",
         },
         {
             name: "Delivery Address",

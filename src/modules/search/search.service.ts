@@ -22,6 +22,7 @@ export const searchService = {
           location: true,
           isFavorite: true,
           cuisineCategoryId: true,
+          estimatedDeliveryTime: true,
         },
         take: 100,
       });
@@ -42,6 +43,7 @@ export const searchService = {
           location: r.location,
           isFavorite: !!r.isFavorite,
           cuisine: r.cuisineCategoryId ? cuisineMap.get(r.cuisineCategoryId)?.name ?? null : null,
+          estimatedDeliveryTime: r.estimatedDeliveryTime || null,
         }));
 
         return { restaurants, totalResults: restaurants.length };
@@ -65,7 +67,7 @@ export const searchService = {
 
       const restRows = await prisma.restaurant.findMany({
         where: { userId: { in: restaurantIds } },
-        select: { userId: true, name: true, banner: true, location: true, isFavorite: true, cuisineCategoryId: true },
+        select: { userId: true, name: true, banner: true, location: true, isFavorite: true, cuisineCategoryId: true, estimatedDeliveryTime: true },
       });
 
       const cuisineIds2 = Array.from(new Set(restRows.map((r) => r.cuisineCategoryId).filter(Boolean))) as string[];
@@ -82,6 +84,7 @@ export const searchService = {
         location: r.location,
         isFavorite: !!r.isFavorite,
         cuisine: r.cuisineCategoryId ? cuisineMap2.get(r.cuisineCategoryId)?.name ?? null : null,
+        estimatedDeliveryTime: r.estimatedDeliveryTime || null,
       }));
 
       return { restaurants, totalResults: restaurants.length };

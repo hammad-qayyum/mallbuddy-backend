@@ -8,6 +8,7 @@ const uploadDirs = {
   menuItems: path.join(process.cwd(), "uploads", "menu-items"),
   cuisineCategories: path.join(process.cwd(), "uploads", "cuisine-categories"),
   restaurants: path.join(process.cwd(), "uploads", "restaurants"),
+  restaurantGallery: path.join(process.cwd(), "uploads", "restaurants", "gallery"),
   malls: path.join(process.cwd(), "uploads", "malls"),
 };
 
@@ -75,7 +76,7 @@ export const uploadRestaurantBanner = multer({
 });
 
 export const uploadRestaurantGallery = multer({
-  storage: createStorage(uploadDirs.restaurants),
+  storage: createStorage(uploadDirs.restaurantGallery),
   ...multerOptions,
 });
 
@@ -99,6 +100,10 @@ export const getCuisineCategoryImageUrl = (filename: string): string => {
 
 export const getRestaurantBannerUrl = (filename: string): string => {
   return `/uploads/restaurants/${filename}`;
+};
+
+export const getRestaurantGalleryUrl = (filename: string): string => {
+  return `/uploads/restaurants/gallery/${filename}`;
 };
 
 export const getMallImageUrl = (filename: string): string => {

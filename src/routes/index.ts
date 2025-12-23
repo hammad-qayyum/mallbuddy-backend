@@ -7,10 +7,12 @@ import cityRoutes from "../modules/location/city/city.routes";
 import mallRoutes from "../modules/location/malls/mall.routes";
 import cuisineRoutes from "../modules/cuisine/cuisine.routes";
 import restaurantRoutes from "../modules/restaurant/restaurant.routes";
-import exploreRoutes from "../modules/restaurant/explore.routes";
-import galleryRoutes from "../modules/restaurant/gallery.routes";
+import restaurantInfoRoutes from "../modules/restaurant-info/restaurant-info.routes";
+import exploreRoutes from "../modules/explore/explore.routes";
+import galleryRoutes from "../modules/gallery/gallery.routes";
 import searchRoutes from "../modules/search/search.routes";
 import menuRoutes from "../modules/menu/menu.routes";
+import menuSearchRoutes from "../modules/menu-search/menu-search.routes";
 import cartRoutes from "../modules/cart/cart.routes";
 import favouriteCartRoutes from "../modules/favourite-cart/favourite-cart.routes";
 import productDetailRoutes from "../modules/product-detail/product-detail.routes";
@@ -18,6 +20,7 @@ import checkoutRoutes from "../modules/checkout/checkout.routes";
 import deliveryAddressRoutes from "../modules/delivery-address/delivery-address.routes";
 import trackOrderRoutes from "../modules/track-order/track-order.routes";
 import ordersRoutes from "../modules/orders/orders.routes";
+import promoCodeRoutes from "../modules/promo-code/promo-code.routes";
 import paymentMethodRoutes from "../modules/payments/payment-method/paymentMethod.routes";
 
 const router = Router();
@@ -44,6 +47,10 @@ router.use("/malls", mallRoutes);
 router.use("/", cuisineRoutes);
 
 // Restaurant routes
+router.use("/", restaurantRoutes);
+
+// Restaurant Info routes (personal info and business hours)
+router.use("/", restaurantInfoRoutes);
 
 // Mount explore routes under `/explore` to separate public Explore APIs
 router.use("/explore", exploreRoutes);
@@ -54,10 +61,13 @@ router.use("/", galleryRoutes);
 // Search routes
 router.use("/", searchRoutes);
 
-// Restaurant admin / owner routes
-router.use("/", restaurantRoutes);
-
 // Menu routes
+router.use("/", menuRoutes);
+
+// Menu Search routes
+router.use("/", menuSearchRoutes);
+
+// Restaurant admin / owner routes
 router.use("/", menuRoutes);
 
 // Product Detail routes (before cart)
@@ -68,7 +78,8 @@ router.use("/cart", cartRoutes);
 
 // Checkout routes
 router.use("/checkout", checkoutRoutes);
-
+// Promo Code routes
+router.use("/", promoCodeRoutes);
 // Delivery Address routes
 router.use("/delivery-addresses", deliveryAddressRoutes);
 

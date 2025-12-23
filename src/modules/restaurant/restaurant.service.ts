@@ -9,8 +9,17 @@ import {
   GetRestaurantOrdersInput,
   GetOrderDetailsInput,
 } from "./restaurant.schema";
+import { exploreService } from "../explore/explore.service";
+import { galleryService } from "../gallery/gallery.service";
 
-const hasRestaurantGalleryModel = !!(prisma as any).restaurantGallery;
+function hasGalleryModel() {
+  try {
+    const m = (prisma as any).restaurantGallery;
+    return !!(m && typeof m.findMany === "function");
+  } catch (e) {
+    return false;
+  }
+}
 
 export const restaurantService = {
   // ============================
@@ -82,7 +91,7 @@ export const restaurantService = {
     // fetch gallery images via Prisma client
       // fetch gallery images via Prisma client if available, otherwise fallback to raw SQL
       let galleryRows: { id: string; imageUrl: string }[] = [];
-      if (hasRestaurantGalleryModel) {
+      if (hasGalleryModel()) {
         galleryRows = await (prisma as any).restaurantGallery.findMany({
           where: { restaurantId },
           select: { id: true, imageUrl: true },
@@ -157,284 +166,8 @@ export const restaurantService = {
     }
   },
 
-  // ============================
-  // Explore functionality
-  // ============================
-
-  /**
-   * Get list of restaurants for Explore cards
-   * Returns minimal info: userId, name, banner, favorite, cuisine category
-   */
-  async getExploreRestaurants(): Promise<any[]> {
-    try {
-      // fetch restaurants with cuisineCategoryId (relation not available on generated client select)
-      const restaurants = await prisma.restaurant.findMany({
-        select: {
-          userId: true,
-          name: true,
-          banner: true,
-          isFavorite: true,
-          cuisineCategoryId: true,
-        },
-        orderBy: { name: "asc" },
-      });
-
-      // load cuisine categories in a single query to avoid N+1
-      const cuisineIds = Array.from(new Set(restaurants.map((r) => r.cuisineCategoryId).filter(Boolean))) as string[];
-      const cuisineMap = new Map<string, { id: string; name: string }>();
-      if (cuisineIds.length) {
-        const cuisines = await prisma.cuisineCategory.findMany({ where: { id: { in: cuisineIds } } });
-        cuisines.forEach((c) => cuisineMap.set(c.id, { id: c.id, name: c.name }));
-      }
-
-      return restaurants.map((r) => ({
-        userId: r.userId,
-        name: r.name ?? "",
-        ...(r.banner != null ? { banner: r.banner } : {}),
-        isFavorite: r.isFavorite,
-        ...(r.cuisineCategoryId && cuisineMap.has(r.cuisineCategoryId)
-          ? { cuisineCategory: cuisineMap.get(r.cuisineCategoryId) }
-          : {}),
-      }));
-    } catch (err) {
-      console.error('[restaurantService] getExploreRestaurants error:', (err as any)?.stack || err);
-      throw err;
-    }
-  },
-
-  /**
-   * Get restaurant detail for Explore
-   * Returns story + gallery images
-   */
-  async getExploreRestaurantDetail(id: string): Promise<any | null> {
-    try {
-      const restaurant = await prisma.restaurant.findUnique({
-        where: { userId: id },
-        select: { userId: true, name: true, story: true },
-      });
-
-      if (!restaurant) return null;
-
-      // fetch gallery images via Prisma client if available, otherwise fallback to raw SQL
-      let galleryRows: { id: string; imageUrl: string }[] = [];
-      if (hasRestaurantGalleryModel) {
-        galleryRows = await (prisma as any).restaurantGallery.findMany({
-          where: { restaurantId: id },
-          select: { id: true, imageUrl: true },
-          orderBy: { createdAt: "asc" },
-        });
-      } else {
-        galleryRows = (await prisma.$queryRaw`
-          SELECT "id", "imageUrl"
-          FROM "RestaurantGallery"
-          WHERE "restaurantId" = ${id}
-          ORDER BY "createdAt" ASC
-        `) as { id: string; imageUrl: string }[];
-      }
-
-      const gallery = galleryRows.map((g) => ({ id: g.id, imageUrl: g.imageUrl }));
-
-      return {
-        userId: restaurant.userId,
-        name: restaurant.name ?? "",
-        gallery,
-        ...(restaurant.story != null ? { story: restaurant.story } : {}),
-      };
-    } catch (err) {
-      console.error('[restaurantService] getExploreRestaurantDetail error:', (err as any)?.stack || err, { id });
-      throw err;
-    }
-  },
-
-  /**
-   * Get restaurant gallery images
-   * Returns all ambiance/gallery images for the restaurant
-   */
-  async getRestaurantGallery(
-    id: string
-  ): Promise<{
-    userId: string;
-    name: string;
-    gallery: { id: string; imageUrl: string }[];
-  } | null> {
-    try {
-      const restaurant = await prisma.restaurant.findUnique({
-        where: { userId: id },
-        select: { userId: true, name: true },
-      });
-
-      if (!restaurant) return null;
-
-      // fetch gallery images via Prisma client if available, otherwise fallback to raw SQL
-      let galleryRows: { id: string; imageUrl: string }[] = [];
-      if (hasRestaurantGalleryModel) {
-        galleryRows = await (prisma as any).restaurantGallery.findMany({
-          where: { restaurantId: id },
-          select: { id: true, imageUrl: true },
-          orderBy: { createdAt: "asc" },
-        });
-      } else {
-        galleryRows = (await prisma.$queryRaw`
-          SELECT "id", "imageUrl"
-          FROM "RestaurantGallery"
-          WHERE "restaurantId" = ${id}
-          ORDER BY "createdAt" ASC
-        `) as { id: string; imageUrl: string }[];
-      }
-
-      const gallery = galleryRows.map((g) => ({ id: g.id, imageUrl: g.imageUrl }));
-
-      return {
-        userId: restaurant.userId,
-        name: restaurant.name ?? "",
-        gallery,
-      };
-    } catch (err) {
-      console.error('[restaurantService] getRestaurantGallery error:', (err as any)?.stack || err, { id });
-      throw err;
-    }
-  },
-
-  /**
-   * Get restaurant story
-   * Returns story/description about the restaurant
-   */
-  async getRestaurantStory(
-    id: string
-  ): Promise<{ userId: string; name: string; story?: string } | null> {
-    try {
-      const restaurant = await prisma.restaurant.findUnique({
-        where: { userId: id },
-        select: {
-          userId: true,
-          name: true,
-          story: true,
-        },
-      });
-
-      if (!restaurant) return null;
-
-      return {
-        userId: restaurant.userId,
-        name: restaurant.name ?? "",
-        ...(restaurant.story != null ? { story: restaurant.story } : {}),
-      };
-    } catch (err) {
-      console.error('[restaurantService] getRestaurantStory error:', (err as any)?.stack || err, { id });
-      throw err;
-    }
-  },
-
-  /**
-   * Add multiple gallery images for a restaurant.
-   * Accepts an array of image URLs (paths) and inserts them into RestaurantGallery.
-   */
-  async addGalleryImages(id: string, imageUrls: string[]) {
-    const restaurant = await prisma.restaurant.findUnique({ where: { userId: id }, select: { userId: true } });
-    if (!restaurant) return null;
-
-    if (!imageUrls || imageUrls.length === 0) return [];
-
-    console.log('[restaurantService] addGalleryImages called', { restaurantId: id, imageCount: imageUrls.length });
-
-    // Use Prisma client to insert gallery rows
-    try {
-      const createData = imageUrls.map((imageUrl) => ({ restaurantId: id, imageUrl }));
-      console.log('[restaurantService] creating gallery rows via createMany', { restaurantId: id, count: createData.length });
-      // createMany does not return created rows in Prisma, so we will create and then fetch
-      await (prisma as any).restaurantGallery.createMany({ data: createData });
-    } catch (err) {
-      console.error('[restaurantService] failed creating gallery rows via createMany', { restaurantId: id, error: (err as any)?.stack || err });
-      // fallback: try individual creates to surface specific failures
-      for (const imageUrl of imageUrls) {
-        try {
-          await (prisma as any).restaurantGallery.create({ data: { restaurantId: id, imageUrl } });
-        } catch (innerErr) {
-          console.error('[restaurantService] fallback create failed', { restaurantId: id, imageUrl, error: (innerErr as any)?.stack || innerErr });
-        }
-      }
-    }
-
-    try {
-      const all = await (prisma as any).restaurantGallery.findMany({
-        where: { restaurantId: id },
-        select: { id: true, imageUrl: true, createdAt: true },
-        orderBy: { createdAt: "asc" },
-      });
-      console.log('[restaurantService] addGalleryImages done, totalRows:', all.length);
-      return all;
-    } catch (err) {
-      console.error('[restaurantService] failed fetching gallery rows after insert', { restaurantId: id, error: (err as any)?.stack || err });
-      throw err;
-    }
-  },
-
-  /**
-   * Delete a gallery image by id for a given restaurant.
-   * Returns the deleted row (before deletion) or null if not found / not owned.
-   */
-  async deleteGalleryImage(restaurantId: string, galleryId: string) {
-    // Use Prisma model if available, otherwise fallback to raw SQL
-    let row: { id: string; restaurantId: string; imageUrl: string } | null = null;
-    if (hasRestaurantGalleryModel) {
-      row = await (prisma as any).restaurantGallery.findUnique({ where: { id: galleryId } });
-    } else {
-      const rows = (await prisma.$queryRaw`
-        SELECT "id", "restaurantId", "imageUrl"
-        FROM "RestaurantGallery"
-        WHERE "id" = ${galleryId}
-      `) as { id: string; restaurantId: string; imageUrl: string }[];
-      const row = rows && rows.length ? rows[0] : null;
-    }
-
-    if (!row) return null;
-    if (row.restaurantId !== restaurantId) return null;
-
-    // delete the DB row
-    if (hasRestaurantGalleryModel) {
-      await (prisma as any).restaurantGallery.delete({ where: { id: galleryId } });
-    } else {
-      await prisma.$queryRaw`
-        DELETE FROM "RestaurantGallery" WHERE "id" = ${galleryId}
-      `;
-    }
-
-    // delete file from disk when it's a local upload
-    if (row.imageUrl && row.imageUrl.startsWith("/uploads/")) {
-      try {
-        deleteImageFile(row.imageUrl);
-      } catch (e) {
-        // ignore
-      }
-    }
-
-    return { id: row.id, restaurantId: row.restaurantId, imageUrl: row.imageUrl };
-  },
-
-  /**
-   * Return a bundle of restaurant data useful for testing UI: details, explore detail, gallery, story
-   */
-  async getRestaurantTestBundle(id: string) {
-    console.log('[restaurantService] getRestaurantTestBundle called', { restaurantId: id });
-    const details = await this.getRestaurantDetails(id);
-    const explore = await this.getExploreRestaurantDetail(id);
-    const gallery = await this.getRestaurantGallery(id);
-    const story = await this.getRestaurantStory(id);
-    console.log('[restaurantService] getRestaurantTestBundle result', {
-      restaurantId: id,
-      detailsFound: !!details,
-      exploreFound: !!explore,
-      galleryFound: !!gallery,
-      storyFound: !!story,
-    });
-
-    return {
-      details,
-      explore,
-      gallery,
-      story,
-    };
-  },
+  // Explore & gallery functionality moved to dedicated modules (`/modules/explore` and `/modules/gallery`).
+  // See `exploreService` and `galleryService` for implementations.
 
   // Get all orders for a restaurant with optional status filter
   async getRestaurantOrders(input: GetRestaurantOrdersInput) {
