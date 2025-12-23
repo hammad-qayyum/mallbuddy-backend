@@ -8,41 +8,35 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role {
-  USER
-  ADMIN
-  RESTAURANT
-}
-
 model User {
-  id    String @id @default(uuid())
-  email String @unique
-  role  Role   @default(USER)
-
+  id                String              @id @default(uuid())
+  email             String              @unique
+  role              Role                @default(USER)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
   image             String?
+  Status            userStatus          @default(ACTIVE)
   firstName         String?
   lastName          String?
-  phoneNumber       String?  @unique
+  phoneNumber       String?             @unique
   name              String?
   emailVerified     Boolean?
   selectedCityId    String?
   selectedCountryId String?
   selectedMallId    String?
-
-  // Relations
-  country Country? @relation(fields: [selectedCountryId], references: [id])
-  city    City?    @relation(fields: [selectedCityId], references: [id])
-  mall    Mall?    @relation(fields: [selectedMallId], references: [id])
-
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  stripeCustomerId  String?             @unique
   accounts          Account[]
-  sessions          Session[]
-  restaurant        Restaurant?
   cart              Cart?
-  favouriteCarts    FavouriteCart[]
   deliveryAddresses DeliveryAddress[]
+  favouriteCarts    FavouriteCart[]
   orders            Order[]
+  restaurant        Restaurant?
+  sessions          Session[]
+  city              City?               @relation(fields: [selectedCityId], references: [id])
+  country           Country?            @relation(fields: [selectedCountryId], references: [id])
+  mall              Mall?               @relation(fields: [selectedMallId], references: [id])
+  paymentMethods    UserPaymentMethod[]
+  promoCodeUses     PromoCodeUse[]
 }
 
 model Account {
@@ -117,24 +111,56 @@ model Mall {
 }
 
 model Restaurant {
-  userId             String              @id
-  name               String?
-  mainCategory       String?
-  banner             String?
-  description        String?
-  story              String?
-  location           String?
-  cuisineCategoryId  String?
-  isFavorite         Boolean             @default(false)
-  mallId             String
-  menuCategories     MenuCategory[]
-  cartItems          CartItem[]
-  gallery            RestaurantGallery[]
-  favouriteCartItems FavouriteCartItem[]
-  orders             Order[]
+  userId                String              @id
+  name                  String?
+  mainCategory          String?
+  banner                String?
+  description           String?
+  story                 String?
+  location              String?
+  cuisineCategoryId     String?
+  isFavorite            Boolean             @default(false)
+  mallId                String
+  cartItems             CartItem[]
+  favouriteCartItems    FavouriteCartItem[]
+  menuCategories        MenuCategory[]
+  orders                Order[]
+  mall                  Mall                @relation(fields: [mallId], references: [id])
+  user                  User                @relation(fields: [userId], references: [id])
+  gallery               RestaurantGallery[]
+  cuisineCategory       CuisineCategory?    @relation(fields: [cuisineCategoryId], references: [id])
+  // New fields for personal and business information
+  address               String?
+  phoneNumber           String?
+  estimatedDeliveryTime String? // e.g., "30-45 mins"
+  businessHours         BusinessHours[]
+  promoCodes            PromoCode[]         @relation("PromoCodeRestaurants")
 
-  user User @relation(fields: [userId], references: [id])
-  mall Mall @relation(fields: [mallId], references: [id])
+  // Onboarding
+  onboardingCompleted   Boolean   @default(false)
+  onboardingCompletedAt DateTime?
+
+  // Subscriptions
+  subscriptions RestaurantSubscription[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+model BusinessHours {
+  id           String   @id @default(uuid())
+  restaurantId String
+  dayOfWeek    String // "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"
+  openTime     String // "09:00"
+  closeTime    String // "22:00"
+  isClosed     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
+
+  @@unique([restaurantId, dayOfWeek])
+  @@index([restaurantId])
 }
 
 model RestaurantGallery {
@@ -142,15 +168,98 @@ model RestaurantGallery {
   restaurantId String
   imageUrl     String
   createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @default(now()) @updatedAt
   restaurant   Restaurant @relation(fields: [restaurantId], references: [userId])
 }
 
+// Promo Code Model
+model PromoCode {
+  id                    String       @id @default(uuid())
+  code                  String       @unique // e.g., "PROMOCODE2025"
+  description           String? // e.g., "50%OFF"
+  discountType          DiscountType @default(PERCENTAGE) // PERCENTAGE or FIXED
+  discountValue         Decimal // e.g., 50 (for 50%) or 10 (for 10 OMR)
+  validFrom             DateTime
+  validUntil            DateTime
+  maxUses               Int? // null = unlimited
+  usedCount             Int          @default(0)
+  isActive              Boolean      @default(true)
+  minOrderAmount        Decimal? // Minimum order amount to apply promo
+  applicableToAll       Boolean      @default(true) // If false, only specific restaurants
+  applicableRestaurants Restaurant[] @relation("PromoCodeRestaurants") // Only if applicableToAll is false
+
+  // Tracking
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String? // Admin ID who created this
+
+  // Relations
+  orders        Order[]
+  promoCodeUses PromoCodeUse[]
+
+  @@index([code])
+  @@index([validUntil])
+  @@index([isActive])
+}
+
+// Promo Code Use Tracking
+model PromoCodeUse {
+  id             String   @id @default(uuid())
+  promoCodeId    String
+  orderId        String?
+  userId         String
+  appliedAt      DateTime @default(now())
+  discountAmount Decimal
+
+  promoCode PromoCode @relation(fields: [promoCodeId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order     Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([promoCodeId])
+  @@index([userId])
+  @@index([orderId])
+}
+
+model SubscriptionPlan {
+  id       String               @id @default(uuid())
+  name     String // e.g. "Basic", "Pro", "Premium"
+  price    Decimal // 5.99
+  interval SubscriptionInterval
+  features Json // Feature flags
+  isActive Boolean              @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions RestaurantSubscription[]
+}
+
+model RestaurantSubscription {
+  id           String @id @default(uuid())
+  restaurantId String
+  planId       String
+
+  startDate DateTime           @default(now())
+  endDate   DateTime?
+  status    SubscriptionStatus
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant       @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
+  plan       SubscriptionPlan @relation(fields: [planId], references: [id])
+
+  @@index([restaurantId])
+  @@index([status])
+}
+
 model CuisineCategory {
-  id     String  @id @default(uuid())
-  name   String
-  image  String?
-  mallId String
-  mall   Mall    @relation(fields: [mallId], references: [id])
+  id          String       @id @default(uuid())
+  name        String
+  image       String?
+  mallId      String
+  mall        Mall         @relation(fields: [mallId], references: [id])
+  restaurants Restaurant[] // Add this line
 }
 
 model MenuCategory {
@@ -163,232 +272,180 @@ model MenuCategory {
 }
 
 model MenuItem {
-  id              String  @id @default(uuid())
-  name            String
-  description     String?
-  price           Decimal
-  preparationTime String?
-  image           String?
-
+  id                 String              @id @default(uuid())
+  name               String
+  description        String?
+  price              Decimal
+  preparationTime    String?
+  image              String?
   categoryId         String
-  category           MenuCategory        @relation(fields: [categoryId], references: [id])
   cartItems          CartItem[]
   favouriteCartItems FavouriteCartItem[]
-  variations         ProductVariation[]
-  addOns             ProductAddOn[]
+  category           MenuCategory        @relation(fields: [categoryId], references: [id])
   orderItems         OrderItem[]
+  addOns             ProductAddOn[]
+  variations         ProductVariation[]
 }
 
-// ProductVariation (e.g., Small, Large, Extra Large)
 model ProductVariation {
-  id           String   @id @default(uuid())
+  id           String            @id @default(uuid())
   menuItemId   String
-  name         String // e.g., "Size", "Crust Type"
-  type         String // e.g., "RADIO", "CHECKBOX" - how to select
-  isRequired   Boolean  @default(true)
-  displayOrder Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  menuItem MenuItem          @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
-  options  VariationOption[]
+  name         String
+  type         String
+  isRequired   Boolean           @default(true)
+  displayOrder Int               @default(0)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  menuItem     MenuItem          @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  options      VariationOption[]
 
   @@index([menuItemId])
 }
 
-// VariationOption (e.g., Small - 0.00, Large - 2.50)
 model VariationOption {
-  id            String   @id @default(uuid())
+  id            String           @id @default(uuid())
   variationId   String
-  name          String // e.g., "Small", "Large"
-  priceModifier Decimal  @default(0) // Additional price for this option
-  displayOrder  Int      @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  variation ProductVariation @relation(fields: [variationId], references: [id], onDelete: Cascade)
+  name          String
+  priceModifier Decimal          @default(0)
+  displayOrder  Int              @default(0)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  variation     ProductVariation @relation(fields: [variationId], references: [id], onDelete: Cascade)
 
   @@index([variationId])
 }
 
-// ProductAddOn (e.g., Extra Toppings, Additional Sauces)
 model ProductAddOn {
-  id           String   @id @default(uuid())
+  id           String        @id @default(uuid())
   menuItemId   String
-  name         String // e.g., "Extra Toppings", "Additional Sauce"
-  isRequired   Boolean  @default(false)
-  maxSelection Int      @default(1) // Maximum number of add-ons to select
-  displayOrder Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  menuItem MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
-  options  AddOnOption[]
+  name         String
+  isRequired   Boolean       @default(false)
+  maxSelection Int           @default(1)
+  displayOrder Int           @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  options      AddOnOption[]
+  menuItem     MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
 
   @@index([menuItemId])
 }
 
-// AddOnOption (e.g., Pickled Red Cabbage - 0.50, Hummus - 0.40)
 model AddOnOption {
-  id           String   @id @default(uuid())
+  id           String       @id @default(uuid())
   addOnId      String
-  name         String // e.g., "Pickled red cabbage", "Hummus"
-  price        Decimal // Price of this add-on
-  displayOrder Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  addOn ProductAddOn @relation(fields: [addOnId], references: [id], onDelete: Cascade)
+  name         String
+  price        Decimal
+  displayOrder Int          @default(0)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  addOn        ProductAddOn @relation(fields: [addOnId], references: [id], onDelete: Cascade)
 
   @@index([addOnId])
 }
 
-// Cart (one cart per user)
 model Cart {
   id        String     @id @default(uuid())
   userId    String     @unique
-  items     CartItem[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
 }
 
-// CartItem (items in a cart)
 model CartItem {
-  id                 String   @id @default(uuid())
+  id                 String     @id @default(uuid())
   cartId             String
   restaurantId       String
   menuItemId         String
-  quantity           Int      @default(1)
+  quantity           Int        @default(1)
   specialNotes       String?
-  // Store selected variations and add-ons as JSON
-  // Format: [{"variationId": "...", "selectedOptionId": "..."}]
-  selectedVariations Json?
-  // Format: [{"addOnId": "...", "selectedOptionIds": ["...", "..."]}]
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
   selectedAddOns     Json?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  cart       Cart       @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  restaurant Restaurant @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
-  menuItem   MenuItem   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  selectedVariations Json?
+  cart               Cart       @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  menuItem           MenuItem   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  restaurant         Restaurant @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
 
   @@index([cartId])
   @@index([restaurantId])
   @@index([menuItemId])
 }
 
-// FavouriteCart (saved favorite carts for quick reordering)
 model FavouriteCart {
   id          String              @id @default(uuid())
   userId      String
-  name        String // Custom name for this favorite (e.g., "My Daily Order")
-  description String? // Optional description
-  items       FavouriteCartItem[] // Items in this favorite cart
+  name        String
+  description String?
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items       FavouriteCartItem[]
 
   @@index([userId])
 }
 
-// FavouriteCartItem (items in a favorite cart)
 model FavouriteCartItem {
-  id              String   @id @default(uuid())
-  favouriteCartId String
-  restaurantId    String
-  menuItemId      String
-  quantity        Int      @default(1)
-  specialNotes    String? // Special requests/notes
-  // Store selected variations and add-ons as JSON
-  // Format: [{"variationId": "...", "selectedOptionId": "..."}]
-  selectedVariations Json?
-  // Format: [{"addOnId": "...", "selectedOptionIds": ["...", "..."]}]
+  id                 String        @id @default(uuid())
+  favouriteCartId    String
+  restaurantId       String
+  menuItemId         String
+  quantity           Int           @default(1)
+  specialNotes       String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
   selectedAddOns     Json?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  favouriteCart FavouriteCart @relation(fields: [favouriteCartId], references: [id], onDelete: Cascade)
-  restaurant    Restaurant    @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
-  menuItem      MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  selectedVariations Json?
+  favouriteCart      FavouriteCart @relation(fields: [favouriteCartId], references: [id], onDelete: Cascade)
+  menuItem           MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  restaurant         Restaurant    @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
 
   @@index([favouriteCartId])
   @@index([restaurantId])
   @@index([menuItemId])
 }
 
-// Delivery Address (user's saved addresses)
 model DeliveryAddress {
   id         String   @id @default(uuid())
   userId     String
-  label      String? // e.g., "Home", "Office", "Address #1"
-  address    String // Full address
+  label      String?
+  address    String
   city       String?
   postalCode String?
   isDefault  Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-
-  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orders Order[]
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders     Order[]
 
   @@index([userId])
 }
 
-// Order Status Enum
-enum OrderStatus {
-  PENDING // Order placed, awaiting restaurant confirmation
-  ACCEPTED // Restaurant accepted the order
-  PREPARING // Restaurant is preparing the food
-  READY // Food is ready for pickup/delivery
-  OUT_FOR_DELIVERY // Out for delivery
-  DELIVERED // Order delivered
-  CANCELLED // Order cancelled
-}
-
-// Payment Method Enum
-enum PaymentMethod {
-  CASH
-  CARD
-  WALLET
-  ONLINE
-}
-
-// Order Model
 model Order {
-  id                String @id @default(uuid())
-  orderNumber       String @unique // e.g., "#1234"
-  userId            String
-  restaurantId      String
-  deliveryAddressId String
-
-  // Order Details
-  subtotal    Decimal // Sum of item prices
-  tax         Decimal @default(0)
-  deliveryFee Decimal @default(0)
-  discount    Decimal @default(0)
-  total       Decimal // Final total
-
-  // Payment & Delivery
-  paymentMethod         PaymentMethod @default(CASH)
-  status                OrderStatus   @default(PENDING)
-  estimatedDeliveryTime String? // e.g., "05:00 PM"
+  id                    String          @id @default(uuid())
+  orderNumber           String          @unique
+  userId                String
+  restaurantId          String
+  deliveryAddressId     String
+  subtotal              Decimal
+  tax                   Decimal         @default(0)
+  deliveryFee           Decimal         @default(0)
+  discount              Decimal         @default(0)
+  total                 Decimal
+  paymentMethod         PaymentMethod   @default(CASH)
+  status                OrderStatus     @default(PENDING)
+  estimatedDeliveryTime String?
   actualDeliveryTime    DateTime?
-
-  // Notes
-  specialInstructions String?
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  restaurant      Restaurant      @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
-  deliveryAddress DeliveryAddress @relation(fields: [deliveryAddressId], references: [id], onDelete: Cascade)
-  items           OrderItem[]
+  specialInstructions   String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  deliveryAddress       DeliveryAddress @relation(fields: [deliveryAddressId], references: [id], onDelete: Cascade)
+  restaurant            Restaurant      @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
+  user                  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items                 OrderItem[]
+  promoCodeId           String? // Applied promo code
+  promoCode             PromoCode?      @relation(fields: [promoCodeId], references: [id])
+  promoCodeUses         PromoCodeUse[]
 
   @@index([userId])
   @@index([restaurantId])
@@ -396,31 +453,83 @@ model Order {
   @@index([createdAt])
 }
 
-// Order Item (items in an order)
 model OrderItem {
   id                 String   @id @default(uuid())
   orderId            String
   menuItemId         String
   quantity           Int
-  unitPrice          Decimal // Price at time of order (includes base price + variations + add-ons)
-  totalPrice         Decimal // quantity * unitPrice
-  itemName           String // Snapshot of item name at order time
+  unitPrice          Decimal
+  totalPrice         Decimal
+  itemName           String
   specialNotes       String?
-  // Store selected variations and add-ons as JSON (snapshot at order time)
-  // Format: [{"variationId": "...", "selectedOptionId": "..."}]
-  selectedVariations Json?
-  // Format: [{"addOnId": "...", "selectedOptionIds": ["...", "..."]}]
-  selectedAddOns     Json?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
-
-  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  selectedAddOns     Json?
+  selectedVariations Json?
+  menuItem           MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  order              Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
   @@index([menuItemId])
 }
 
-// Add relations to User and Restaurant models
-// User.deliveryAddresses and User.orders will be added to the User model
-// Restaurant.orders will be added to the Restaurant model
+model UserPaymentMethod {
+  id         String   @id @default(uuid())
+  userId     String
+  stripePmId String   @unique
+  brand      String?
+  last4      String?
+  expMonth   Int?
+  expYear    Int?
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum Role {
+  USER
+  ADMIN
+  RESTAURANT
+}
+
+enum userStatus {
+  ACTIVE
+  BLOCKED
+}
+
+enum OrderStatus {
+  PENDING
+  ACCEPTED
+  PREPARING
+  READY
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  WALLET
+  ONLINE
+}
+
+// Discount Type Enum
+enum DiscountType {
+  PERCENTAGE
+  FIXED
+}
+
+enum SubscriptionInterval {
+  MONTHLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}

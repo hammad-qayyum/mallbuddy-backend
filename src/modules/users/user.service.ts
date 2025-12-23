@@ -13,6 +13,7 @@ import { hashPassword } from "better-auth/crypto";
 import { getProfilePictureUrl, deleteImageFile } from "../../config/upload";
 import path from "path";
 import fs from "fs";
+import { stripe } from "../../libs/stripe";
 
 export const userService = {
 
@@ -281,4 +282,40 @@ export const userService = {
           },
         });
       },
+
+       // Create Stripe customer for a user
+  async createStripeCustomer(userId: string) {
+    // 1️⃣ Fetch user from DB
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // 2️⃣ If already created, do NOT create again
+    if (user.stripeCustomerId) {
+      return user;
+    }
+
+    // 3️⃣ Create customer on Stripe
+    const customerData: { email: string; name?: string } = {
+      email: user.email,
+    };
+    
+    if (user.name) {
+      customerData.name = user.name;
+    }
+    
+    const customer = await stripe.customers.create(customerData);
+
+    // 4️⃣ Save Stripe customer ID in DB
+    return prisma.user.update({
+      where: { id: userId },
+      data: {
+        stripeCustomerId: customer.id,
+      },
+    });
+  },
     };

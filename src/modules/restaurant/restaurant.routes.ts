@@ -622,4 +622,424 @@ router.delete("/restaurant/delete/:restaurantId", restaurantController.delete);
  */
 router.get("/restaurant/get-menu/:restaurantId", restaurantController.getFullMenu);
 
+/**
+ * @swagger
+ * /restaurants/{restaurantId}/orders:
+ *   get:
+ *     summary: Get all orders for restaurant
+ *     tags: [Orders - Restaurant Screen]
+ *     description: |
+ *       Get all orders for a restaurant with optional status filtering and pagination.
+ *       Shows order summaries with customer info, items, and total amount.
+ *     parameters:
+ *       - in: path
+ *         name: restaurantId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Restaurant ID (same as user ID for restaurant)
+ *         example: "123e4567-e89b-12d3-a456-426614174000"
+ *       - in: query
+ *         name: status
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum:
+ *             - PENDING
+ *             - ACCEPTED
+ *             - PREPARING
+ *             - READY
+ *             - OUT_FOR_DELIVERY
+ *             - DELIVERED
+ *             - CANCELLED
+ *         description: Filter orders by status
+ *       - in: query
+ *         name: limit
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of records to fetch per page
+ *       - in: query
+ *         name: offset
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Number of records to skip for pagination
+ *     responses:
+ *       200:
+ *         description: Restaurant orders retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           orderNumber:
+ *                             type: string
+ *                           customerName:
+ *                             type: string
+ *                           customerPhone:
+ *                             type: string
+ *                             nullable: true
+ *                           status:
+ *                             type: string
+ *                             enum: [PENDING, ACCEPTED, PREPARING, READY, OUT_FOR_DELIVERY, DELIVERED, CANCELLED]
+ *                           totalAmount:
+ *                             type: number
+ *                           paymentMethod:
+ *                             type: string
+ *                           deliveryAddress:
+ *                             type: string
+ *                           deliveryCity:
+ *                             type: string
+ *                           estimatedDeliveryTime:
+ *                             type: string
+ *                             nullable: true
+ *                           specialInstructions:
+ *                             type: string
+ *                             nullable: true
+ *                           createdAt:
+ *                             type: string
+ *                             format: date-time
+ *                           items:
+ *                             type: array
+ *                             items:
+ *                               type: object
+ *                               properties:
+ *                                 id:
+ *                                   type: string
+ *                                 name:
+ *                                   type: string
+ *                                 quantity:
+ *                                   type: integer
+ *                                 unitPrice:
+ *                                   type: number
+ *                                 totalPrice:
+ *                                   type: number
+ *                                 image:
+ *                                   type: string
+ *                                   nullable: true
+ *                           itemCount:
+ *                             type: integer
+ *                     total:
+ *                       type: integer
+ *                       description: Total number of orders
+ *                     limit:
+ *                       type: integer
+ *                     offset:
+ *                       type: integer
+ *       400:
+ *         description: Invalid request parameters
+ *       404:
+ *         description: Restaurant not found
+ */
+router.get("/restaurants/:restaurantId/orders", restaurantController.getRestaurantOrders);
+
+/**
+ * @swagger
+ * /restaurants/{restaurantId}/orders/{orderId}:
+ *   get:
+ *     summary: Get detailed order information
+ *     tags: [Orders - Restaurant Screen]
+ *     description: |
+ *       Get complete details of a single order including customer info, items with variations/add-ons,
+ *       delivery address, and payment details.
+ *     parameters:
+ *       - in: path
+ *         name: restaurantId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Restaurant ID
+ *         example: "123e4567-e89b-12d3-a456-426614174000"
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Order ID
+ *         example: "123e4567-e89b-12d3-a456-426614174111"
+ *     responses:
+ *       200:
+ *         description: Order details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     orderNumber:
+ *                       type: string
+ *                     status:
+ *                       type: string
+ *                     totalAmount:
+ *                       type: number
+ *                     subtotal:
+ *                       type: number
+ *                     tax:
+ *                       type: number
+ *                     deliveryFee:
+ *                       type: number
+ *                     discount:
+ *                       type: number
+ *                     paymentMethod:
+ *                       type: string
+ *                     customer:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         phoneNumber:
+ *                           type: string
+ *                           nullable: true
+ *                         image:
+ *                           type: string
+ *                           nullable: true
+ *                     deliveryAddress:
+ *                       type: object
+ *                       properties:
+ *                         label:
+ *                           type: string
+ *                         address:
+ *                           type: string
+ *                         city:
+ *                           type: string
+ *                         postalCode:
+ *                           type: string
+ *                     items:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           name:
+ *                             type: string
+ *                           quantity:
+ *                             type: integer
+ *                           unitPrice:
+ *                             type: number
+ *                           totalPrice:
+ *                             type: number
+ *                           image:
+ *                             type: string
+ *                             nullable: true
+ *                           specialNotes:
+ *                             type: string
+ *                             nullable: true
+ *                           selectedVariations:
+ *                             type: object
+ *                             nullable: true
+ *                           selectedAddOns:
+ *                             type: object
+ *                             nullable: true
+ *       400:
+ *         description: Invalid order or restaurant ID
+ *       403:
+ *         description: Order does not belong to this restaurant
+ *       404:
+ *         description: Order not found
+ */
+router.get("/restaurants/:restaurantId/orders/:orderId", restaurantController.getRestaurantOrderDetails);
+
+/**
+ * @swagger
+ * /restaurants/{restaurantId}/orders/{orderId}/accept:
+ *   post:
+ *     summary: Accept a pending order
+ *     tags: [Orders - Restaurant Screen]
+ *     description: |
+ *       Accept a pending order. Order must be in PENDING status to be accepted.
+ *       This transitions the order to ACCEPTED status.
+ *     parameters:
+ *       - in: path
+ *         name: restaurantId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Restaurant ID
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Order ID
+ *     responses:
+ *       200:
+ *         description: Order accepted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     orderNumber:
+ *                       type: string
+ *                     status:
+ *                       type: string
+ *                     customerName:
+ *                       type: string
+ *       400:
+ *         description: Invalid request or order cannot be accepted
+ *       404:
+ *         description: Order not found
+ */
+router.post("/restaurants/:restaurantId/orders/:orderId/accept", restaurantController.acceptOrder);
+
+/**
+ * @swagger
+ * /restaurants/{restaurantId}/orders/{orderId}/decline:
+ *   post:
+ *     summary: Decline a pending or accepted order
+ *     tags: [Orders - Restaurant Screen]
+ *     description: |
+ *       Decline an order with a reason. Order must be in PENDING or ACCEPTED status.
+ *       This transitions the order to CANCELLED status with the decline reason stored.
+ *     parameters:
+ *       - in: path
+ *         name: restaurantId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [reason]
+ *             properties:
+ *               reason:
+ *                 type: string
+ *                 minLength: 3
+ *                 maxLength: 500
+ *                 description: Reason for declining the order
+ *                 example: "Out of stock for this item"
+ *     responses:
+ *       200:
+ *         description: Order declined successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     orderNumber:
+ *                       type: string
+ *                     status:
+ *                       type: string
+ *                     customerName:
+ *                       type: string
+ *                     reason:
+ *                       type: string
+ *       400:
+ *         description: Invalid request or order cannot be declined
+ *       404:
+ *         description: Order not found
+ */
+router.post("/restaurants/:restaurantId/orders/:orderId/decline", restaurantController.declineOrder);
+
+/**
+ * @swagger
+ * /restaurants/{restaurantId}/orders/{orderId}/status:
+ *   patch:
+ *     summary: Update order status
+ *     tags: [Orders - Restaurant Screen]
+ *     description: |
+ *       Update the status of an order. Valid transitions:
+ *       - PENDING → ACCEPTED
+ *       - ACCEPTED → PREPARING or CANCELLED
+ *       - PREPARING → READY
+ *       - READY → OUT_FOR_DELIVERY
+ *       - OUT_FOR_DELIVERY → DELIVERED
+ *     parameters:
+ *       - in: path
+ *         name: restaurantId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [status]
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [ACCEPTED, PREPARING, READY, OUT_FOR_DELIVERY, DELIVERED]
+ *                 description: New order status
+ *                 example: "READY"
+ *     responses:
+ *       200:
+ *         description: Order status updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     orderNumber:
+ *                       type: string
+ *                     status:
+ *                       type: string
+ *                     customerName:
+ *                       type: string
+ *       400:
+ *         description: Invalid status transition or request
+ *       404:
+ *         description: Order not found
+ */
+router.patch("/restaurants/:restaurantId/orders/:orderId/status", restaurantController.updateOrderStatus);
+
 export default router;

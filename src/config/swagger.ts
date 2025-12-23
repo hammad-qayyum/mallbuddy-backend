@@ -2065,6 +2065,512 @@ const swaggerDefinition = {
                     },
                 },
             },
+            // Delivery Address Schemas
+            DeliveryAddress: {
+                type: "object",
+                description: "Delivery address response",
+                properties: {
+                    id: {
+                        type: "string",
+                        format: "uuid",
+                        description: "Delivery address ID",
+                        example: "123e4567-e89b-12d3-a456-426614174000",
+                    },
+                    userId: {
+                        type: "string",
+                        description: "User ID",
+                    },
+                    label: {
+                        type: "string",
+                        nullable: true,
+                        description: "Address label (e.g., 'Home', 'Office')",
+                        example: "Home",
+                    },
+                    address: {
+                        type: "string",
+                        description: "Full address",
+                        example: "123 Main Street, Apartment 4B",
+                    },
+                    city: {
+                        type: "string",
+                        nullable: true,
+                        description: "City name",
+                        example: "New York",
+                    },
+                    postalCode: {
+                        type: "string",
+                        nullable: true,
+                        description: "Postal/ZIP code",
+                        example: "10001",
+                    },
+                    isDefault: {
+                        type: "boolean",
+                        description: "Is this the default address",
+                        example: true,
+                    },
+                    createdAt: {
+                        type: "string",
+                        format: "date-time",
+                        description: "Creation timestamp",
+                    },
+                    updatedAt: {
+                        type: "string",
+                        format: "date-time",
+                        description: "Last update timestamp",
+                    },
+                },
+            },
+            CreateDeliveryAddressRequest: {
+                type: "object",
+                required: ["address"],
+                description: "Request to create a delivery address",
+                properties: {
+                    userId: {
+                        type: "string",
+                        description: "User ID",
+                        example: "123e4567-e89b-12d3-a456-426614174000",
+                    },
+                    label: {
+                        type: "string",
+                        maxLength: 100,
+                        description: "Address label",
+                        example: "Home",
+                    },
+                    address: {
+                        type: "string",
+                        minLength: 1,
+                        maxLength: 500,
+                        description: "Full address",
+                        example: "123 Main Street, Apartment 4B",
+                    },
+                    city: {
+                        type: "string",
+                        maxLength: 100,
+                        description: "City name",
+                        example: "New York",
+                    },
+                    postalCode: {
+                        type: "string",
+                        maxLength: 20,
+                        description: "Postal/ZIP code",
+                        example: "10001",
+                    },
+                    isDefault: {
+                        type: "boolean",
+                        default: false,
+                        description: "Set as default address",
+                    },
+                },
+            },
+            UpdateDeliveryAddressRequest: {
+                type: "object",
+                description: "Request to update a delivery address",
+                properties: {
+                    label: {
+                        type: "string",
+                        maxLength: 100,
+                        description: "Updated label",
+                        example: "Office",
+                    },
+                    address: {
+                        type: "string",
+                        minLength: 1,
+                        maxLength: 500,
+                        description: "Updated address",
+                        example: "456 Business Ave, Suite 200",
+                    },
+                    city: {
+                        type: "string",
+                        maxLength: 100,
+                        nullable: true,
+                        description: "Updated city",
+                        example: "Los Angeles",
+                    },
+                    postalCode: {
+                        type: "string",
+                        maxLength: 20,
+                        nullable: true,
+                        description: "Updated postal code",
+                        example: "90001",
+                    },
+                    isDefault: {
+                        type: "boolean",
+                        description: "Set as default address",
+                        example: true,
+                    },
+                },
+            },
+            // Payment Method Schemas
+            UserPaymentMethod: {
+                type: "object",
+                description: "User payment method response",
+                properties: {
+                    id: {
+                        type: "string",
+                        format: "uuid",
+                        description: "Payment method ID",
+                        example: "123e4567-e89b-12d3-a456-426614174000",
+                    },
+                    userId: {
+                        type: "string",
+                        description: "User ID",
+                    },
+                    stripePmId: {
+                        type: "string",
+                        description: "Stripe payment method ID",
+                        example: "pm_1ABC123def456GHI",
+                    },
+                    brand: {
+                        type: "string",
+                        nullable: true,
+                        description: "Card brand (e.g., 'visa', 'mastercard')",
+                        example: "visa",
+                    },
+                    last4: {
+                        type: "string",
+                        nullable: true,
+                        description: "Last 4 digits of card",
+                        example: "4242",
+                    },
+                    expMonth: {
+                        type: "integer",
+                        nullable: true,
+                        description: "Expiration month",
+                        example: 12,
+                    },
+                    expYear: {
+                        type: "integer",
+                        nullable: true,
+                        description: "Expiration year",
+                        example: 2025,
+                    },
+                    isDefault: {
+                        type: "boolean",
+                        description: "Is this the default payment method",
+                        example: false,
+                    },
+                    createdAt: {
+                        type: "string",
+                        format: "date-time",
+                        description: "Creation timestamp",
+                    },
+                    updatedAt: {
+                        type: "string",
+                        format: "date-time",
+                        description: "Last update timestamp",
+                    },
+                },
+            },
+            AddPaymentMethodRequest: {
+                type: "object",
+                required: ["paymentMethodId"],
+                description: "Request to add a payment method",
+                properties: {
+                    paymentMethodId: {
+                        type: "string",
+                        description: "Stripe payment method ID",
+                        example: "pm_1ABC123def456GHI",
+                    },
+                },
+            },
+            // Order Schemas
+            Order: {
+                type: "object",
+                description: "Order response",
+                properties: {
+                    id: {
+                        type: "string",
+                        format: "uuid",
+                        description: "Order ID",
+                        example: "123e4567-e89b-12d3-a456-426614174000",
+                    },
+                    orderNumber: {
+                        type: "string",
+                        description: "Order number",
+                        example: "#1234",
+                    },
+                    userId: {
+                        type: "string",
+                        description: "User ID",
+                    },
+                    restaurantId: {
+                        type: "string",
+                        description: "Restaurant ID",
+                    },
+                    deliveryAddressId: {
+                        type: "string",
+                        description: "Delivery address ID",
+                    },
+                    subtotal: {
+                        type: "number",
+                        description: "Subtotal amount",
+                        example: 13.20,
+                    },
+                    tax: {
+                        type: "number",
+                        description: "Tax amount",
+                        example: 1.32,
+                    },
+                    deliveryFee: {
+                        type: "number",
+                        description: "Delivery fee",
+                        example: 2.50,
+                    },
+                    discount: {
+                        type: "number",
+                        description: "Discount amount",
+                        example: 0.00,
+                    },
+                    total: {
+                        type: "number",
+                        description: "Total amount",
+                        example: 17.02,
+                    },
+                    paymentMethod: {
+                        type: "string",
+                        enum: ["CASH", "CARD", "WALLET", "ONLINE"],
+                        description: "Payment method",
+                        example: "CARD",
+                    },
+                    status: {
+                        type: "string",
+                        enum: ["PENDING", "ACCEPTED", "PREPARING", "READY", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED"],
+                        description: "Order status",
+                        example: "PENDING",
+                    },
+                    estimatedDeliveryTime: {
+                        type: "string",
+                        nullable: true,
+                        description: "Estimated delivery time",
+                        example: "05:00 PM",
+                    },
+                    actualDeliveryTime: {
+                        type: "string",
+                        format: "date-time",
+                        nullable: true,
+                        description: "Actual delivery time",
+                    },
+                    specialInstructions: {
+                        type: "string",
+                        nullable: true,
+                        description: "Special instructions",
+                        example: "Ring doorbell twice",
+                    },
+                    createdAt: {
+                        type: "string",
+                        format: "date-time",
+                        description: "Creation timestamp",
+                    },
+                    updatedAt: {
+                        type: "string",
+                        format: "date-time",
+                        description: "Last update timestamp",
+                    },
+                },
+            },
+            OrderItem: {
+                type: "object",
+                description: "Order item response",
+                properties: {
+                    id: {
+                        type: "string",
+                        format: "uuid",
+                        description: "Order item ID",
+                    },
+                    orderId: {
+                        type: "string",
+                        description: "Order ID",
+                    },
+                    menuItemId: {
+                        type: "string",
+                        description: "Menu item ID",
+                    },
+                    quantity: {
+                        type: "integer",
+                        description: "Quantity",
+                        example: 2,
+                    },
+                    unitPrice: {
+                        type: "number",
+                        description: "Unit price at time of order",
+                        example: 4.40,
+                    },
+                    totalPrice: {
+                        type: "number",
+                        description: "Total price (quantity * unitPrice)",
+                        example: 8.80,
+                    },
+                    itemName: {
+                        type: "string",
+                        description: "Item name snapshot",
+                        example: "Smoky bacon & halloumi flatbread",
+                    },
+                    specialNotes: {
+                        type: "string",
+                        nullable: true,
+                        description: "Special notes",
+                    },
+                    selectedVariations: {
+                        type: "object",
+                        nullable: true,
+                        description: "Selected variations (JSON)",
+                    },
+                    selectedAddOns: {
+                        type: "object",
+                        nullable: true,
+                        description: "Selected add-ons (JSON)",
+                    },
+                    createdAt: {
+                        type: "string",
+                        format: "date-time",
+                    },
+                    updatedAt: {
+                        type: "string",
+                        format: "date-time",
+                    },
+                },
+            },
+            CheckoutRequest: {
+                type: "object",
+                required: ["userId", "deliveryAddressId", "paymentMethod"],
+                description: "Request to create an order from cart",
+                properties: {
+                    userId: {
+                        type: "string",
+                        description: "User ID",
+                        example: "123e4567-e89b-12d3-a456-426614174000",
+                    },
+                    deliveryAddressId: {
+                        type: "string",
+                        format: "uuid",
+                        description: "Delivery address ID",
+                        example: "123e4567-e89b-12d3-a456-426614174000",
+                    },
+                    paymentMethod: {
+                        type: "string",
+                        enum: ["CASH", "CARD", "WALLET", "ONLINE"],
+                        description: "Payment method",
+                        example: "CARD",
+                    },
+                    specialInstructions: {
+                        type: "string",
+                        nullable: true,
+                        description: "Special instructions",
+                        example: "Ring doorbell twice",
+                    },
+                    appliedDiscount: {
+                        type: "number",
+                        default: 0,
+                        description: "Applied discount amount",
+                        example: 0.00,
+                    },
+                    deliveryFee: {
+                        type: "number",
+                        default: 0,
+                        description: "Delivery fee",
+                        example: 2.50,
+                    },
+                    tax: {
+                        type: "number",
+                        default: 0,
+                        description: "Tax amount",
+                        example: 1.32,
+                    },
+                },
+            },
+            CheckoutSummary: {
+                type: "object",
+                description: "Checkout summary response",
+                properties: {
+                    subtotal: {
+                        type: "number",
+                        description: "Subtotal amount",
+                        example: 13.20,
+                    },
+                    itemsByRestaurant: {
+                        type: "array",
+                        description: "Items grouped by restaurant",
+                        items: {
+                            type: "object",
+                            properties: {
+                                restaurantId: { type: "string" },
+                                restaurantName: { type: "string" },
+                                items: {
+                                    type: "array",
+                                    items: { type: "object" },
+                                },
+                            },
+                        },
+                    },
+                    addresses: {
+                        type: "array",
+                        description: "User's saved delivery addresses",
+                        items: {
+                            $ref: "#/components/schemas/DeliveryAddress",
+                        },
+                    },
+                },
+            },
+            OrderTracking: {
+                type: "object",
+                description: "Order tracking response",
+                properties: {
+                    id: {
+                        type: "string",
+                        description: "Order ID",
+                    },
+                    orderNumber: {
+                        type: "string",
+                        description: "Order number",
+                        example: "#1234",
+                    },
+                    currentStatus: {
+                        type: "string",
+                        enum: ["PENDING", "ACCEPTED", "PREPARING", "READY", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED"],
+                        description: "Current order status",
+                    },
+                    statusHistory: {
+                        type: "array",
+                        description: "Status change history",
+                        items: {
+                            type: "object",
+                            properties: {
+                                status: { type: "string" },
+                                timestamp: { type: "string", format: "date-time" },
+                            },
+                        },
+                    },
+                    restaurant: {
+                        type: "object",
+                        description: "Restaurant details",
+                        properties: {
+                            userId: { type: "string" },
+                            name: { type: "string" },
+                        },
+                    },
+                    deliveryAddress: {
+                        $ref: "#/components/schemas/DeliveryAddress",
+                    },
+                    items: {
+                        type: "array",
+                        description: "Order items",
+                        items: {
+                            $ref: "#/components/schemas/OrderItem",
+                        },
+                    },
+                    estimatedDeliveryTime: {
+                        type: "string",
+                        nullable: true,
+                        description: "Estimated delivery time",
+                    },
+                    actualDeliveryTime: {
+                        type: "string",
+                        format: "date-time",
+                        nullable: true,
+                        description: "Actual delivery time",
+                    },
+                },
+            },
         },
     },
     tags: [
@@ -2123,6 +2629,26 @@ const swaggerDefinition = {
         {
             name: "Favourite Cart",
             description: "Favourite cart management endpoints for saved orders",
+        },
+        {
+            name: "Delivery Address",
+            description: "Delivery address management endpoints",
+        },
+        {
+            name: "Checkout",
+            description: "Checkout and order creation endpoints",
+        },
+        {
+            name: "Orders",
+            description: "Order management endpoints",
+        },
+        {
+            name: "Track Order",
+            description: "Order tracking endpoints",
+        },
+        {
+            name: "Payments",
+            description: "Payment method management endpoints",
         },
     ],
 };

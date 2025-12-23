@@ -598,4 +598,68 @@ router.patch(
     userController.updateMyCity
   );
 
+/**
+ * @swagger
+ * /users/create-stripe-customer:
+ *   post:
+ *     summary: Create Stripe customer for current user
+ *     tags: [Users]
+ *     security:
+ *       - cookieAuth: []
+ *     description: |
+ *       Create a Stripe customer account for the authenticated user.
+ *       This is required before adding payment methods.
+ *       If the user already has a Stripe customer ID, the existing customer is returned.
+ *       **No request body required.**
+ *     responses:
+ *       201:
+ *         description: Stripe customer created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Stripe customer created successfully
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       format: uuid
+ *                     email:
+ *                       type: string
+ *                     stripeCustomerId:
+ *                       type: string
+ *                       description: Stripe customer ID (e.g., cus_xxx)
+ *                       example: "cus_ABC123def456GHI"
+ *                     name:
+ *                       type: string
+ *                       nullable: true
+ *       401:
+ *         description: Unauthorized - user not authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.post(
+  "/create-stripe-customer",
+  requireAuth,
+  userController.createStripeCustomer
+);
+
 export default router;

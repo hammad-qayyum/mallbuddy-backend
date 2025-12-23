@@ -1,6 +1,14 @@
 import prisma from "../../config/prisma";
 import { deleteImageFile } from "../../config/upload";
-import { CreateRestaurantInput, UpdateRestaurantInput } from "./restaurant.schema";
+import {
+  CreateRestaurantInput,
+  UpdateRestaurantInput,
+  AcceptOrderInput,
+  DeclineOrderInput,
+  UpdateOrderStatusInput,
+  GetRestaurantOrdersInput,
+  GetOrderDetailsInput,
+} from "./restaurant.schema";
 
 const hasRestaurantGalleryModel = !!(prisma as any).restaurantGallery;
 
@@ -425,6 +433,323 @@ export const restaurantService = {
       explore,
       gallery,
       story,
+    };
+  },
+
+  // Get all orders for a restaurant with optional status filter
+  async getRestaurantOrders(input: GetRestaurantOrdersInput) {
+    // Verify restaurant exists
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { userId: input.restaurantId },
+    });
+
+    if (!restaurant) {
+      throw new Error("Restaurant not found");
+    }
+
+    const where: any = { restaurantId: input.restaurantId };
+
+    if (input.status) {
+      where.status = input.status;
+    }
+
+    const orders = await prisma.order.findMany({
+      where,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            phoneNumber: true,
+          },
+        },
+        items: {
+          include: {
+            menuItem: {
+              select: {
+                id: true,
+                name: true,
+                image: true,
+              },
+            },
+          },
+        },
+        deliveryAddress: {
+          select: {
+            label: true,
+            address: true,
+            city: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: input.limit,
+      skip: input.offset,
+    });
+
+    const total = await prisma.order.count({ where });
+
+    return {
+      data: orders.map((order) => ({
+        id: order.id,
+        orderNumber: order.orderNumber,
+        customerName: order.user.name,
+        customerPhone: order.user.phoneNumber,
+        status: order.status,
+        totalAmount: Number.parseFloat(order.total.toString()),
+        paymentMethod: order.paymentMethod,
+        deliveryAddress: order.deliveryAddress?.address || "N/A",
+        deliveryCity: order.deliveryAddress?.city || "N/A",
+        estimatedDeliveryTime: order.estimatedDeliveryTime,
+        specialInstructions: order.specialInstructions,
+        createdAt: order.createdAt,
+        items: order.items.map((item) => ({
+          id: item.id,
+          name: item.itemName,
+          quantity: item.quantity,
+          unitPrice: Number.parseFloat(item.unitPrice.toString()),
+          totalPrice: Number.parseFloat(item.totalPrice.toString()),
+          image: item.menuItem.image,
+        })),
+        itemCount: order.items.length,
+      })),
+      total,
+      limit: input.limit,
+      offset: input.offset,
+    };
+  },
+
+  // Get single order details for restaurant
+  async getRestaurantOrderDetails(input: GetOrderDetailsInput) {
+    const order = await prisma.order.findUnique({
+      where: { id: input.orderId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            phoneNumber: true,
+            image: true,
+          },
+        },
+        items: {
+          include: {
+            menuItem: {
+              select: {
+                id: true,
+                name: true,
+                image: true,
+              },
+            },
+          },
+        },
+        deliveryAddress: {
+          select: {
+            label: true,
+            address: true,
+            city: true,
+            postalCode: true,
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      throw new Error("Order not found");
+    }
+
+    // Verify order belongs to the restaurant
+    if (order.restaurantId !== input.restaurantId) {
+      throw new Error("Unauthorized: This order does not belong to your restaurant");
+    }
+
+    return {
+      id: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      totalAmount: Number.parseFloat(order.total.toString()),
+      subtotal: Number.parseFloat(order.subtotal.toString()),
+      tax: Number.parseFloat(order.tax.toString()),
+      deliveryFee: Number.parseFloat(order.deliveryFee.toString()),
+      discount: Number.parseFloat(order.discount.toString()),
+      paymentMethod: order.paymentMethod,
+      estimatedDeliveryTime: order.estimatedDeliveryTime,
+      specialInstructions: order.specialInstructions,
+      createdAt: order.createdAt,
+      customer: {
+        id: order.user.id,
+        name: order.user.name,
+        phoneNumber: order.user.phoneNumber,
+        image: order.user.image,
+      },
+      deliveryAddress: {
+        label: order.deliveryAddress?.label || "Delivery Address",
+        address: order.deliveryAddress?.address || "N/A",
+        city: order.deliveryAddress?.city || "N/A",
+        postalCode: order.deliveryAddress?.postalCode || "N/A",
+      },
+      items: order.items.map((item) => ({
+        id: item.id,
+        name: item.itemName,
+        quantity: item.quantity,
+        unitPrice: Number.parseFloat(item.unitPrice.toString()),
+        totalPrice: Number.parseFloat(item.totalPrice.toString()),
+        image: item.menuItem.image,
+        specialNotes: item.specialNotes,
+        selectedVariations: item.selectedVariations,
+        selectedAddOns: item.selectedAddOns,
+      })),
+    };
+  },
+
+  // Accept an order
+  async acceptOrder(input: AcceptOrderInput) {
+    const order = await prisma.order.findUnique({
+      where: { id: input.orderId },
+      include: { items: true },
+    });
+
+    if (!order) {
+      throw new Error("Order not found");
+    }
+
+    // Verify order belongs to the restaurant
+    if (order.restaurantId !== input.restaurantId) {
+      throw new Error("Unauthorized: This order does not belong to your restaurant");
+    }
+
+    // Order must be in PENDING status to accept
+    if (order.status !== "PENDING") {
+      throw new Error(`Order cannot be accepted. Current status: ${order.status}`);
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: input.orderId },
+      data: { status: "ACCEPTED" },
+      include: {
+        user: {
+          select: {
+            name: true,
+            phoneNumber: true,
+          },
+        },
+      },
+    });
+
+    return {
+      id: updatedOrder.id,
+      orderNumber: updatedOrder.orderNumber,
+      status: updatedOrder.status,
+      customerName: updatedOrder.user.name,
+      message: "Order accepted successfully",
+    };
+  },
+
+  // Decline an order with reason
+  async declineOrder(input: DeclineOrderInput) {
+    const order = await prisma.order.findUnique({
+      where: { id: input.orderId },
+      include: { items: true },
+    });
+
+    if (!order) {
+      throw new Error("Order not found");
+    }
+
+    // Verify order belongs to the restaurant
+    if (order.restaurantId !== input.restaurantId) {
+      throw new Error("Unauthorized: This order does not belong to your restaurant");
+    }
+
+    // Order must be in PENDING or ACCEPTED status to decline
+    if (order.status !== "PENDING" && order.status !== "ACCEPTED") {
+      throw new Error(`Order cannot be declined. Current status: ${order.status}`);
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: input.orderId },
+      data: {
+        status: "CANCELLED",
+        specialInstructions: `Restaurant decline reason: ${input.reason}`,
+      },
+      include: {
+        user: {
+          select: {
+            name: true,
+            phoneNumber: true,
+          },
+        },
+      },
+    });
+
+    return {
+      id: updatedOrder.id,
+      orderNumber: updatedOrder.orderNumber,
+      status: updatedOrder.status,
+      customerName: updatedOrder.user.name,
+      reason: input.reason,
+      message: "Order declined successfully",
+    };
+  },
+
+  // Update order status (mark as ready, out for delivery, delivered)
+  async updateOrderStatus(input: UpdateOrderStatusInput) {
+    const order = await prisma.order.findUnique({
+      where: { id: input.orderId },
+    });
+
+    if (!order) {
+      throw new Error("Order not found");
+    }
+
+    // Verify order belongs to the restaurant
+    if (order.restaurantId !== input.restaurantId) {
+      throw new Error("Unauthorized: This order does not belong to your restaurant");
+    }
+
+    // Validate status transition
+    const validTransitions: { [key: string]: string[] } = {
+      PENDING: ["ACCEPTED"],
+      ACCEPTED: ["PREPARING", "CANCELLED"],
+      PREPARING: ["READY"],
+      READY: ["OUT_FOR_DELIVERY"],
+      OUT_FOR_DELIVERY: ["DELIVERED"],
+      DELIVERED: [],
+      CANCELLED: [],
+    };
+
+    if (!validTransitions[order.status]?.includes(input.status)) {
+      throw new Error(
+        `Invalid status transition from ${order.status} to ${input.status}`
+      );
+    }
+
+    const updateData: any = { status: input.status };
+
+    // Set delivery time if marking as delivered
+    if (input.status === "DELIVERED") {
+      updateData.actualDeliveryTime = new Date();
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: input.orderId },
+      data: updateData,
+      include: {
+        user: {
+          select: {
+            name: true,
+            phoneNumber: true,
+          },
+        },
+      },
+    });
+
+    return {
+      id: updatedOrder.id,
+      orderNumber: updatedOrder.orderNumber,
+      status: updatedOrder.status,
+      customerName: updatedOrder.user.name,
+      message: `Order marked as ${input.status} successfully`,
     };
   },
 };

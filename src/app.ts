@@ -5,6 +5,7 @@ import swaggerUi from "swagger-ui-express";
 import path from "path";
 import {swaggerSpec} from "./config/swagger";
 import router from "./routes";
+import { attachAuth } from "./middlewares/attach-auth.middleware";
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 }));
 
 // Note: `attachAuth` middleware removed — authentication handled elsewhere when needed.
+app.use(attachAuth);
 
 // Simple request logger to help debug 404s during testing
 app.use((req, res, next) => {
