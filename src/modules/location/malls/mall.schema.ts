@@ -22,6 +22,13 @@ export const updateMallSchema = z.object({
   cityId: z.string().min(1).optional(),
 });
 
+// Schema for getting mall statistics
+export const getMallStatisticsSchema = z.object({
+  page: z.number().int().positive().default(1).optional(),
+  limit: z.number().int().positive().max(100).default(10).optional(),
+});
+
 // 3) Types inferred from schemas
 export type CreateMallInput = z.infer<typeof createMallSchema>;
 export type UpdateMallInput = z.infer<typeof updateMallSchema>;
+export type GetMallStatisticsInput = z.infer<typeof getMallStatisticsSchema>;

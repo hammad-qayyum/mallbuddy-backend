@@ -34,18 +34,27 @@ export const userService = {
         // Get current user to check for existing image and name fields
         const currentUser = await prisma.user.findUnique({
             where: { id: userId },
-            select: { image: true, firstName: true, lastName: true },
+            select: { image: true, firstName: true, lastName: true, role: true },
         });
+
+        // CRITICAL: Prevent role changes
+        // Role cannot be changed through profile update
+        // RESTAURANT accounts are permanent and must be created via restaurant signup
+        if ((data as any).role !== undefined) {
+            throw new Error(
+                "Role cannot be changed. RESTAURANT accounts must be created via restaurant signup flow."
+            );
+        }
 
         const updateData: any = {};
         
-        // Handle email if provided
-        if (data.email !== undefined) {
+        // Handle email if provided and not empty
+        if (data.email !== undefined && data.email !== null && data.email.trim() !== "") {
             updateData.email = data.email;
         }
         
         // Handle phone number normalization if provided
-        if (data.phoneNumber !== undefined && data.phoneNumber !== null) {
+        if (data.phoneNumber !== undefined && data.phoneNumber !== null && data.phoneNumber.trim() !== "") {
             const normalized = normalizePhoneNumber(data.phoneNumber);
             // Only set if normalized result has at least 11 digits (matching schema validation)
             if (normalized.length >= 11) {
@@ -58,16 +67,16 @@ export const userService = {
             updateData.phoneNumber = null;
         }
         
-        // Handle firstName and lastName
-        if (data.firstName !== undefined) {
+        // Handle firstName and lastName - only update if not empty
+        if (data.firstName !== undefined && data.firstName !== null && data.firstName.trim() !== "") {
             updateData.firstName = data.firstName;
         }
-        if (data.lastName !== undefined) {
+        if (data.lastName !== undefined && data.lastName !== null && data.lastName.trim() !== "") {
             updateData.lastName = data.lastName;
         }
         
-        // Handle image
-        if (data.image !== undefined) {
+        // Handle image - only update if not empty
+        if (data.image !== undefined && data.image !== null && data.image.trim() !== "") {
             // Delete old image if it exists and is a local file
             if (currentUser?.image && currentUser.image.startsWith("/uploads/")) {
                 deleteImageFile(currentUser.image);

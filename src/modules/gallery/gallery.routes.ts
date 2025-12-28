@@ -4,12 +4,70 @@ import { uploadRestaurantGallery } from "../../config/upload";
 
 const router = Router();
 
-// Simple ping to verify route is reachable
+/**
+ * @swagger
+ * /restaurant/{restaurantId}/gallery/ping:
+ *   get:
+ *     summary: Ping gallery endpoint
+ *     tags: [Gallery]
+ *     description: Simple endpoint to verify gallery route is reachable
+ *     parameters:
+ *       - in: path
+ *         name: restaurantId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Restaurant user ID
+ *     responses:
+ *       200:
+ *         description: Gallery endpoint is reachable
+ */
 router.get("/restaurant/:restaurantId/gallery/ping", (req, res) => {
   const { restaurantId } = req.params;
   return res.json({ success: true, message: "gallery ping", restaurantId });
 });
 
+/**
+ * @swagger
+ * /restaurant/{restaurantId}/gallery:
+ *   post:
+ *     summary: Add images to restaurant gallery
+ *     tags: [Gallery]
+ *     security:
+ *       - cookieAuth: []
+ *     description: |
+ *       Upload multiple images to a restaurant's gallery.
+ *       Maximum 12 images per request.
+ *     parameters:
+ *       - in: path
+ *         name: restaurantId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Restaurant user ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - images
+ *             properties:
+ *               images:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: Gallery images (max 12 images, PNG/JPEG, max 5MB each)
+ *     responses:
+ *       201:
+ *         description: Images added successfully
+ *       400:
+ *         description: Invalid request or too many images
+ *       500:
+ *         description: Internal server error
+ */
 // POST /restaurant/:restaurantId/gallery
 router.post(
   "/restaurant/:restaurantId/gallery",
@@ -41,6 +99,37 @@ router.post(
   }
 );
 
+/**
+ * @swagger
+ * /restaurant/{restaurantId}/gallery/{galleryId}:
+ *   delete:
+ *     summary: Delete a gallery image
+ *     tags: [Gallery]
+ *     security:
+ *       - cookieAuth: []
+ *     description: |
+ *       Delete a specific image from a restaurant's gallery.
+ *     parameters:
+ *       - in: path
+ *         name: restaurantId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Restaurant user ID
+ *       - in: path
+ *         name: galleryId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Gallery image ID
+ *     responses:
+ *       200:
+ *         description: Image deleted successfully
+ *       404:
+ *         description: Image not found
+ *       500:
+ *         description: Internal server error
+ */
 // DELETE /restaurant/:restaurantId/gallery/:galleryId
 router.delete(
   "/restaurant/:restaurantId/gallery/:galleryId",

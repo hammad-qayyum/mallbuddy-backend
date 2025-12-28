@@ -6,6 +6,8 @@ import {
     normalizePhoneNumber,
     phoneAsAliasEmail,
 } from "../common/utils";
+import { createRestaurantService } from "../restaurant/createRestaurant.service";
+import { RestaurantSignupInput } from "../restaurant/restaurant.schema";
 
 const resolveIdentifier = (email?: string, phoneNumber?: string) => {
     if (email) {
@@ -86,6 +88,44 @@ export const authService = {
     },
 
 
+    /**
+     * Restaurant self-signup
+     * Creates User(role=RESTAURANT) and Restaurant atomically
+     */
+    async restaurantSignup(req: Request) {
+        const {
+            email,
+            password,
+            phoneNumber,
+            firstName,
+            lastName,
+            // Restaurant details
+            mallId,
+            name,
+            mainCategory,
+            description,
+            location,
+            cuisineCategoryId,
+        } = req.body;
+
+        return await createRestaurantService.createRestaurantUserWithRestaurant(
+            {
+                email,
+                password,
+                phoneNumber,
+                firstName,
+                lastName,
+                mallId,
+                name,
+                mainCategory,
+                description,
+                location,
+                cuisineCategoryId,
+            },
+            req
+        );
+    },
+
     //Get current session
     async getSession(req: Request){
         const cookieToken =
@@ -98,7 +138,13 @@ export const authService = {
 
         const session = await prisma.session.findUnique({
             where: {token: cookieToken},
-            include: {user: true},
+            include: {
+                user: {
+                    include: {
+                        restaurant: true, // Single query to check restaurant existence
+                    },
+                },
+            },
         });
 
         if (!session) {
@@ -108,6 +154,29 @@ export const authService = {
         // Optional: enforce expiration
         if (session.expiresAt && session.expiresAt < new Date()) {
             return null;
+        }
+
+        // CRITICAL: Validate RESTAURANT users always have a Restaurant
+        if (session.user.role === "RESTAURANT") {
+            if (!session.user.restaurant) {
+                // System error: RESTAURANT user without restaurant
+                console.error(
+                    `SYSTEM ERROR: User ${session.user.id} has role RESTAURANT but no Restaurant record`
+                );
+                throw new Error(
+                    "System integrity error: Restaurant account is incomplete. Please contact support."
+                );
+            }
+        }
+
+        // CRITICAL: Validate USER/ADMIN never have a Restaurant
+        if ((session.user.role === "USER" || session.user.role === "ADMIN") && session.user.restaurant) {
+            console.error(
+                `SYSTEM ERROR: User ${session.user.id} has role ${session.user.role} but has Restaurant record`
+            );
+            throw new Error(
+                "System integrity error: Invalid user-restaurant relationship. Please contact support."
+            );
         }
 
         return {

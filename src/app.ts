@@ -6,12 +6,41 @@ import path from "path";
 import {swaggerSpec} from "./config/swagger";
 import router from "./routes";
 import { attachAuth } from "./middlewares/attach-auth.middleware";
+import orderPaymentRoutes from "./modules/payments/order-payment/orderpayment.routes";
+import { stripeWebhookHandler } from "./modules/payments/stripe-webhooks/stripe.webhook";
+import { handleStripeAccountWebhook } from "./modules/payments/stripe-webhooks/accountstatus.webhook";
+import { subscriptionWebhookHandler } from "./modules/restaurant/subscription/subscriptionWebhook";
+import restaurantConnectRoutes from "./modules/payments/restaurant-connect-account/restaurantconnect.routes";
 
 const app = express();
 
 app.use(cors());
+
+
+// Stripe webhooks must be before attachAuth (uses raw body)
+app.post("/api/payments/stripe-webhooks/stripe-webhook", express.raw({ type: "application/json" }), stripeWebhookHandler);
+// Stripe account webhook endpoint
+app.post(
+    "/api/payments/stripe-webhooks/stripe-account-webhook",
+    express.raw({ type: "application/json" }), // required for Stripe webhook signature verification
+    handleStripeAccountWebhook
+  );
+// Stripe subscription webhook endpoint
+app.post(
+    "/api/payments/stripe-webhooks/subscription-webhook",
+    express.raw({ type: "application/json" }), // required for Stripe webhook signature verification
+    subscriptionWebhookHandler
+  );
+
 app.use(express.json());
 app.use(cookieParser());
+
+// Attach auth middleware early so it's available for all routes
+// Attach auth middleware early so it's available for all routes
+app.use(attachAuth);
+
+// Restaurant connect routes (requires auth)
+app.use("/api/payments/stripe", restaurantConnectRoutes);
 
 // Serve static files from uploads directory
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
@@ -23,7 +52,6 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 }));
 
 // Note: `attachAuth` middleware removed — authentication handled elsewhere when needed.
-app.use(attachAuth);
 
 // Simple request logger to help debug 404s during testing
 app.use((req, res, next) => {

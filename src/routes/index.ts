@@ -7,7 +7,7 @@ import cityRoutes from "../modules/location/city/city.routes";
 import mallRoutes from "../modules/location/malls/mall.routes";
 import cuisineRoutes from "../modules/cuisine/cuisine.routes";
 import restaurantRoutes from "../modules/restaurant/restaurant.routes";
-import restaurantInfoRoutes from "../modules/restaurant-info/restaurant-info.routes";
+import restaurantInfoRoutes from "../modules/restaurant/restaurant-info/restaurant-info.routes";
 import exploreRoutes from "../modules/explore/explore.routes";
 import galleryRoutes from "../modules/gallery/gallery.routes";
 import searchRoutes from "../modules/search/search.routes";
@@ -21,8 +21,17 @@ import deliveryAddressRoutes from "../modules/delivery-address/delivery-address.
 import trackOrderRoutes from "../modules/track-order/track-order.routes";
 import ordersRoutes from "../modules/orders/orders.routes";
 import promoCodeRoutes from "../modules/promo-code/promo-code.routes";
+import adminRestaurantRoutes from "../modules/admin/restaurant/restaurant.routes";
+import adminUserRoutes from "../modules/admin/user/user.routes";
+import adminSearchRoutes from "../modules/admin/search/search.routes";
+import adminPromoCodeRoutes from "../modules/admin/promo-code/promo-code.routes";
 import paymentMethodRoutes from "../modules/payments/payment-method/paymentMethod.routes";
-
+import analyticsRoutes from "../modules/analytics/analytics.routes";
+import orderPaymentRoutes from "../modules/payments/order-payment/orderpayment.routes";
+import orderRefundRoutes from "../modules/payments/order-refund/orderrefund.routes";
+import promotionRoutes from "../modules/restaurant/promotion/promotion.routes";
+import subscriptionRoutes from "../modules/restaurant/subscription/subscription.routes";
+import subscriptionPlanRoutes from "../modules/restaurant/subscription/subscriptionplan-admin/subscriptionplan.routes";
 const router = Router();
 
 // Better Auth built-in routes (optional - use if you want Better Auth's default endpoints)
@@ -49,8 +58,17 @@ router.use("/", cuisineRoutes);
 // Restaurant routes
 router.use("/", restaurantRoutes);
 
+// Admin routes (restaurants, users, etc.)
+router.use("/admin/restaurants", adminRestaurantRoutes);
+router.use("/admin/users", adminUserRoutes);
+router.use("/admin/search", adminSearchRoutes);
+router.use("/admin/promo-codes", adminPromoCodeRoutes);
+
 // Restaurant Info routes (personal info and business hours)
 router.use("/", restaurantInfoRoutes);
+
+// Promotion routes
+router.use("/", promotionRoutes);
 
 // Mount explore routes under `/explore` to separate public Explore APIs
 router.use("/explore", exploreRoutes);
@@ -79,7 +97,7 @@ router.use("/cart", cartRoutes);
 // Checkout routes
 router.use("/checkout", checkoutRoutes);
 // Promo Code routes
-router.use("/", promoCodeRoutes);
+router.use("/promo-codes", promoCodeRoutes);
 // Delivery Address routes
 router.use("/delivery-addresses", deliveryAddressRoutes);
 
@@ -89,11 +107,26 @@ router.use("/track-order", trackOrderRoutes);
 // Orders routes (active, past, cancel, reorder)
 router.use("/orders", ordersRoutes);
 
+// Analytics routes
+router.use("/", analyticsRoutes);
+
 // Payment Method routes
 router.use("/", paymentMethodRoutes);
 
 // Favourite Cart routes (last)
 router.use("/favourite-carts", favouriteCartRoutes);
+
+// Order Payment routes
+router.use("/payments", orderPaymentRoutes);
+
+// Order Refund routes
+router.use("/payments", orderRefundRoutes);
+
+// Restaurant Subscription routes
+router.use("/subscriptions", subscriptionRoutes);
+
+// Subscription Plan Admin routes
+router.use("/subscription-plans", subscriptionPlanRoutes);
 
 /**
  * @swagger
@@ -117,34 +150,6 @@ router.get("/", (req, res) => {
     res.json({message: "Mall Delivery Backend API is running"});
 });
 
-// Debug helper: list registered routes under this router
-router.get('/restaurant/debug/routes', (req, res) => {
-    try {
-        // iterate router stack and collect routes
-        // @ts-ignore
-        const stack = (router as any).stack || (router as any)._router?.stack || [];
-        const routes: string[] = [];
-
-        // express Router stores layers differently; inspect both possibilities
-        stack.forEach((layer: any) => {
-            if (layer.route && layer.route.path) {
-                const methods = Object.keys(layer.route.methods || {}).map(m => m.toUpperCase()).join(',');
-                routes.push(`${methods} ${layer.route.path}`);
-            } else if (layer.name === 'router' && layer.handle && layer.handle.stack) {
-                layer.handle.stack.forEach((r: any) => {
-                    if (r.route && r.route.path) {
-                        const methods = Object.keys(r.route.methods || {}).map((m: any) => m.toUpperCase()).join(',');
-                        routes.push(`${methods} ${r.route.path}`);
-                    }
-                });
-            }
-        });
-
-        res.json({ success: true, routes });
-    } catch (err) {
-        res.status(500).json({ success: false, error: String(err) });
-    }
-});
 
 
 

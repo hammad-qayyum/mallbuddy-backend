@@ -1,5 +1,5 @@
 import prisma from "../../config/prisma";
-import { CancelOrderInput, ReorderInput } from "./orders.schema";
+import { CancelOrderInput, ReorderInput, GetAcceptedOrdersInput } from "./orders.schema";
 
 export const ordersService = {
   /**
@@ -554,6 +554,98 @@ export const ordersService = {
       paymentMethod: order.paymentMethod,
       createdAt: order.createdAt,
       estimatedDeliveryTime: order.estimatedDeliveryTime,
+    };
+  },
+
+  /**
+   * Get accepted orders (order queue) for restaurant
+   */
+  async getAcceptedOrders(input: GetAcceptedOrdersInput) {
+    // Verify restaurant exists
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { userId: input.restaurantId },
+    });
+
+    if (!restaurant) {
+      throw new Error("Restaurant not found");
+    }
+
+    const where: any = { 
+      restaurantId: input.restaurantId,
+      status: "ACCEPTED" as const,
+    };
+
+    const orders = await prisma.order.findMany({
+      where,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            phoneNumber: true,
+            image: true,
+          },
+        },
+        items: {
+          include: {
+            menuItem: {
+              select: {
+                id: true,
+                name: true,
+                image: true,
+              },
+            },
+          },
+        },
+        deliveryAddress: {
+          select: {
+            label: true,
+            address: true,
+            city: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "asc" }, // Oldest first for queue
+      take: input.limit || 50,
+      skip: input.offset || 0,
+    });
+
+    const total = await prisma.order.count({ where });
+
+    return {
+      data: orders.map((order) => ({
+        id: order.id,
+        orderNumber: order.orderNumber,
+        customerName: order.user.name,
+        customerPhone: order.user.phoneNumber,
+        customerImage: order.user.image,
+        status: order.status,
+        totalAmount: Number.parseFloat(order.total.toString()),
+        subtotal: Number.parseFloat(order.subtotal.toString()),
+        tax: Number.parseFloat(order.tax.toString()),
+        deliveryFee: Number.parseFloat(order.deliveryFee.toString()),
+        discount: Number.parseFloat(order.discount.toString()),
+        paymentMethod: order.paymentMethod,
+        deliveryAddress: order.deliveryAddress?.address || "N/A",
+        deliveryCity: order.deliveryAddress?.city || "N/A",
+        deliveryLabel: order.deliveryAddress?.label || "N/A",
+        estimatedDeliveryTime: order.estimatedDeliveryTime,
+        specialInstructions: order.specialInstructions,
+        createdAt: order.createdAt,
+        items: order.items.map((item) => ({
+          id: item.id,
+          name: item.itemName,
+          quantity: item.quantity,
+          unitPrice: Number.parseFloat(item.unitPrice.toString()),
+          totalPrice: Number.parseFloat(item.totalPrice.toString()),
+          image: item.menuItem.image,
+          specialNotes: item.specialNotes,
+        })),
+        itemCount: order.items.length,
+      })),
+      total,
+      limit: input.limit || 50,
+      offset: input.offset || 0,
     };
   },
 };

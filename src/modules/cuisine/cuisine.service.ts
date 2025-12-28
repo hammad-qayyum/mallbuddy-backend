@@ -39,8 +39,11 @@ export const cuisineService = {
 
     const updateData: any = {};
     
-    if (data.name !== undefined) updateData.name = data.name;
-    if (data.image !== undefined) {
+    // Only update fields that are provided and not empty
+    if (data.name !== undefined && data.name !== null && data.name.trim() !== "") {
+      updateData.name = data.name;
+    }
+    if (data.image !== undefined && data.image !== null && data.image.trim() !== "") {
       // Delete old image if it exists and is a local file
       if (currentCategory?.image && currentCategory.image.startsWith("/uploads/")) {
         deleteImageFile(currentCategory.image);

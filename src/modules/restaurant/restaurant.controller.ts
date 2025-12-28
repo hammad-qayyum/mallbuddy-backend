@@ -1,20 +1,25 @@
 import { Request, Response } from "express";
 import { restaurantService } from "./restaurant.service";
+import { createRestaurantService } from "./createRestaurant.service";
 import {
-  createRestaurantSchema,
   updateRestaurantSchema,
   getRestaurantOrdersSchema,
   getOrderDetailsSchema,
   acceptOrderSchema,
   declineOrderSchema,
   updateOrderStatusSchema,
+  getRestaurantAnalyticsSchema,
+  adminCreateRestaurantSchema,
 } from "./restaurant.schema";
 import { getRestaurantBannerUrl } from "../../config/upload";
 
 export const restaurantController = {
-  // POST /admin/restaurants
-  async create(req: Request, res: Response) {
-    const parseResult = createRestaurantSchema.safeParse(req.body);
+  /**
+   * Admin creates restaurant account
+   * Creates User(role=RESTAURANT) and Restaurant atomically
+   */
+  async createByAdmin(req: Request, res: Response) {
+    const parseResult = adminCreateRestaurantSchema.safeParse(req.body);
 
     if (!parseResult.success) {
       return res.status(400).json({
@@ -29,8 +34,32 @@ export const restaurantController = {
       data.banner = getRestaurantBannerUrl(req.file.filename);
     }
 
-    const restaurant = await restaurantService.createRestaurant(data);
-    return res.status(201).json(restaurant);
+    try {
+      const result = await createRestaurantService.createRestaurantByAdmin(data, req);
+      return res.status(201).json({
+        message: "Restaurant account created successfully",
+        data: {
+          user: {
+            id: result.user.id,
+            email: result.user.email,
+            role: result.user.role,
+          },
+          restaurant: result.restaurant,
+        },
+      });
+    } catch (error: any) {
+      // Handle email already exists
+      if (error.message?.includes("already exists") || error.message?.includes("unique") || error.message?.includes("duplicate")) {
+        return res.status(409).json({ message: "Email already registered" });
+      }
+      // Handle mall not found
+      if (error.message?.includes("does not exist")) {
+        return res.status(404).json({ message: error.message });
+      }
+      return res.status(500).json({ 
+        message: error.message || "Failed to create restaurant account" 
+      });
+    }
   },
 
   // GET /malls/:mallId/restaurants
@@ -329,4 +358,45 @@ export const restaurantController = {
       return res.status(500).json({ message: error.message });
     }
   },
+
+  /**
+   * GET /restaurants/:restaurantId/analytics/orders-revenue - Get restaurant analytics
+   */
+  async getRestaurantAnalytics(req: Request, res: Response) {
+    try {
+      const { restaurantId } = req.params;
+      const page = Number.parseInt((req.query.page ?? "1") as string);
+      const limit = Number.parseInt((req.query.limit ?? "10") as string);
+
+      const parseResult = getRestaurantAnalyticsSchema.safeParse({
+        restaurantId,
+        page,
+        limit,
+      });
+
+      if (!parseResult.success) {
+        return res.status(400).json({
+          message: "Invalid request parameters",
+          errors: parseResult.error.issues,
+        });
+      }
+
+      const result = await restaurantService.getRestaurantOrdersAndRevenue(
+        parseResult.data.restaurantId,
+        parseResult.data.page || 1,
+        parseResult.data.limit || 10
+      );
+
+      return res.json({
+        message: "Restaurant analytics retrieved successfully",
+        data: result,
+      });
+    } catch (error: any) {
+      if (error.message.includes("not found")) {
+        return res.status(404).json({ message: error.message });
+      }
+      return res.status(500).json({ message: error.message });
+    }
+  },
+
 };

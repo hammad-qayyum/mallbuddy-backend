@@ -9,6 +9,7 @@ const uploadDirs = {
   cuisineCategories: path.join(process.cwd(), "uploads", "cuisine-categories"),
   restaurants: path.join(process.cwd(), "uploads", "restaurants"),
   restaurantGallery: path.join(process.cwd(), "uploads", "restaurants", "gallery"),
+  promotions: path.join(process.cwd(), "uploads", "promotions"),
   malls: path.join(process.cwd(), "uploads", "malls"),
 };
 
@@ -43,6 +44,17 @@ const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCa
     cb(null, true);
   } else {
     cb(new Error("Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed."));
+  }
+};
+
+// File filter for promotion banners (PNG and JPEG only)
+const promotionBannerFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const allowedMimes = ["image/jpeg", "image/jpg", "image/png"];
+  
+  if (allowedMimes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error("Invalid file type. Only PNG and JPEG images are allowed for promotion banners."));
   }
 };
 
@@ -85,6 +97,15 @@ export const uploadMallImage = multer({
   ...multerOptions,
 });
 
+// Promotion banner upload (2MB limit, PNG/JPEG only)
+export const uploadPromotionBanner = multer({
+  storage: createStorage(uploadDirs.promotions),
+  fileFilter: promotionBannerFilter,
+  limits: {
+    fileSize: 2 * 1024 * 1024, // 2MB limit
+  },
+});
+
 // Helper functions to get URL paths for uploaded files
 export const getProfilePictureUrl = (filename: string): string => {
   return `/uploads/profile-pictures/${filename}`;
@@ -108,6 +129,10 @@ export const getRestaurantGalleryUrl = (filename: string): string => {
 
 export const getMallImageUrl = (filename: string): string => {
   return `/uploads/malls/${filename}`;
+};
+
+export const getPromotionBannerUrl = (filename: string): string => {
+  return `/uploads/promotions/${filename}`;
 };
 
 // Helper function to delete old image file

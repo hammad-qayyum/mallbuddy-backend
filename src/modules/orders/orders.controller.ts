@@ -8,6 +8,7 @@ import {
   reorderSchema,
   getOrderDetailsSchema,
   getOrderSummarySchema,
+  getAcceptedOrdersSchema,
 } from "./orders.schema";
 
 export const ordersController = {
@@ -243,6 +244,42 @@ export const ordersController = {
 
       const summary = await ordersService.getOrderSummary(parseResult.data.orderId);
       return res.json(summary);
+    } catch (error: any) {
+      if (error.message.includes("not found")) {
+        return res.status(404).json({ message: error.message });
+      }
+      return res.status(500).json({ message: error.message });
+    }
+  },
+
+  /**
+   * GET /orders/restaurant/:restaurantId/accepted - Get accepted orders (order queue)
+   */
+  async getAcceptedOrders(req: Request, res: Response) {
+    try {
+      const { restaurantId } = req.params;
+      const limit = Number.parseInt((req.query.limit ?? "50") as string);
+      const offset = Number.parseInt((req.query.offset ?? "0") as string);
+
+      const parseResult = getAcceptedOrdersSchema.safeParse({
+        restaurantId,
+        limit,
+        offset,
+      });
+
+      if (!parseResult.success) {
+        return res.status(400).json({
+          message: "Invalid request parameters",
+          errors: parseResult.error.issues,
+        });
+      }
+
+      const orders = await ordersService.getAcceptedOrders(parseResult.data);
+
+      return res.json({
+        message: "Accepted orders retrieved successfully",
+        data: orders,
+      });
     } catch (error: any) {
       if (error.message.includes("not found")) {
         return res.status(404).json({ message: error.message });

@@ -2664,6 +2664,192 @@ const swaggerDefinition = {
                 },
             },
         },
+        "/analytics/restaurant/{restaurantId}/orders-revenue": {
+            get: {
+                tags: ["Analytics"],
+                summary: "Get all orders and revenue for a specific restaurant",
+                description: "Get all orders and revenue statistics for a specific restaurant. Returns complete order details along with revenue summaries.",
+                parameters: [
+                    {
+                        name: "restaurantId",
+                        in: "path",
+                        required: true,
+                        schema: { type: "string" },
+                        description: "Restaurant ID (same as user ID for restaurant)",
+                        example: "123e4567-e89b-12d3-a456-426614174000",
+                    },
+                    {
+                        name: "page",
+                        in: "query",
+                        required: false,
+                        schema: { type: "integer", default: 1, minimum: 1 },
+                        description: "Page number for pagination (default: 1)",
+                        example: 1,
+                    },
+                    {
+                        name: "limit",
+                        in: "query",
+                        required: false,
+                        schema: { type: "integer", default: 10, minimum: 1, maximum: 100 },
+                        description: "Number of results per page (default: 10, max: 100)",
+                        example: 10,
+                    },
+                ],
+                responses: {
+                    "200": {
+                        description: "Restaurant orders and revenue retrieved successfully",
+                        content: {
+                            "application/json": {
+                                schema: {
+                                    type: "object",
+                                    properties: {
+                                        message: { type: "string" },
+                                        data: {
+                                            type: "object",
+                                            properties: {
+                                                restaurant: {
+                                                    type: "object",
+                                                    properties: {
+                                                        id: { type: "string" },
+                                                        name: { type: "string", nullable: true },
+                                                    },
+                                                },
+                                                summary: {
+                                                    type: "object",
+                                                    properties: {
+                                                        totalOrders: { type: "integer" },
+                                                        totalRevenue: { type: "number" },
+                                                        revenueByStatus: { type: "object", additionalProperties: { type: "number" } },
+                                                        ordersByStatus: { type: "object", additionalProperties: { type: "integer" } },
+                                                    },
+                                                },
+                                                pagination: {
+                                                    type: "object",
+                                                    properties: {
+                                                        page: { type: "integer" },
+                                                        limit: { type: "integer" },
+                                                        total: { type: "integer" },
+                                                        totalPages: { type: "integer" },
+                                                    },
+                                                },
+                                                orders: {
+                                                    type: "array",
+                                                    items: { type: "object" },
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    "404": {
+                        description: "Restaurant not found",
+                        content: {
+                            "application/json": {
+                                schema: { $ref: "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        "/analytics/overall": {
+            get: {
+                tags: ["Analytics"],
+                summary: "Get overall statistics",
+                description: "Get overall platform statistics including total customers, total restaurants, total orders, and total revenue with breakdowns by status.",
+                responses: {
+                    "200": {
+                        description: "Overall statistics retrieved successfully",
+                        content: {
+                            "application/json": {
+                                schema: {
+                                    type: "object",
+                                    properties: {
+                                        message: { type: "string" },
+                                        data: {
+                                            type: "object",
+                                            properties: {
+                                                totalCustomers: { type: "integer", description: "Total number of customers (users with role USER)" },
+                                                totalRestaurants: { type: "integer", description: "Total number of restaurants" },
+                                                totalOrders: { type: "integer", description: "Total number of orders" },
+                                                totalRevenue: { type: "number", description: "Total revenue across all orders" },
+                                                revenueByStatus: { type: "object", additionalProperties: { type: "number" }, description: "Revenue breakdown by order status" },
+                                                ordersByStatus: { type: "object", additionalProperties: { type: "integer" }, description: "Order count breakdown by status" },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        "/analytics/malls": {
+            get: {
+                tags: ["Analytics"],
+                summary: "Get statistics per mall",
+                description: "Get statistics for each mall including total revenue, total orders, total restaurants, and breakdowns by status.",
+                responses: {
+                    "200": {
+                        description: "Mall statistics retrieved successfully",
+                        content: {
+                            "application/json": {
+                                schema: {
+                                    type: "object",
+                                    properties: {
+                                        message: { type: "string" },
+                                        data: {
+                                            type: "object",
+                                            properties: {
+                                                data: {
+                                                    type: "array",
+                                                    items: {
+                                                        type: "object",
+                                                        properties: {
+                                                            mall: {
+                                                                type: "object",
+                                                                properties: {
+                                                                    id: { type: "string" },
+                                                                    name: { type: "string" },
+                                                                    address: { type: "string", nullable: true },
+                                                                    cityId: { type: "string" },
+                                                                },
+                                                            },
+                                                            statistics: {
+                                                                type: "object",
+                                                                properties: {
+                                                                    totalRestaurants: { type: "integer" },
+                                                                    totalOrders: { type: "integer" },
+                                                                    totalRevenue: { type: "number" },
+                                                                    revenueByStatus: { type: "object", additionalProperties: { type: "number" } },
+                                                                    ordersByStatus: { type: "object", additionalProperties: { type: "integer" } },
+                                                                },
+                                                            },
+                                                        },
+                                                    },
+                                                },
+                                                pagination: {
+                                                    type: "object",
+                                                    properties: {
+                                                        page: { type: "integer" },
+                                                        limit: { type: "integer" },
+                                                        total: { type: "integer" },
+                                                        totalPages: { type: "integer" },
+                                                    },
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
     },
     tags: [
         {
@@ -2759,12 +2945,31 @@ const swaggerDefinition = {
             name: "Payments",
             description: "Payment method management endpoints",
         },
+        {
+            name: "Analytics",
+            description: "Analytics and statistics endpoints",
+        },
+        {
+            name: "Promotions",
+            description: "Restaurant promotion management endpoints",
+        },
+        {
+            name: "Promo Codes",
+            description: "Promo code management endpoints",
+        },
     ],
 };
 
+// Use absolute paths for better reliability
+const basePath = process.cwd();
 const options = {
     definition: swaggerDefinition,
-    apis: ["./src/routes/**/*.ts", "./src/modules/**/*.routes.ts"],
+    apis: [
+        `${basePath}/src/routes/**/*.ts`,
+        `${basePath}/src/modules/**/*.routes.ts`,
+        `${basePath}/dist/routes/**/*.js`,
+        `${basePath}/dist/modules/**/*.routes.js`
+    ],
 };
 
 export const swaggerSpec = swaggerJsdoc(options);

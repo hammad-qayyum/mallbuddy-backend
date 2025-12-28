@@ -84,11 +84,23 @@ export const deliveryAddressService = {
     }
 
     const updateData: any = {};
-    if (data.label !== undefined) updateData.label = data.label;
-    if (data.address !== undefined) updateData.address = data.address;
-    if (data.city !== undefined) updateData.city = data.city;
-    if (data.postalCode !== undefined) updateData.postalCode = data.postalCode;
-    if (data.isDefault !== undefined) updateData.isDefault = data.isDefault;
+    
+    // Only update fields that are provided and not empty
+    if (data.label !== undefined && data.label !== null && data.label.trim() !== "") {
+      updateData.label = data.label;
+    }
+    if (data.address !== undefined && data.address !== null && data.address.trim() !== "") {
+      updateData.address = data.address;
+    }
+    if (data.city !== undefined && data.city !== null && data.city.trim() !== "") {
+      updateData.city = data.city;
+    }
+    if (data.postalCode !== undefined && data.postalCode !== null && data.postalCode.trim() !== "") {
+      updateData.postalCode = data.postalCode;
+    }
+    if (data.isDefault !== undefined && data.isDefault !== null) {
+      updateData.isDefault = data.isDefault;
+    }
 
     const updatedAddress = await prisma.deliveryAddress.update({
       where: { id: addressId },

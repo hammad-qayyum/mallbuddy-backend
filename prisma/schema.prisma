@@ -25,7 +25,6 @@ model User {
   selectedCountryId String?
   selectedMallId    String?
   stripeCustomerId  String?             @unique
-  Status            userStatus          @default(ACTIVE)
   accounts          Account[]
   cart              Cart?
   deliveryAddresses DeliveryAddress[]
@@ -38,6 +37,7 @@ model User {
   country           Country?            @relation(fields: [selectedCountryId], references: [id])
   mall              Mall?               @relation(fields: [selectedMallId], references: [id])
   UserPaymentMethod UserPaymentMethod[]
+  userStatusHistory UserStatusHistory[] @relation("userStatusHistory")
 }
 
 model Account {
@@ -107,8 +107,32 @@ model Mall {
   city              City              @relation(fields: [cityId], references: [id])
   restaurants       Restaurant[]
   users             User[]
+  promoCodes        PromoCode[]
 
   @@unique([name, cityId])
+}
+
+model RestaurantStatusHistory {
+  id           String           @id @default(uuid())
+  restaurantId String
+  status       RestaurantStatus
+  reason       String?
+  actionById   String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  restaurant   Restaurant       @relation("statusHistory", fields: [restaurantId], references: [userId], onDelete: Cascade)
+}
+
+model UserStatusHistory {
+  id         String     @id @default(uuid())
+  userId     String
+  status     userStatus
+  reason     String?
+  actionById String?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  user User @relation("userStatusHistory", fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Restaurant {
@@ -137,12 +161,28 @@ model Restaurant {
   businessHours         BusinessHours[]
   promoCodes            PromoCode[]         @relation("PromoCodeRestaurants")
 
+  approvalStatus   RestaurantApprovalStatus @default(PENDING)
+  RestaurantStatus RestaurantStatus         @default(ACTIVE)
+
   // Onboarding
   onboardingCompleted   Boolean   @default(false)
   onboardingCompletedAt DateTime?
 
   // Subscriptions
   subscriptions RestaurantSubscription[]
+
+  // Promotions
+  promotions Promotion[]
+
+  // Stripe Connect fields
+  stripeConnectAccountId String? @unique // Stores the restaurant's Stripe Connect account ID (acct_xxx)
+  stripeCustomerId       String? @unique // Stores the Stripe Customer ID for subscriptions (cus_xxx)
+  stripeAccountStatus    String? // "pending", "completed", "rejected" etc.
+  bankAccountAdded       Boolean @default(false) // true if bank info is added
+  commissionRate         Float   @default(0.1) // default platform commission (10%)
+
+  // Status History
+  statusHistory RestaurantStatusHistory[] @relation("statusHistory")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
@@ -173,20 +213,44 @@ model RestaurantGallery {
   restaurant   Restaurant @relation(fields: [restaurantId], references: [userId])
 }
 
+// Restaurant Promotion Model
+model Promotion {
+  id                 String     @id @default(uuid())
+  restaurantId       String
+  title              String // Promotion title (min 6 characters)
+  banner             String // Banner image URL
+  discountPercentage Decimal // e.g., 50 for 50%
+  startDate          DateTime // Start date of promotion
+  endDate            DateTime // End date of promotion
+  isActive           Boolean    @default(true)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  restaurant         Restaurant @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
+
+  @@index([restaurantId])
+  @@index([isActive])
+  @@index([endDate])
+}
+
 // Promo Code Model
 model PromoCode {
   id                    String       @id @default(uuid())
   code                  String       @unique // e.g., "PROMOCODE2025"
   description           String? // e.g., "50%OFF"
   discountType          DiscountType @default(PERCENTAGE) // PERCENTAGE or FIXED
-  discountValue         Decimal // e.g., 50 (for 50%) or 10 (for 10 OMR)
-  validFrom             DateTime
-  validUntil            DateTime
+  discountValue         Decimal      @default(0) // e.g., 50 (for 50%) or 10 (for 10 OMR)
+  discountPercentage    Decimal? 
+  validFrom             DateTime     
+  validUntil            DateTime     
+  startDate             DateTime? 
+  endDate               DateTime? 
   maxUses               Int? // null = unlimited
   usedCount             Int          @default(0)
   isActive              Boolean      @default(true)
   minOrderAmount        Decimal? // Minimum order amount to apply promo
   applicableToAll       Boolean      @default(true) // If false, only specific restaurants
+  mallId                String
+  restaurantId          String? 
   applicableRestaurants Restaurant[] @relation("PromoCodeRestaurants") // Only if applicableToAll is false
 
   // Tracking
@@ -195,6 +259,7 @@ model PromoCode {
   createdBy String? // Admin ID who created this
 
   // Relations
+  mall          Mall           @relation(fields: [mallId], references: [id])
   orders        Order[]
   promoCodeUses PromoCodeUse[]
 
@@ -222,12 +287,13 @@ model PromoCodeUse {
 }
 
 model SubscriptionPlan {
-  id       String               @id @default(uuid())
-  name     String // e.g. "Basic", "Pro", "Premium"
-  price    Decimal // 5.99
-  interval SubscriptionInterval
-  features Json // Feature flags
-  isActive Boolean              @default(true)
+  id            String               @id @default(uuid())
+  name          String // e.g. "Basic", "Pro", "Premium"
+  price         Decimal // 5.99
+  interval      SubscriptionInterval
+  features      Json // Feature flags
+  isActive      Boolean              @default(true)
+  stripePriceId String? // Stripe price ID
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -244,6 +310,9 @@ model RestaurantSubscription {
   endDate   DateTime?
   status    SubscriptionStatus
 
+  // Stripe subscription tracking
+  stripeSubscriptionId String? @unique
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -251,6 +320,7 @@ model RestaurantSubscription {
   plan       SubscriptionPlan @relation(fields: [planId], references: [id])
 
   @@index([restaurantId])
+  @@index([stripeSubscriptionId])
   @@index([status])
 }
 
@@ -279,18 +349,9 @@ model MenuItem {
   price              Decimal
   preparationTime    String?
   image              String?
-  id                 String              @id @default(uuid())
-  name               String
-  description        String?
-  price              Decimal
-  preparationTime    String?
-  image              String?
   categoryId         String
   cartItems          CartItem[]
   favouriteCartItems FavouriteCartItem[]
-  category           MenuCategory        @relation(fields: [categoryId], references: [id])
-  orderItems         OrderItem[]
-  addOns             ProductAddOn[]
   category           MenuCategory        @relation(fields: [categoryId], references: [id])
   orderItems         OrderItem[]
   addOns             ProductAddOn[]
@@ -299,16 +360,7 @@ model MenuItem {
 
 model ProductVariation {
   id           String            @id @default(uuid())
-  id           String            @id @default(uuid())
   menuItemId   String
-  name         String
-  type         String
-  isRequired   Boolean           @default(true)
-  displayOrder Int               @default(0)
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  menuItem     MenuItem          @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
-  options      VariationOption[]
   name         String
   type         String
   isRequired   Boolean           @default(true)
@@ -323,14 +375,7 @@ model ProductVariation {
 
 model VariationOption {
   id            String           @id @default(uuid())
-  id            String           @id @default(uuid())
   variationId   String
-  name          String
-  priceModifier Decimal          @default(0)
-  displayOrder  Int              @default(0)
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  variation     ProductVariation @relation(fields: [variationId], references: [id], onDelete: Cascade)
   name          String
   priceModifier Decimal          @default(0)
   displayOrder  Int              @default(0)
@@ -343,16 +388,7 @@ model VariationOption {
 
 model ProductAddOn {
   id           String        @id @default(uuid())
-  id           String        @id @default(uuid())
   menuItemId   String
-  name         String
-  isRequired   Boolean       @default(false)
-  maxSelection Int           @default(1)
-  displayOrder Int           @default(0)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  options      AddOnOption[]
-  menuItem     MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
   name         String
   isRequired   Boolean       @default(false)
   maxSelection Int           @default(1)
@@ -367,14 +403,7 @@ model ProductAddOn {
 
 model AddOnOption {
   id           String       @id @default(uuid())
-  id           String       @id @default(uuid())
   addOnId      String
-  name         String
-  price        Decimal
-  displayOrder Int          @default(0)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  addOn        ProductAddOn @relation(fields: [addOnId], references: [id], onDelete: Cascade)
   name         String
   price        Decimal
   displayOrder Int          @default(0)
@@ -392,29 +421,19 @@ model Cart {
   updatedAt DateTime   @updatedAt
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   items     CartItem[]
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items     CartItem[]
 }
 
 model CartItem {
-  id                 String     @id @default(uuid())
   id                 String     @id @default(uuid())
   cartId             String
   restaurantId       String
   menuItemId         String
   quantity           Int        @default(1)
-  quantity           Int        @default(1)
   specialNotes       String?
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
   selectedAddOns     Json?
-  createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
-  selectedAddOns     Json?
   selectedVariations Json?
-  cart               Cart       @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  menuItem           MenuItem   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
-  restaurant         Restaurant @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
   cart               Cart       @relation(fields: [cartId], references: [id], onDelete: Cascade)
   menuItem           MenuItem   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
   restaurant         Restaurant @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
@@ -429,12 +448,8 @@ model FavouriteCart {
   userId      String
   name        String
   description String?
-  name        String
-  description String?
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
-  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items       FavouriteCartItem[]
   user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   items       FavouriteCartItem[]
 
@@ -451,19 +466,7 @@ model FavouriteCartItem {
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
   selectedAddOns     Json?
-  id                 String        @id @default(uuid())
-  favouriteCartId    String
-  restaurantId       String
-  menuItemId         String
-  quantity           Int           @default(1)
-  specialNotes       String?
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
-  selectedAddOns     Json?
   selectedVariations Json?
-  favouriteCart      FavouriteCart @relation(fields: [favouriteCartId], references: [id], onDelete: Cascade)
-  menuItem           MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
-  restaurant         Restaurant    @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
   favouriteCart      FavouriteCart @relation(fields: [favouriteCartId], references: [id], onDelete: Cascade)
   menuItem           MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
   restaurant         Restaurant    @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
@@ -478,8 +481,6 @@ model DeliveryAddress {
   userId     String
   label      String?
   address    String
-  label      String?
-  address    String
   city       String?
   postalCode String?
   isDefault  Boolean  @default(false)
@@ -487,50 +488,49 @@ model DeliveryAddress {
   updatedAt  DateTime @updatedAt
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   orders     Order[]
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orders     Order[]
 
   @@index([userId])
 }
 
 model Order {
-  id                    String          @id @default(uuid())
-  orderNumber           String          @unique
-  userId                String
-  restaurantId          String
-  deliveryAddressId     String
-  subtotal              Decimal
-  tax                   Decimal         @default(0)
-  deliveryFee           Decimal         @default(0)
-  discount              Decimal         @default(0)
-  total                 Decimal
-  paymentMethod         PaymentMethod   @default(CASH)
-  status                OrderStatus     @default(PENDING)
-  estimatedDeliveryTime String?
-  id                    String          @id @default(uuid())
-  orderNumber           String          @unique
-  userId                String
-  restaurantId          String
-  deliveryAddressId     String
-  subtotal              Decimal
-  tax                   Decimal         @default(0)
-  deliveryFee           Decimal         @default(0)
-  discount              Decimal         @default(0)
-  total                 Decimal
-  paymentMethod         PaymentMethod   @default(CASH)
-  status                OrderStatus     @default(PENDING)
+  id          String @id @default(uuid())
+  orderNumber String @unique
+
+  userId            String
+  restaurantId      String
+  deliveryAddressId String
+
+  subtotal    Decimal
+  tax         Decimal @default(0)
+  deliveryFee Decimal @default(0)
+  discount    Decimal @default(0)
+  total       Decimal
+
+  paymentMethod PaymentMethod @default(CASH)
+  status        OrderStatus   @default(PENDING)
+
   estimatedDeliveryTime String?
   actualDeliveryTime    DateTime?
   specialInstructions   String?
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
-  deliveryAddress       DeliveryAddress @relation(fields: [deliveryAddressId], references: [id], onDelete: Cascade)
-  restaurant            Restaurant      @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
-  user                  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   items                 OrderItem[]
-  promoCodeId           String? // Applied promo code
-  promoCode             PromoCode?      @relation(fields: [promoCodeId], references: [id])
-  promoCodeUses         PromoCodeUse[]
+
+  promoCodeId   String?
+  promoCode     PromoCode?     @relation(fields: [promoCodeId], references: [id])
+  promoCodeUses PromoCodeUse[]
+
+  paymentStatus PaymentStatus @default(PENDING)
+
+  // Stripe references (ONLY for card payments)
+  stripePaymentIntentId String?   @unique
+  paidAt                DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant      Restaurant      @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
+  deliveryAddress DeliveryAddress @relation(fields: [deliveryAddressId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([restaurantId])
@@ -574,6 +574,12 @@ model UserPaymentMethod {
   @@index([userId])
 }
 
+model StripeEvent {
+  id        String   @id // evt_xxx from Stripe
+  type      String
+  createdAt DateTime @default(now())
+}
+
 enum Role {
   USER
   ADMIN
@@ -581,6 +587,18 @@ enum Role {
 }
 
 enum userStatus {
+  ACTIVE
+  BLOCKED
+}
+
+// Restaurant Approval Status Enum
+enum RestaurantApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum RestaurantStatus {
   ACTIVE
   BLOCKED
 }
@@ -617,4 +635,12 @@ enum SubscriptionStatus {
   ACTIVE
   EXPIRED
   CANCELLED
+  INCOMPLETE
+}
+
+enum PaymentStatus {
+  PENDING // Order created, not paid yet
+  PAID // Payment successful
+  FAILED // Payment attempt failed
+  REFUNDED // Money refunded
 }

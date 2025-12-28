@@ -4,16 +4,18 @@ import { uploadRestaurantBanner } from "../../config/upload";
 
 const router = Router();
 
+
 /**
  * @swagger
- * /restaurant/create:
+ * /admin/restaurants/create:
  *   post:
- *     summary: Create a new restaurant
+ *     summary: Admin creates restaurant account
  *     tags: [Restaurants]
  *     description: |
- *       Create a new restaurant. You can either upload a banner image file or provide a banner URL.
- *       **Required fields:** userId, mallId
- *       **Optional fields:** name, mainCategory, banner (URL or file upload), description, story, location, cuisineCategoryId, isFavorite
+ *       Admin creates a restaurant account. Creates a new User with role RESTAURANT and a Restaurant profile atomically.
+ *       You can either upload a banner image file or provide a banner URL.
+ *       **Required fields:** email, password, name, location, description, phoneNumber
+ *       **Optional fields:** firstName, lastName, mallId, mainCategory, banner (URL or file upload), story, cuisineCategoryId, isFavorite
  *       **Banner upload:** Use multipart/form-data with field name "banner" to upload a file.
  *       If both file and URL are provided, the uploaded file takes priority.
  *       **Accepted image formats:** JPEG, PNG, GIF, WebP
@@ -24,121 +26,131 @@ const router = Router();
  *         multipart/form-data:
  *           schema:
  *             type: object
- *             required: [userId, mallId]
+ *             required: [email, password, name, location, description, phoneNumber]
  *             properties:
- *               userId:
+ *               email:
  *                 type: string
- *                 description: "User ID (must be a valid user ID, becomes the restaurant's primary key)"
- *                 example: "123e4567-e89b-12d3-a456-426614174000"
- *               mallId:
+ *                 format: email
+ *                 description: Restaurant owner email
+ *                 example: "rozna.restaurant@gmail.com"
+ *               password:
  *                 type: string
- *                 description: Mall ID where the restaurant is located
- *                 example: "123e4567-e89b-12d3-a456-426614174000"
+ *                 minLength: 8
+ *                 description: Password (minimum 8 characters)
+ *               phoneNumber:
+ *                 type: string
+ *                 description: Restaurant phone number
+ *                 example: "+968-24-857392"
  *               name:
  *                 type: string
- *                 description: "Restaurant name (optional)"
+ *                 description: Restaurant name
  *                 example: "Rozna Restaurant"
+ *               location:
+ *                 type: string
+ *                 description: Restaurant address/location
+ *                 example: "Food Court, Level 2, Mall Name"
+ *               description:
+ *                 type: string
+ *                 description: Restaurant details/description
+ *                 example: "Authentic Chinese cuisine with family recipes"
+ *               firstName:
+ *                 type: string
+ *                 description: Restaurant owner first name (optional)
+ *               lastName:
+ *                 type: string
+ *                 description: Restaurant owner last name (optional)
+ *               mallId:
+ *                 type: string
+ *                 description: Mall ID where restaurant is located (optional, can be set later)
  *               mainCategory:
  *                 type: string
- *                 description: "Main cuisine category (e.g., 'CHINESE', 'INDIAN', 'ITALIAN')"
- *                 example: "CHINESE"
+ *                 description: Main cuisine category (optional)
  *               banner:
  *                 type: string
  *                 format: binary
- *                 description: "Restaurant banner image file (optional, JPEG, PNG, GIF, or WebP, max 5MB)"
- *               description:
- *                 type: string
- *                 description: "Restaurant description (optional)"
- *                 example: "Authentic Chinese cuisine"
+ *                 description: Restaurant banner image file (optional, JPEG, PNG, GIF, or WebP, max 5MB)
  *               story:
  *                 type: string
- *                 description: "Restaurant story/intro (optional)"
- *                 example: "Family recipes since 1990"
- *               location:
- *                 type: string
- *                 description: "Restaurant location within the mall (optional)"
- *                 example: "Food Court, Level 2"
+ *                 description: Restaurant story/intro (optional)
  *               cuisineCategoryId:
  *                 type: string
- *                 description: "Cuisine category ID (optional)"
- *                 example: "123e4567-e89b-12d3-a456-426614174999"
+ *                 description: Cuisine category ID (optional)
  *               isFavorite:
  *                 type: boolean
- *                 description: "Mark as featured/favorite (optional)"
- *                 example: false
+ *                 description: Mark as featured/favorite (optional)
  *           examples:
  *             withFileUpload:
  *               summary: Create with banner file upload
  *               value:
- *                 userId: "123e4567-e89b-12d3-a456-426614174000"
- *                 mallId: "123e4567-e89b-12d3-a456-426614174000"
+ *                 email: "rozna.restaurant@gmail.com"
+ *                 password: "password123"
  *                 name: "Rozna Restaurant"
- *                 mainCategory: "CHINESE"
- *                 description: "Authentic Chinese cuisine"
- *                 story: "Family recipes since 1990"
  *                 location: "Food Court, Level 2"
+ *                 description: "Authentic Chinese cuisine"
+ *                 phoneNumber: "+968-24-857392"
  *                 banner: "<file>"
  *             withBannerUrl:
  *               summary: Create with banner URL
  *               value:
- *                 userId: "123e4567-e89b-12d3-a456-426614174000"
- *                 mallId: "123e4567-e89b-12d3-a456-426614174000"
- *                 mainCategory: "CHINESE"
- *                 description: "Authentic Chinese cuisine"
+ *                 email: "rozna.restaurant@gmail.com"
+ *                 password: "password123"
+ *                 name: "Rozna Restaurant"
  *                 location: "Food Court, Level 2"
+ *                 description: "Authentic Chinese cuisine"
+ *                 phoneNumber: "+968-24-857392"
  *                 banner: "https://example.com/restaurant-banner.jpg"
  *             withoutBanner:
  *               summary: Create without banner
  *               value:
- *                 userId: "123e4567-e89b-12d3-a456-426614174000"
- *                 mallId: "123e4567-e89b-12d3-a456-426614174000"
- *                 mainCategory: "CHINESE"
- *                 description: "Authentic Chinese cuisine"
+ *                 email: "rozna.restaurant@gmail.com"
+ *                 password: "password123"
+ *                 name: "Rozna Restaurant"
  *                 location: "Food Court, Level 2"
+ *                 description: "Authentic Chinese cuisine"
+ *                 phoneNumber: "+968-24-857392"
  *     responses:
  *       201:
- *         description: Restaurant created successfully
+ *         description: Restaurant account created successfully
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 userId:
+ *                 message:
  *                   type: string
- *                 mallId:
- *                   type: string
- *                 name:
- *                   type: string
- *                   nullable: true
- *                 mainCategory:
- *                   type: string
- *                 banner:
- *                   type: string
- *                   nullable: true
- *                   description: URL to the restaurant banner (if provided)
- *                 description:
- *                   type: string
- *                   nullable: true
- *                 story:
- *                   type: string
- *                   nullable: true
- *                 location:
- *                   type: string
- *                   nullable: true
- *                 cuisineCategoryId:
- *                   type: string
- *                   nullable: true
- *                 isFavorite:
- *                   type: boolean
- *                   description: "Whether the restaurant is featured/favorite"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         email:
+ *                           type: string
+ *                         role:
+ *                           type: string
+ *                           example: "RESTAURANT"
+ *                     restaurant:
+ *                       type: object
+ *                       properties:
+ *                         userId:
+ *                           type: string
+ *                         mallId:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         onboardingCompleted:
+ *                           type: boolean
+ *                           example: false
  *       400:
- *         description: Validation error or failed to create restaurant
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ValidationError'
+ *         description: Validation error
+ *       404:
+ *         description: Mall not found
+ *       409:
+ *         description: Email already registered
  */
-router.post("/restaurant/create", uploadRestaurantBanner.single("banner"), restaurantController.create);
+router.post("/admin/restaurants/create", uploadRestaurantBanner.single("banner"), restaurantController.createByAdmin);
 
 /**
  * @swagger
@@ -1041,5 +1053,53 @@ router.post("/restaurants/:restaurantId/orders/:orderId/decline", restaurantCont
  *         description: Order not found
  */
 router.patch("/restaurants/:restaurantId/orders/:orderId/status", restaurantController.updateOrderStatus);
+
+/**
+ * @swagger
+ * /restaurants/{restaurantId}/analytics/orders-revenue:
+ *   get:
+ *     summary: Get restaurant analytics (orders and revenue)
+ *     tags: [Restaurants]
+ *     description: |
+ *       Get all orders and revenue statistics for a specific restaurant with pagination.
+ *       Returns complete order details along with revenue summaries.
+ *     parameters:
+ *       - in: path
+ *         name: restaurantId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Restaurant ID (same as user ID for restaurant)
+ *         example: "123e4567-e89b-12d3-a456-426614174000"
+ *       - in: query
+ *         name: page
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *           minimum: 1
+ *         description: "Page number for pagination (default: 1)"
+ *         example: 1
+ *       - in: query
+ *         name: limit
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *           minimum: 1
+ *           maximum: 100
+ *         description: "Number of results per page (default: 10, max: 100)"
+ *         example: 10
+ *     responses:
+ *       200:
+ *         description: Restaurant analytics retrieved successfully
+ *       404:
+ *         description: Restaurant not found
+ */
+router.get(
+  "/restaurants/:restaurantId/analytics/orders-revenue",
+  restaurantController.getRestaurantAnalytics
+);
+
 
 export default router;

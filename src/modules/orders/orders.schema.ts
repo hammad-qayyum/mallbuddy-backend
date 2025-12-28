@@ -52,6 +52,13 @@ export const getOrderSummarySchema = z.object({
   orderId: z.string().min(1, "Order ID is required"),
 });
 
+// Schema for getting accepted orders (order queue) for restaurant
+export const getAcceptedOrdersSchema = z.object({
+  restaurantId: z.string().min(1, "Restaurant ID is required"),
+  limit: z.number().int().positive().default(50).optional(),
+  offset: z.number().int().nonnegative().default(0).optional(),
+});
+
 // TypeScript types
 export type GetUserOrdersInput = z.infer<typeof getUserOrdersSchema>;
 export type GetActiveOrdersInput = z.infer<typeof getActiveOrdersSchema>;
@@ -61,3 +68,4 @@ export type ReorderInput = z.infer<typeof reorderSchema>;
 export type CancellationReasonsInput = z.infer<typeof cancellationReasonsSchema>;
 export type GetOrderDetailsInput = z.infer<typeof getOrderDetailsSchema>;
 export type GetOrderSummaryInput = z.infer<typeof getOrderSummarySchema>;
+export type GetAcceptedOrdersInput = z.infer<typeof getAcceptedOrdersSchema>;

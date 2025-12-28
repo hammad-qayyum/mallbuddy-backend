@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import promoCodeService from "./promo-code.service";
-import { applyPromoCodeSchema, createPromoCodeSchema } from "./promo-code.schema";
+import { applyPromoCodeSchema } from "./promo-code.schema";
 
 export const promoCodeController = {
   /**
@@ -58,89 +58,6 @@ export const promoCodeController = {
       return res.status(500).json({
         success: false,
         message: "Failed to apply promo code",
-      });
-    }
-  },
-
-  /**
-   * POST /admin/promo-codes
-   * Create a new promo code (Admin only)
-   */
-  async createPromoCode(req: Request, res: Response) {
-    try {
-      const validation = createPromoCodeSchema.safeParse(req.body);
-
-      if (!validation.success) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid request",
-          errors: validation.error.flatten(),
-        });
-      }
-
-      const result = await promoCodeService.createPromoCode(validation.data);
-
-      return res.status(201).json(result);
-    } catch (error: any) {
-      console.error('[promoCodeController] createPromoCode error:', error?.stack || error);
-      return res.status(500).json({
-        success: false,
-        message: "Failed to create promo code",
-      });
-    }
-  },
-
-  /**
-   * GET /admin/promo-codes
-   * Get all promo codes (Admin only)
-   */
-  async getAllPromoCodes(req: Request, res: Response) {
-    try {
-      const promoCodes = await promoCodeService.getAllPromoCodes();
-
-      return res.json({
-        success: true,
-        data: promoCodes,
-        totalCount: promoCodes.length,
-      });
-    } catch (error: any) {
-      console.error('[promoCodeController] getAllPromoCodes error:', error?.stack || error);
-      return res.status(500).json({
-        success: false,
-        message: "Failed to fetch promo codes",
-      });
-    }
-  },
-
-  /**
-   * PATCH /admin/promo-codes/:promoCodeId/deactivate
-   * Deactivate a promo code (Admin only)
-   */
-  async deactivatePromoCode(req: Request, res: Response) {
-    try {
-      const { promoCodeId } = req.params;
-
-      if (!promoCodeId) {
-        return res.status(400).json({
-          success: false,
-          message: "Promo code ID is required",
-        });
-      }
-
-      const result = await promoCodeService.deactivatePromoCode(promoCodeId);
-
-      return res.json(result);
-    } catch (error: any) {
-      console.error('[promoCodeController] deactivatePromoCode error:', error?.stack || error);
-      if (error.code === "P2025") {
-        return res.status(404).json({
-          success: false,
-          message: "Promo code not found",
-        });
-      }
-      return res.status(500).json({
-        success: false,
-        message: "Failed to deactivate promo code",
       });
     }
   },

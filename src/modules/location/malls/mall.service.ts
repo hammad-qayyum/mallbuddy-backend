@@ -70,4 +70,101 @@ export const mallService = {
       where: { id },
     });
   },
+
+  // Get statistics per mall: total revenue, orders, restaurants per mall
+  async getMallStatistics(page: number = 1, limit: number = 10) {
+    // Get total count of malls for pagination
+    const totalMalls = await prisma.mall.count();
+
+    // Get paginated malls
+    const malls = await prisma.mall.findMany({
+      include: {
+        restaurants: {
+          select: {
+            userId: true,
+            name: true,
+          },
+        },
+      },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    // Get all orders with restaurant and mall info
+    const orders = await prisma.order.findMany({
+      include: {
+        restaurant: {
+          select: {
+            mallId: true,
+          },
+        },
+      },
+    });
+
+    // Calculate statistics per mall
+    const mallStats = malls.map((mall) => {
+      // Filter orders for this mall
+      const mallOrders = orders.filter(
+        (order) => order.restaurant.mallId === mall.id
+      );
+
+      // Calculate total revenue for this mall
+      const totalRevenue = mallOrders.reduce((sum, order) => {
+        return sum + Number.parseFloat(order.total.toString());
+      }, 0);
+
+      // Calculate total orders for this mall
+      const totalOrders = mallOrders.length;
+
+      // Get restaurant count for this mall
+      const totalRestaurants = mall.restaurants.length;
+
+      // Calculate revenue by status for this mall
+      const revenueByStatus = mallOrders.reduce((acc, order) => {
+        const status = order.status;
+        const orderTotal = Number.parseFloat(order.total.toString());
+        if (!acc[status]) {
+          acc[status] = 0;
+        }
+        acc[status] += orderTotal;
+        return acc;
+      }, {} as Record<string, number>);
+
+      // Calculate orders by status for this mall
+      const ordersByStatus = mallOrders.reduce((acc, order) => {
+        const status = order.status;
+        if (!acc[status]) {
+          acc[status] = 0;
+        }
+        acc[status] += 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      return {
+        mall: {
+          id: mall.id,
+          name: mall.name,
+          address: mall.address,
+          cityId: mall.cityId,
+        },
+        statistics: {
+          totalRestaurants,
+          totalOrders,
+          totalRevenue: Number(totalRevenue.toFixed(2)),
+          revenueByStatus,
+          ordersByStatus,
+        },
+      };
+    });
+
+    return {
+      data: mallStats,
+      pagination: {
+        page,
+        limit,
+        total: totalMalls,
+        totalPages: Math.ceil(totalMalls / limit),
+      },
+    };
+  },
 };

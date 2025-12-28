@@ -9,7 +9,7 @@ export const checkoutSchema = z.object({
     message: "Invalid payment method",
   }),
   specialInstructions: z.string().optional().nullable(),
-  appliedDiscount: z.number().min(0).default(0),
+  promoCodeId: z.string().optional(), // Optional promo code ID
   deliveryFee: z.number().min(0).default(0),
   tax: z.number().min(0).default(0),
 });

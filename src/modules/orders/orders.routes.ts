@@ -1,5 +1,6 @@
-import { Router } from "express";
+import express, { Router } from "express";
 import { ordersController } from "./orders.controller";
+import { stripeWebhookHandler } from "../payments/stripe-webhooks/stripe.webhook";
 
 const router = Router();
 
@@ -553,6 +554,109 @@ router.get("/cancellation-reasons", ordersController.getCancellationReasons);
  *       500:
  *         description: Internal server error
  */
+/**
+ * @swagger
+ * /orders/restaurant/{restaurantId}/accepted:
+ *   get:
+ *     summary: Get accepted orders (order queue)
+ *     tags: [Orders]
+ *     description: |
+ *       Get all orders with status ACCEPTED for a restaurant. This is the order queue showing orders that are being prepared.
+ *       Orders are sorted by creation time (oldest first) to show the queue order.
+ *     parameters:
+ *       - in: path
+ *         name: restaurantId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Restaurant ID
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: "Maximum number of orders to return (default: 50)"
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: "Number of orders to skip for pagination (default: 0)"
+ *     responses:
+ *       200:
+ *         description: Accepted orders retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           orderNumber:
+ *                             type: string
+ *                           customerName:
+ *                             type: string
+ *                           customerPhone:
+ *                             type: string
+ *                           customerImage:
+ *                             type: string
+ *                           status:
+ *                             type: string
+ *                             example: "ACCEPTED"
+ *                           totalAmount:
+ *                             type: number
+ *                           subtotal:
+ *                             type: number
+ *                           tax:
+ *                             type: number
+ *                           deliveryFee:
+ *                             type: number
+ *                           discount:
+ *                             type: number
+ *                           paymentMethod:
+ *                             type: string
+ *                           deliveryAddress:
+ *                             type: string
+ *                           deliveryCity:
+ *                             type: string
+ *                           deliveryLabel:
+ *                             type: string
+ *                           estimatedDeliveryTime:
+ *                             type: string
+ *                           specialInstructions:
+ *                             type: string
+ *                           createdAt:
+ *                             type: string
+ *                             format: date-time
+ *                           items:
+ *                             type: array
+ *                             items:
+ *                               type: object
+ *                           itemCount:
+ *                             type: integer
+ *                     total:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     offset:
+ *                       type: integer
+ *       400:
+ *         description: Invalid request parameters
+ *       404:
+ *         description: Restaurant not found
+ */
+router.get("/restaurant/:restaurantId/accepted", ordersController.getAcceptedOrders);
+
 router.get("/:orderId", ordersController.getOrderDetails);
 
 /**
@@ -680,5 +784,12 @@ router.get("/summary/:orderId", ordersController.getOrderSummary);
  *         description: Server error
  */
 router.get("/:orderId/reorder-preview", ordersController.getOrderForReorder);
+
+
+router.post(
+    "/stripe",
+    express.raw({ type: "application/json" }),
+    stripeWebhookHandler
+  );
 
 export default router;

@@ -1,7 +1,6 @@
 import prisma from "../../config/prisma";
 import { deleteImageFile } from "../../config/upload";
 import {
-  CreateRestaurantInput,
   UpdateRestaurantInput,
   AcceptOrderInput,
   DeclineOrderInput,
@@ -26,35 +25,6 @@ export const restaurantService = {
   // Existing CRUD
   // ============================
 
-  async createRestaurant(data: CreateRestaurantInput) {
-    // derive restaurant name from the user to satisfy required `name` field
-    const user = await prisma.user.findUnique({
-      where: { id: data.userId },
-      select: { name: true, firstName: true, lastName: true },
-    });
-
-    const candidateName =
-      data.name ?? user?.name ?? [user?.firstName, user?.lastName].filter(Boolean).join(" ");
-
-    const restaurantName = candidateName || "Default Restaurant Name";
-
-    // Prisma types are strict here; cast to any to avoid exactOptionalPropertyTypes friction
-    return prisma.restaurant.create({
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      data: {
-        userId: data.userId,
-        mallId: data.mallId,
-        mainCategory: data.mainCategory ?? null,
-        name: restaurantName,
-        ...(data.cuisineCategoryId !== undefined && { cuisineCategoryId: data.cuisineCategoryId }),
-        ...(data.banner !== undefined && { banner: data.banner }),
-        ...(data.description !== undefined && { description: data.description }),
-        ...(data.story !== undefined && { story: data.story }),
-        ...(data.location !== undefined && { location: data.location }),
-      } as any,
-    });
-  },
 
   async getAllRestaurants(
     mallId: string,
@@ -122,11 +92,21 @@ export const restaurantService = {
     });
 
     const updateData: any = {};
-    if (data.mallId !== undefined) updateData.mallId = data.mallId;
-    if (data.mainCategory !== undefined) updateData.mainCategory = data.mainCategory;
-    if (data.name !== undefined) updateData.name = data.name;
-    if (data.story !== undefined) updateData.story = data.story;
-    if (data.banner !== undefined) {
+    
+    // Only update fields that are provided and not empty
+    if (data.mallId !== undefined && data.mallId !== null && data.mallId.trim() !== "") {
+      updateData.mallId = data.mallId;
+    }
+    if (data.mainCategory !== undefined && data.mainCategory !== null && data.mainCategory.trim() !== "") {
+      updateData.mainCategory = data.mainCategory;
+    }
+    if (data.name !== undefined && data.name !== null && data.name.trim() !== "") {
+      updateData.name = data.name;
+    }
+    if (data.story !== undefined && data.story !== null && data.story.trim() !== "") {
+      updateData.story = data.story;
+    }
+    if (data.banner !== undefined && data.banner !== null && data.banner.trim() !== "") {
       // remove previous uploaded banner file if present
       if (currentRestaurant?.banner && currentRestaurant.banner.startsWith("/uploads/")) {
         try {
@@ -137,10 +117,18 @@ export const restaurantService = {
       }
       updateData.banner = data.banner;
     }
-    if (data.description !== undefined) updateData.description = data.description;
-    if (data.location !== undefined) updateData.location = data.location;
-    if (data.cuisineCategoryId !== undefined) updateData.cuisineCategoryId = data.cuisineCategoryId;
-    if ((data as any).isFavorite !== undefined) updateData.isFavorite = (data as any).isFavorite;
+    if (data.description !== undefined && data.description !== null && data.description.trim() !== "") {
+      updateData.description = data.description;
+    }
+    if (data.location !== undefined && data.location !== null && data.location.trim() !== "") {
+      updateData.location = data.location;
+    }
+    if (data.cuisineCategoryId !== undefined && data.cuisineCategoryId !== null && data.cuisineCategoryId.trim() !== "") {
+      updateData.cuisineCategoryId = data.cuisineCategoryId;
+    }
+    if ((data as any).isFavorite !== undefined && (data as any).isFavorite !== null) {
+      updateData.isFavorite = (data as any).isFavorite;
+    }
     return prisma.restaurant.update({
       where: { userId: id },
       data: updateData,
@@ -165,6 +153,9 @@ export const restaurantService = {
       }
     }
   },
+
+
+
 
   // Explore & gallery functionality moved to dedicated modules (`/modules/explore` and `/modules/gallery`).
   // See `exploreService` and `galleryService` for implementations.
@@ -485,4 +476,140 @@ export const restaurantService = {
       message: `Order marked as ${input.status} successfully`,
     };
   },
+
+  // Get all orders and revenue for a specific restaurant with pagination
+  async getRestaurantOrdersAndRevenue(
+    restaurantId: string,
+    page: number = 1,
+    limit: number = 10
+  ) {
+    // Verify restaurant exists
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { userId: restaurantId },
+      select: { userId: true, name: true },
+    });
+
+    if (!restaurant) {
+      throw new Error("Restaurant not found");
+    }
+
+    // Get total count of orders for pagination
+    const totalOrders = await prisma.order.count({
+      where: { restaurantId },
+    });
+
+    // Get paginated orders for the restaurant
+    const orders = await prisma.order.findMany({
+      where: { restaurantId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            phoneNumber: true,
+          },
+        },
+        items: {
+          include: {
+            menuItem: {
+              select: {
+                id: true,
+                name: true,
+                image: true,
+              },
+            },
+          },
+        },
+        deliveryAddress: {
+          select: {
+            label: true,
+            address: true,
+            city: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    // Get all orders for revenue calculation (not paginated)
+    const allOrders = await prisma.order.findMany({
+      where: { restaurantId },
+      select: {
+        total: true,
+        status: true,
+      },
+    });
+
+    // Calculate total revenue (sum of all order totals)
+    const totalRevenue = allOrders.reduce((sum, order) => {
+      return sum + Number.parseFloat(order.total.toString());
+    }, 0);
+
+    // Calculate revenue by status (from all orders)
+    const revenueByStatus = allOrders.reduce((acc, order) => {
+      const status = order.status;
+      const orderTotal = Number.parseFloat(order.total.toString());
+      if (!acc[status]) {
+        acc[status] = 0;
+      }
+      acc[status] += orderTotal;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Calculate orders by status (from all orders)
+    const ordersByStatus = allOrders.reduce((acc, order) => {
+      const status = order.status;
+      if (!acc[status]) {
+        acc[status] = 0;
+      }
+      acc[status] += 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    return {
+      restaurant: {
+        id: restaurant.userId,
+        name: restaurant.name,
+      },
+      summary: {
+        totalOrders,
+        totalRevenue: Number(totalRevenue.toFixed(2)),
+        revenueByStatus,
+        ordersByStatus,
+      },
+      pagination: {
+        page,
+        limit,
+        total: totalOrders,
+        totalPages: Math.ceil(totalOrders / limit),
+      },
+      orders: orders.map((order) => ({
+        id: order.id,
+        orderNumber: order.orderNumber,
+        customerName: order.user.name,
+        customerPhone: order.user.phoneNumber,
+        status: order.status,
+        totalAmount: Number.parseFloat(order.total.toString()),
+        paymentMethod: order.paymentMethod,
+        deliveryAddress: order.deliveryAddress?.address || "N/A",
+        deliveryCity: order.deliveryAddress?.city || "N/A",
+        estimatedDeliveryTime: order.estimatedDeliveryTime,
+        specialInstructions: order.specialInstructions,
+        createdAt: order.createdAt,
+        items: order.items.map((item) => ({
+          id: item.id,
+          name: item.itemName,
+          quantity: item.quantity,
+          unitPrice: Number.parseFloat(item.unitPrice.toString()),
+          totalPrice: Number.parseFloat(item.totalPrice.toString()),
+          image: item.menuItem.image,
+        })),
+        itemCount: order.items.length,
+      })),
+    };
+  },
+
+  
 };

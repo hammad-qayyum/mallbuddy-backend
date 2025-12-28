@@ -64,11 +64,20 @@ export const menuCategoryService = {
 
     const updateData: any = {};
     
-    if (data.name !== undefined) updateData.name = data.name;
-    if (data.price !== undefined) updateData.price = data.price;
-    if (data.description !== undefined) updateData.description = data.description;
-    if (data.preparationTime !== undefined) updateData.preparationTime = data.preparationTime;
-    if (data.image !== undefined) {
+    // Only update fields that are provided and not empty
+    if (data.name !== undefined && data.name !== null && data.name.trim() !== "") {
+      updateData.name = data.name;
+    }
+    if (data.price !== undefined && data.price !== null && data.price >= 0) {
+      updateData.price = data.price;
+    }
+    if (data.description !== undefined && data.description !== null && data.description.trim() !== "") {
+      updateData.description = data.description;
+    }
+    if (data.preparationTime !== undefined && data.preparationTime !== null && data.preparationTime.trim() !== "") {
+      updateData.preparationTime = data.preparationTime;
+    }
+    if (data.image !== undefined && data.image !== null && data.image.trim() !== "") {
       // Delete old image if it exists and is a local file
       if (currentItem?.image && currentItem.image.startsWith("/uploads/")) {
         deleteImageFile(currentItem.image);

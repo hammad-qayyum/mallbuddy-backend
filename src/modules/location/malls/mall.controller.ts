@@ -3,6 +3,7 @@ import { mallService } from "./mall.service";
 import {
   createMallSchema,
   updateMallSchema,
+  getMallStatisticsSchema,
 } from "./mall.schema";
 
 export const mallController = {
@@ -154,6 +155,40 @@ export const mallController = {
       return res.status(404).json({
         message: "Mall not found",
       });
+    }
+  },
+
+  /**
+   * GET /malls/analytics - Get statistics per mall
+   */
+  async getMallStatistics(req: Request, res: Response) {
+    try {
+      const page = Number.parseInt((req.query.page ?? "1") as string);
+      const limit = Number.parseInt((req.query.limit ?? "10") as string);
+
+      const parseResult = getMallStatisticsSchema.safeParse({
+        page,
+        limit,
+      });
+
+      if (!parseResult.success) {
+        return res.status(400).json({
+          message: "Invalid request parameters",
+          errors: parseResult.error.issues,
+        });
+      }
+
+      const result = await mallService.getMallStatistics(
+        parseResult.data.page || 1,
+        parseResult.data.limit || 10
+      );
+
+      return res.json({
+        message: "Mall statistics retrieved successfully",
+        data: result,
+      });
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
     }
   },
 };

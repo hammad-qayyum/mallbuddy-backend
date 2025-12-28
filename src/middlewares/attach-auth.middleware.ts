@@ -10,7 +10,15 @@ export const attachAuth = async (req: Request, res: Response, next: NextFunction
         if (isGalleryUpload) {
             (req as any).auth = undefined;
             return next();
-        }
+        } const isStripeWebhook = 
+        req.originalUrl === "/api/payments/stripe-webhook" || 
+        req.originalUrl === "/api/payments/stripe-webhooks/stripe-webhook" ||
+        req.originalUrl === "/api/payments/stripe-webhooks/stripe-account-webhook" ||
+        req.originalUrl?.startsWith("/api/payments/stripe-webhooks/");
+      
+      if (isStripeWebhook) {
+        return next();
+      }
 
         const session = await authService.getSession(req);
 

@@ -338,4 +338,39 @@ router.patch("/mall/update/:id", mallController.update);
  */
 router.delete("/mall/delete/:id", mallController.delete);
 
+/**
+ * @swagger
+ * /malls/analytics:
+ *   get:
+ *     summary: Get statistics per mall
+ *     tags: [Location]
+ *     description: |
+ *       Get statistics for each mall including total revenue, total orders,
+ *       total restaurants, and breakdowns by status with pagination.
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *           minimum: 1
+ *         description: "Page number for pagination (default: 1)"
+ *         example: 1
+ *       - in: query
+ *         name: limit
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *           minimum: 1
+ *           maximum: 100
+ *         description: "Number of results per page (default: 10, max: 100)"
+ *         example: 10
+ *     responses:
+ *       200:
+ *         description: Mall statistics retrieved successfully
+ */
+router.get("/analytics", mallController.getMallStatistics);
+
 export default router;

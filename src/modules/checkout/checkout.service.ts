@@ -4,7 +4,7 @@ import { CheckoutInput, UpdateOrderStatusInput } from "./checkout.schema";
 export const checkoutService = {
   // Create order from cart
   async createOrder(checkoutData: CheckoutInput) {
-    const { userId, deliveryAddressId, paymentMethod, specialInstructions, appliedDiscount, deliveryFee, tax } =
+    const { userId, deliveryAddressId, paymentMethod, specialInstructions, promoCodeId, deliveryFee, tax } =
       checkoutData;
 
     // Get user's cart with items
@@ -105,6 +105,23 @@ export const checkoutService = {
       });
     }
 
+    // Calculate discount if promo code is provided
+    let appliedDiscount = 0;
+    if (promoCodeId) {
+      const promoCode = await prisma.promoCode.findUnique({
+        where: { id: promoCodeId },
+      });
+
+      if (promoCode) {
+        const now = new Date();
+        // Verify promo code is valid
+        if (promoCode.startDate <= now && promoCode.endDate >= now) {
+          // Calculate discount based on percentage
+          appliedDiscount = Math.round((subtotal * promoCode.discountPercentage) / 100 * 100) / 100;
+        }
+      }
+    }
+
     const total = subtotal + tax + deliveryFee - appliedDiscount;
 
     // Generate unique order number
@@ -119,6 +136,7 @@ export const checkoutService = {
         deliveryAddressId,
         paymentMethod,
         specialInstructions: specialInstructions || null,
+        promoCodeId: promoCodeId || null, // Link promo code to order
         subtotal: subtotal.toString(),
         tax: tax.toString(),
         deliveryFee: deliveryFee.toString(),

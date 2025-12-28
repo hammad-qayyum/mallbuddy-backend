@@ -263,4 +263,131 @@ router.post("/logout", authController.logout);
  */
 router.get("/me", authController.me);
 
+/**
+ * @swagger
+ * /auth/restaurant/signup:
+ *   post:
+ *     summary: Restaurant owner signup
+ *     tags: [Authentication]
+ *     description: |
+ *       Restaurant owner self-signup. Creates a new User with role RESTAURANT and a Restaurant profile atomically.
+ *       Returns user, restaurant, and session for immediate login.
+ *       **Required fields:** email, password, name, location, description, phoneNumber
+ *       **Optional fields:** firstName, lastName, mallId, mainCategory, cuisineCategoryId
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, password, name, location, description, phoneNumber]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: Restaurant owner email
+ *                 example: "rozna.restaurant@gmail.com"
+ *               password:
+ *                 type: string
+ *                 minLength: 8
+ *                 description: Password (minimum 8 characters)
+ *               phoneNumber:
+ *                 type: string
+ *                 description: Restaurant phone number
+ *                 example: "+968-24-857392"
+ *               name:
+ *                 type: string
+ *                 description: Restaurant name
+ *                 example: "Rozna Restaurant"
+ *               location:
+ *                 type: string
+ *                 description: Restaurant address/location
+ *                 example: "Food Court, Level 2, Mall Name"
+ *               description:
+ *                 type: string
+ *                 description: Restaurant details/description
+ *                 example: "Authentic Chinese cuisine with family recipes"
+ *               firstName:
+ *                 type: string
+ *                 description: Restaurant owner first name (optional)
+ *               lastName:
+ *                 type: string
+ *                 description: Restaurant owner last name (optional)
+ *               mallId:
+ *                 type: string
+ *                 description: Mall ID where restaurant is located (optional, can be set later)
+ *               mainCategory:
+ *                 type: string
+ *                 description: Main cuisine category (optional)
+ *               cuisineCategoryId:
+ *                 type: string
+ *                 description: Cuisine category ID (optional)
+ *           examples:
+ *             basic:
+ *               summary: Basic restaurant signup
+ *               value:
+ *                 email: "rozna.restaurant@gmail.com"
+ *                 password: "password123"
+ *                 name: "Rozna Restaurant"
+ *                 location: "Food Court, Level 2"
+ *                 description: "Authentic Chinese cuisine"
+ *                 phoneNumber: "+968-24-857392"
+ *             complete:
+ *               summary: Complete restaurant signup
+ *               value:
+ *                 email: "rozna.restaurant@gmail.com"
+ *                 password: "password123"
+ *                 phoneNumber: "+968-24-857392"
+ *                 firstName: "John"
+ *                 lastName: "Doe"
+ *                 name: "Rozna Restaurant"
+ *                 location: "Food Court, Level 2, Central Mall"
+ *                 description: "Authentic Chinese cuisine with family recipes since 1990"
+ *                 mallId: "123e4567-e89b-12d3-a456-426614174000"
+ *                 mainCategory: "CHINESE"
+ *     responses:
+ *       201:
+ *         description: Restaurant account created successfully. Session cookie is automatically set.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         email:
+ *                           type: string
+ *                         role:
+ *                           type: string
+ *                           example: "RESTAURANT"
+ *                     restaurant:
+ *                       type: object
+ *                       properties:
+ *                         userId:
+ *                           type: string
+ *                         mallId:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         onboardingCompleted:
+ *                           type: boolean
+ *                           example: false
+ *         headers:
+ *           Set-Cookie:
+ *             description: Session cookie is set automatically
+ *       400:
+ *         description: Validation error or signup failed
+ *       409:
+ *         description: Email already registered
+ */
+router.post("/restaurant/signup", authController.restaurantSignup);
+
 export default router;

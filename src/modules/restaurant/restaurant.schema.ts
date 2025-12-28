@@ -7,12 +7,10 @@ const optionalString = (min?: number) =>
     min ? z.string().min(min).optional() : z.string().optional()
   );
 
-// Schema to create a new restaurant
-// Required: userId, mallId
-// Optional: name, mainCategory, banner, description, story, location, cuisineCategoryId, isFavorite
-export const createRestaurantSchema = z.object({
-  userId: z.string(),
-  mallId: z.string(),
+// Base schema for restaurant fields (used for updates)
+// Note: This is kept for updateRestaurantSchema only
+const restaurantFieldsSchema = z.object({
+  mallId: z.string().optional(),
   name: optionalString(1),
   mainCategory: optionalString(1),
   banner: optionalString(),
@@ -31,10 +29,7 @@ export const createRestaurantSchema = z.object({
 });
 
 // Schema to update an existing restaurant
-// userId is excluded because it's the primary key and shouldn't be updated
-export const updateRestaurantSchema = createRestaurantSchema
-  .omit({ userId: true })
-  .partial();
+export const updateRestaurantSchema = restaurantFieldsSchema.partial();
 
 // Schema to accept an order
 export const acceptOrderSchema = z.object({
@@ -56,10 +51,9 @@ export const declineOrderSchema = z.object({
 export const updateOrderStatusSchema = z.object({
   orderId: z.string().min(1, "Order ID is required").uuid("Invalid order ID"),
   restaurantId: z.string().min(1, "Restaurant ID is required"),
-  status: z.enum(
-    ["ACCEPTED", "PREPARING", "READY", "OUT_FOR_DELIVERY", "DELIVERED"],
-    { errorMap: () => ({ message: "Invalid order status" }) }
-  ),
+  status: z.enum(["ACCEPTED", "PREPARING", "READY", "OUT_FOR_DELIVERY", "DELIVERED"], {
+    message: "Invalid order status",
+  }),
 });
 
 // Schema to get restaurant orders with filters
@@ -78,11 +72,124 @@ export const getOrderDetailsSchema = z.object({
   restaurantId: z.string().min(1, "Restaurant ID is required"),
 });
 
+// Schema for getting restaurant analytics
+export const getRestaurantAnalyticsSchema = z.object({
+  restaurantId: z.string().min(1, "Restaurant ID is required"),
+  page: z.number().int().positive().default(1).optional(),
+  limit: z.number().int().positive().max(100).default(10).optional(),
+});
+
+
+// Schema for restaurant self-signup (creates User + Restaurant atomically)
+export const restaurantSignupSchema = z.object({
+  // Required fields
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  name: z.string().min(1, "Restaurant name is required"),
+  location: z.string().min(1, "Address/location is required"),
+  description: z.string().min(1, "Restaurant details are required"),
+  phoneNumber: z.string().min(1, "Phone number is required"),
+  
+  // Optional fields
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  mallId: z.string().optional(), // Can be set later if not provided
+  mainCategory: optionalString(1),
+  cuisineCategoryId: optionalString(),
+});
+
+// Schema for admin creating restaurant account (creates User + Restaurant atomically)
+export const adminCreateRestaurantSchema = z.object({
+  // Required fields
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  name: z.string().min(1, "Restaurant name is required"),
+  location: z.string().min(1, "Address/location is required"),
+  description: z.string().min(1, "Restaurant details are required"),
+  phoneNumber: z.string().min(1, "Phone number is required"),
+  
+  // Optional fields
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  mallId: z.string().optional(), // Can be set later if not provided
+  mainCategory: optionalString(1),
+  cuisineCategoryId: optionalString(),
+  banner: optionalString(),
+  story: optionalString(),
+  isFavorite: z
+    .preprocess((val) => {
+      if (val === "true" || val === true) return true;
+      if (val === "false" || val === false) return false;
+      return val;
+    }, z.boolean())
+    .optional(),
+});
+
+''
 // TypeScript types inferred from schemas
-export type CreateRestaurantInput = z.infer<typeof createRestaurantSchema>;
 export type UpdateRestaurantInput = z.infer<typeof updateRestaurantSchema>;
 export type AcceptOrderInput = z.infer<typeof acceptOrderSchema>;
 export type DeclineOrderInput = z.infer<typeof declineOrderSchema>;
 export type UpdateOrderStatusInput = z.infer<typeof updateOrderStatusSchema>;
 export type GetRestaurantOrdersInput = z.infer<typeof getRestaurantOrdersSchema>;
 export type GetOrderDetailsInput = z.infer<typeof getOrderDetailsSchema>;
+export type GetRestaurantAnalyticsInput = z.infer<typeof getRestaurantAnalyticsSchema>;
+export type RestaurantSignupInput = z.infer<typeof restaurantSignupSchema>;
+export type AdminCreateRestaurantInput = z.infer<typeof adminCreateRestaurantSchema>;
+
+
+// =========================
+// EXPLORE RESTAURANT SCHEMAS
+// =========================
+
+// Query validation for /explore endpoint
+export const exploreRestaurantQuerySchema = z.object({
+  mallId: z.string().optional(),               // filter by mall
+  cuisineCategoryId: z.string().optional(),   // filter by cuisine
+  limit: z.string().optional(),               // pagination
+  page: z.string().optional(),                // pagination
+});
+
+// Params validation for /details/:restaurantId
+export const restaurantDetailParamsSchema = z.object({
+  restaurantId: z.string(),                   // Restaurant primary key (userId)
+});
+
+// =========================
+// Explore Response Schemas
+// =========================
+
+// Each restaurant card in /explore list
+export const exploreRestaurantSchema = z.object({
+  userId: z.string(),
+  name: z.string(),
+  banner: z.string().optional(),
+  isFavorite: z.boolean(),
+  cuisineCategory: z
+    .object({
+      id: z.string(),
+      name: z.string(),
+    })
+    .optional(),
+});
+
+// Response for /explore/:id details
+export const exploreRestaurantDetailSchema = z.object({
+  userId: z.string(),
+  name: z.string(),
+  story: z.string().optional(),
+  gallery: z.array(
+    z.object({
+      id: z.string(),
+      imageUrl: z.string(),
+    })
+  ),
+});
+
+// =========================
+// TypeScript types
+// =========================
+export type ExploreRestaurantQuery = z.infer<typeof exploreRestaurantQuerySchema>;
+export type RestaurantDetailParams = z.infer<typeof restaurantDetailParamsSchema>;
+export type ExploreRestaurantOutput = z.infer<typeof exploreRestaurantSchema>;
+export type ExploreRestaurantDetailOutput = z.infer<typeof exploreRestaurantDetailSchema>;
