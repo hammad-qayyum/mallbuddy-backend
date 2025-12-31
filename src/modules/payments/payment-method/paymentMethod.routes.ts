@@ -5,12 +5,12 @@ import {
   removePaymentMethod,
   makePaymentMethodDefault,
 } from "./paymentMethod.controller";
-import { requireAuth } from "../../../middlewares/auth.middleware";
+import { requireAuth, requireUserRole } from "../../../middlewares/role.middleware";
 
 const router = Router();
 
-// All routes require authenticated user
-router.use(requireAuth);
+// All routes require USER role (requireAuth is applied globally)
+router.use(requireUserRole);
 
 /**
  * @swagger

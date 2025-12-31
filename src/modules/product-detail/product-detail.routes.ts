@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { productDetailController } from "./product-detail.controller";
+import { requireAuth, requireRestaurantRole } from "../../middlewares/role.middleware";
 
 const router = Router();
 
@@ -175,7 +176,8 @@ router.get("/product/get/:menuItemId", productDetailController.getProductDetail)
  *       500:
  *         description: Server error
  */
-router.post("/variation/create", productDetailController.createVariation);
+// Product variation management - restaurant only (GET routes are public)
+router.post("/variation/create", requireAuth, requireRestaurantRole, productDetailController.createVariation);
 
 /**
  * @swagger
@@ -316,7 +318,7 @@ router.get("/variation/get/:variationId", productDetailController.getVariationBy
  *       500:
  *         description: Server error
  */
-router.put("/variation/update/:variationId", productDetailController.updateVariation);
+router.put("/variation/update/:variationId", requireAuth, requireRestaurantRole, productDetailController.updateVariation);
 
 /**
  * @swagger
@@ -344,7 +346,7 @@ router.put("/variation/update/:variationId", productDetailController.updateVaria
  *       500:
  *         description: Server error
  */
-router.delete("/variation/delete/:variationId", productDetailController.deleteVariation);
+router.delete("/variation/delete/:variationId", requireAuth, requireRestaurantRole, productDetailController.deleteVariation);
 
 /**
  * ============================================
@@ -395,7 +397,7 @@ router.delete("/variation/delete/:variationId", productDetailController.deleteVa
  *       500:
  *         description: Server error
  */
-router.post("/variation-option/create", productDetailController.createVariationOption);
+router.post("/variation-option/create", requireAuth, requireRestaurantRole, productDetailController.createVariationOption);
 
 /**
  * @swagger
@@ -525,7 +527,7 @@ router.get("/variation-option/get/:optionId", productDetailController.getVariati
  *       500:
  *         description: Server error
  */
-router.put("/variation-option/update/:optionId", productDetailController.updateVariationOption);
+router.put("/variation-option/update/:optionId", requireAuth, requireRestaurantRole, productDetailController.updateVariationOption);
 
 /**
  * @swagger
@@ -553,7 +555,7 @@ router.put("/variation-option/update/:optionId", productDetailController.updateV
  *       500:
  *         description: Server error
  */
-router.delete("/variation-option/delete/:optionId", productDetailController.deleteVariationOption);
+router.delete("/variation-option/delete/:optionId", requireAuth, requireRestaurantRole, productDetailController.deleteVariationOption);
 
 /**
  * ============================================
@@ -607,7 +609,7 @@ router.delete("/variation-option/delete/:optionId", productDetailController.dele
  *       500:
  *         description: Server error
  */
-router.post("/add-on/create", productDetailController.createAddOn);
+router.post("/add-on/create", requireAuth, requireRestaurantRole, productDetailController.createAddOn);
 
 /**
  * @swagger
@@ -745,7 +747,7 @@ router.get("/add-on/get/:addOnId", productDetailController.getAddOnById);
  *       500:
  *         description: Server error
  */
-router.put("/add-on/update/:addOnId", productDetailController.updateAddOn);
+router.put("/add-on/update/:addOnId", requireAuth, requireRestaurantRole, productDetailController.updateAddOn);
 
 /**
  * @swagger
@@ -773,7 +775,7 @@ router.put("/add-on/update/:addOnId", productDetailController.updateAddOn);
  *       500:
  *         description: Server error
  */
-router.delete("/add-on/delete/:addOnId", productDetailController.deleteAddOn);
+router.delete("/add-on/delete/:addOnId", requireAuth, requireRestaurantRole, productDetailController.deleteAddOn);
 
 /**
  * ============================================
@@ -825,7 +827,7 @@ router.delete("/add-on/delete/:addOnId", productDetailController.deleteAddOn);
  *       500:
  *         description: Server error
  */
-router.post("/add-on-option/create", productDetailController.createAddOnOption);
+router.post("/add-on-option/create", requireAuth, requireRestaurantRole, productDetailController.createAddOnOption);
 
 /**
  * @swagger
@@ -955,7 +957,7 @@ router.get("/add-on-option/get/:optionId", productDetailController.getAddOnOptio
  *       500:
  *         description: Server error
  */
-router.put("/add-on-option/update/:optionId", productDetailController.updateAddOnOption);
+router.put("/add-on-option/update/:optionId", requireAuth, requireRestaurantRole, productDetailController.updateAddOnOption);
 
 /**
  * @swagger
@@ -983,6 +985,6 @@ router.put("/add-on-option/update/:optionId", productDetailController.updateAddO
  *       500:
  *         description: Server error
  */
-router.delete("/add-on-option/delete/:optionId", productDetailController.deleteAddOnOption);
+router.delete("/add-on-option/delete/:optionId", requireAuth, requireRestaurantRole, productDetailController.deleteAddOnOption);
 
 export default router;

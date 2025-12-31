@@ -10,6 +10,7 @@ import {
   updateOrderStatusSchema,
   getRestaurantAnalyticsSchema,
   adminCreateRestaurantSchema,
+  getAllRestaurantsSystemWideSchema,
 } from "./restaurant.schema";
 import { getRestaurantBannerUrl } from "../../config/upload";
 
@@ -77,6 +78,44 @@ export const restaurantController = {
     );
 
     return res.json(data);
+  },
+
+  // GET /restaurants/all - Public access to all restaurants system-wide
+  async getAllSystemWide(req: Request, res: Response) {
+    try {
+      const page = Number.parseInt((req.query.page ?? "1") as string);
+      const limit = Number.parseInt((req.query.limit ?? "10") as string);
+      const mallId = req.query.mallId as string | undefined;
+      const category = req.query.category as string | undefined;
+
+      const parseResult = getAllRestaurantsSystemWideSchema.safeParse({
+        page,
+        limit,
+        mallId,
+        category,
+      });
+
+      if (!parseResult.success) {
+        return res.status(400).json({
+          message: "Invalid request parameters",
+          errors: parseResult.error.issues,
+        });
+      }
+
+      const result = await restaurantService.getAllRestaurantsSystemWidePublic(
+        parseResult.data.page || 1,
+        parseResult.data.limit || 10,
+        parseResult.data.mallId,
+        parseResult.data.category
+      );
+
+      return res.json({
+        message: "Restaurants retrieved successfully",
+        data: result,
+      });
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
   },
 
   // GET /restaurants/:restaurantId/details

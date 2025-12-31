@@ -30,7 +30,7 @@ export const promoCodeService = {
               name: true,
             },
           },
-          restaurant: {
+          Restaurant: {
             select: {
               userId: true,
               name: true,
@@ -45,6 +45,54 @@ export const promoCodeService = {
       return promoCodes;
     } catch (err) {
       console.error('[promoCodeService] getAvailablePromoCodes error:', (err as any)?.stack || err);
+      throw err;
+    }
+  },
+
+  /**
+   * Get all valid (non-expired) promo codes for a specific restaurant
+   * Returns promo codes that are currently active and not expired
+   */
+  async getValidPromoCodesByRestaurant(restaurantId: string) {
+    try {
+      const now = new Date();
+      const promoCodes = await prisma.promoCode.findMany({
+        where: {
+          restaurantId: restaurantId,
+          endDate: {
+            gte: now, // Not expired
+          },
+          startDate: {
+            lte: now, // Already started
+          },
+        },
+        select: {
+          id: true,
+          code: true,
+          discountPercentage: true,
+          startDate: true,
+          endDate: true,
+          mall: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          Restaurant: {
+            select: {
+              userId: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: {
+          endDate: "desc",
+        },
+      });
+
+      return promoCodes;
+    } catch (err) {
+      console.error('[promoCodeService] getValidPromoCodesByRestaurant error:', (err as any)?.stack || err);
       throw err;
     }
   },

@@ -28,9 +28,29 @@ export const mallService = {
 
   // Get all malls, optionally filtered by cityId
   async getMalls(cityId?: string) {
-    return prisma.mall.findMany({
+    const malls = await prisma.mall.findMany({
       ...(cityId && { where: { cityId } }),
       orderBy: { name: "asc" },
+      include: {
+        _count: {
+          select: {
+            restaurants: true,
+          },
+        },
+      },
+    });
+
+    // Return exact restaurant count
+    return malls.map((mall) => {
+      return {
+        id: mall.id,
+        name: mall.name,
+        address: mall.address,
+        cityId: mall.cityId,
+        createdAt: mall.createdAt,
+        updatedAt: mall.updatedAt,
+        restaurantCount: mall._count.restaurants,
+      };
     });
   },
 

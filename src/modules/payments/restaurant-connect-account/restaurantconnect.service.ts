@@ -1,6 +1,7 @@
 import { stripe } from "../../../libs/stripe";
 import prisma from "../../../config/prisma";
-
+import dotenv from "dotenv";
+dotenv.config();
 /**
  * ✅ Idempotent: Get or create Stripe Connect account
  * This function GUARANTEES only ONE account per restaurant
@@ -25,9 +26,10 @@ export async function getOrCreateRestaurantStripeAccount(restaurantId: string) {
   }
 
   const country = process.env.STRIPE_DEFAULT_COUNTRY || "US";
+  const accountType = (process.env.STRIPE_ACCOUNT_TYPE || "express") as "express" | "standard" | "custom";
 
   const account = await stripe.accounts.create({
-    type: "express",
+    type: accountType,
     country,
     capabilities: {
       card_payments: { requested: true },
@@ -74,12 +76,15 @@ export async function generateOnboardingLink(restaurantId: string) {
     throw new Error("Stripe account not created");
   }
 
+  // Frontend URL should be set in production - fallback only for development
   const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+  const refreshPath = process.env.STRIPE_REFRESH_PATH || "/restaurants/stripe/refresh";
+  const returnPath = process.env.STRIPE_RETURN_PATH || "/restaurants/stripe/return";
 
   const accountLink = await stripe.accountLinks.create({
     account: restaurant.stripeConnectAccountId,
-    refresh_url: `${frontendUrl}/restaurants/stripe/refresh`,
-    return_url: `${frontendUrl}/restaurants/stripe/return`,
+    refresh_url: `${frontendUrl}${refreshPath}`,
+    return_url: `${frontendUrl}${returnPath}`,
     type: "account_onboarding",
   });
 

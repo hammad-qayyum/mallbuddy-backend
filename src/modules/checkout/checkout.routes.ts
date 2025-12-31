@@ -1,7 +1,12 @@
 import { Router } from "express";
 import { checkoutController } from "./checkout.controller";
+import { requireAuth, requireUserRole } from "../../middlewares/role.middleware";
 
 const router = Router();
+
+
+// Apply user role to all checkout routes (requireAuth is applied globally)
+router.use(requireUserRole,requireAuth);
 
 /**
  * @swagger
@@ -223,11 +228,11 @@ router.post("/address", checkoutController.addDeliveryAddress);
  *                 type: string
  *                 description: Special instructions for the order
  *                 example: "Ring doorbell twice"
- *               appliedDiscount:
- *                 type: number
- *                 minimum: 0
- *                 description: Discount amount to apply
- *                 example: 0
+ *               promoCodeId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: Optional promo code ID to apply discount
+ *                 example: "123e4567-e89b-41d4-a716-446655440000"
  *               deliveryFee:
  *                 type: number
  *                 minimum: 0
@@ -280,12 +285,102 @@ router.post("/address", checkoutController.addDeliveryAddress);
  *                       type: number
  *                     total:
  *                       type: number
+ *                     promoCodeId:
+ *                       type: string
+ *                       format: uuid
+ *                       description: Applied promo code ID (if any)
+ *                       example: "123e4567-e89b-41d4-a716-446655440000"
  *                     paymentMethod:
  *                       type: string
  *                     items:
  *                       type: array
  *                       items:
  *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           orderId:
+ *                             type: string
+ *                           menuItemId:
+ *                             type: string
+ *                           quantity:
+ *                             type: integer
+ *                           unitPrice:
+ *                             type: string
+ *                           totalPrice:
+ *                             type: string
+ *                           itemName:
+ *                             type: string
+ *                           specialNotes:
+ *                             type: string
+ *                             nullable: true
+ *                           selectedVariations:
+ *                             type: object
+ *                             nullable: true
+ *                           selectedAddOns:
+ *                             type: object
+ *                             nullable: true
+ *                           menuItem:
+ *                             type: object
+ *                             properties:
+ *                               id:
+ *                                 type: string
+ *                               name:
+ *                                 type: string
+ *                               description:
+ *                                 type: string
+ *                                 nullable: true
+ *                               price:
+ *                                 type: string
+ *                               image:
+ *                                 type: string
+ *                                 nullable: true
+ *                     restaurant:
+ *                       type: object
+ *                       description: Restaurant information (only essential fields)
+ *                       properties:
+ *                         userId:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         mainCategory:
+ *                           type: string
+ *                         banner:
+ *                           type: string
+ *                           nullable: true
+ *                         estimatedDeliveryTime:
+ *                           type: string
+ *                           nullable: true
+ *                     deliveryAddress:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         label:
+ *                           type: string
+ *                         address:
+ *                           type: string
+ *                         city:
+ *                           type: string
+ *                         postalCode:
+ *                           type: string
+ *                         isDefault:
+ *                           type: boolean
+ *                     user:
+ *                       type: object
+ *                       description: User information (only essential fields)
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         email:
+ *                           type: string
+ *                         phoneNumber:
+ *                           type: string
+ *                         image:
+ *                           type: string
+ *                           nullable: true
  *       400:
  *         description: Invalid request or cart empty
  *       404:

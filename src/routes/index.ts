@@ -21,8 +21,8 @@ import deliveryAddressRoutes from "../modules/delivery-address/delivery-address.
 import trackOrderRoutes from "../modules/track-order/track-order.routes";
 import ordersRoutes from "../modules/orders/orders.routes";
 import promoCodeRoutes from "../modules/promo-code/promo-code.routes";
-import adminRestaurantRoutes from "../modules/admin/restaurant/restaurant.routes";
-import adminUserRoutes from "../modules/admin/user/user.routes";
+import adminRestaurantRoutes from "../modules/admin/block_activate-restaurant/restaurant.routes";
+import adminUserRoutes from "../modules/admin/block_activate-users/user.routes";
 import adminSearchRoutes from "../modules/admin/search/search.routes";
 import adminPromoCodeRoutes from "../modules/admin/promo-code/promo-code.routes";
 import paymentMethodRoutes from "../modules/payments/payment-method/paymentMethod.routes";
@@ -32,13 +32,45 @@ import orderRefundRoutes from "../modules/payments/order-refund/orderrefund.rout
 import promotionRoutes from "../modules/restaurant/promotion/promotion.routes";
 import subscriptionRoutes from "../modules/restaurant/subscription/subscription.routes";
 import subscriptionPlanRoutes from "../modules/restaurant/subscription/subscriptionplan-admin/subscriptionplan.routes";
+import notificationRoutes from "../modules/notifications/notification.routes";
+import { requireAuth } from "../middlewares/role.middleware";
+
 const router = Router();
 
 // Better Auth built-in routes (optional - use if you want Better Auth's default endpoints)
+// These routes are excluded from requireAuth (login, signup, forgot password, etc.)
 router.use("/auth/better-auth", betterAuthRoutes);
 
 // Custom auth routes
+// These routes are excluded from requireAuth (login, signup, forgot password, etc.)
 router.use("/auth", authRoutes);
+
+// Apply requireAuth to all routes after auth routes
+// This ensures all routes except auth routes require authentication
+router.use((req, res, next) => {
+  // Skip authentication for auth routes (login, signup, forgot password)
+  // Check both path and originalUrl to handle different mounting scenarios
+  const path = req.path || "";
+  const originalUrl = req.originalUrl || "";
+  
+  // Exclude auth routes that don't require authentication
+  const isAuthRoute = 
+    path.startsWith("/auth/register") || 
+    path.startsWith("/auth/login") || 
+    path.startsWith("/auth/restaurant/signup") ||
+    path.startsWith("/auth/better-auth") ||
+    originalUrl.includes("/auth/register") ||
+    originalUrl.includes("/auth/login") ||
+    originalUrl.includes("/auth/restaurant/signup") ||
+    originalUrl.includes("/auth/better-auth");
+  
+  if (isAuthRoute) {
+    return next();
+  }
+  
+  // Apply requireAuth to all other routes
+  return requireAuth(req, res, next);
+});
 
 // User routes
 router.use("/users", userRoutes);
@@ -128,6 +160,9 @@ router.use("/subscriptions", subscriptionRoutes);
 // Subscription Plan Admin routes
 router.use("/subscription-plans", subscriptionPlanRoutes);
 
+// Notification routes
+router.use("/notifications", notificationRoutes);
+
 /**
  * @swagger
  * /:
@@ -146,7 +181,8 @@ router.use("/subscription-plans", subscriptionPlanRoutes);
  *                   type: string
  *                   example: Mall Delivery Backend API is running
  */
-router.get("/", (req, res) => {
+// Health check endpoint - requires authentication
+router.get("/", requireAuth, (req, res) => {
     res.json({message: "Mall Delivery Backend API is running"});
 });
 

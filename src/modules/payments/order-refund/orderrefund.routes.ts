@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { refundPayment } from "./orderrefund.controller";
-import { requireRole } from "../../../middlewares/role.middleware";
+import { requireAuth, requireRole } from "../../../middlewares/role.middleware";
 
 const router = Router();
 
@@ -89,7 +89,8 @@ const router = Router();
  *                   example: "Order not eligible for refund"
  */
 // Refund endpoint - requires ADMIN or RESTAURANT role
-router.post("/refund", requireRole("ADMIN", "RESTAURANT"), refundPayment);
+// Refund requires authentication and admin or restaurant role
+router.post("/refund", requireAuth, requireRole("ADMIN", "RESTAURANT"), refundPayment);
 
 export default router;
 

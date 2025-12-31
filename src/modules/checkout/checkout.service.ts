@@ -1,4 +1,5 @@
 import prisma from "../../config/prisma";
+import { notifyRestaurantAndAdminNewOrder } from "../notifications/notification.service";
 import { CheckoutInput, UpdateOrderStatusInput } from "./checkout.schema";
 
 export const checkoutService = {
@@ -48,6 +49,41 @@ export const checkoutService = {
       throw new Error("Invalid restaurant ID");
     }
 
+    // Collect all variation and add-on option IDs to batch query
+    const variationOptionIds = new Set<string>();
+    const addOnOptionIds = new Set<string>();
+
+    for (const item of cart.items) {
+      if (item.selectedVariations) {
+        const variations = item.selectedVariations as Array<{ variationId: string; selectedOptionId: string }>;
+        variations.forEach((v) => variationOptionIds.add(v.selectedOptionId));
+      }
+      if (item.selectedAddOns) {
+        const addOns = item.selectedAddOns as Array<{ addOnId: string; selectedOptionIds: string[] }>;
+        addOns.forEach((a) => a.selectedOptionIds.forEach((id) => addOnOptionIds.add(id)));
+      }
+    }
+
+    // Batch fetch all variation and add-on options
+    const [variationOptions, addOnOptions] = await Promise.all([
+      variationOptionIds.size > 0
+        ? prisma.variationOption.findMany({
+            where: { id: { in: Array.from(variationOptionIds) } },
+            select: { id: true, priceModifier: true },
+          })
+        : Promise.resolve([]),
+      addOnOptionIds.size > 0
+        ? prisma.addOnOption.findMany({
+            where: { id: { in: Array.from(addOnOptionIds) } },
+            select: { id: true, price: true },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    // Create maps for quick lookup
+    const variationOptionMap = new Map(variationOptions.map((opt) => [opt.id, opt.priceModifier.toNumber()]));
+    const addOnOptionMap = new Map(addOnOptions.map((opt) => [opt.id, opt.price.toNumber()]));
+
     // Calculate subtotal from cart items including variations and add-ons
     let subtotal = 0;
     const orderItemsData = [];
@@ -55,38 +91,34 @@ export const checkoutService = {
     for (const item of cart.items) {
       let itemUnitPrice = item.menuItem.price.toNumber();
 
-      // Add variation option prices
+      // Add variation option prices (using cached map)
       if (item.selectedVariations) {
         const variations = item.selectedVariations as Array<{
           variationId: string;
           selectedOptionId: string;
         }>;
-        for (const variation of variations) {
-          const option = await prisma.variationOption.findUnique({
-            where: { id: variation.selectedOptionId },
-          });
-          if (option) {
-            itemUnitPrice += option.priceModifier.toNumber();
+        variations.forEach((variation) => {
+          const priceModifier = variationOptionMap.get(variation.selectedOptionId);
+          if (priceModifier !== undefined) {
+            itemUnitPrice += priceModifier;
           }
-        }
+        });
       }
 
-      // Add add-on option prices
+      // Add add-on option prices (using cached map)
       if (item.selectedAddOns) {
         const addOns = item.selectedAddOns as Array<{
           addOnId: string;
           selectedOptionIds: string[];
         }>;
-        for (const addOn of addOns) {
-          for (const optionId of addOn.selectedOptionIds) {
-            const option = await prisma.addOnOption.findUnique({
-              where: { id: optionId },
-            });
-            if (option) {
-              itemUnitPrice += option.price.toNumber();
+        addOns.forEach((addOn) => {
+          addOn.selectedOptionIds.forEach((optionId) => {
+            const price = addOnOptionMap.get(optionId);
+            if (price !== undefined) {
+              itemUnitPrice += price;
             }
-          }
-        }
+          });
+        });
       }
 
       const itemTotal = itemUnitPrice * item.quantity;
@@ -105,24 +137,26 @@ export const checkoutService = {
       });
     }
 
-    // Calculate discount if promo code is provided
-    let appliedDiscount = 0;
-    if (promoCodeId) {
-      const promoCode = await prisma.promoCode.findUnique({
-        where: { id: promoCodeId },
-      });
+  
+     // Calculate discount if promo code is provided
+     let appliedDiscount = 0;
+     if (promoCodeId) {
+       const promoCode = await prisma.promoCode.findUnique({
+         where: { id: promoCodeId },
+       });
+ 
+       if (promoCode) {
+         const now = new Date();
+         // Verify promo code is valid
+         if (promoCode.startDate <= now && promoCode.endDate >= now) {
+           // Calculate discount based on percentage
+           appliedDiscount = Math.round((subtotal * promoCode.discountPercentage) / 100 * 100) / 100;
+         }
+       }
+     }
+ 
+     const total = subtotal + tax + deliveryFee - appliedDiscount;
 
-      if (promoCode) {
-        const now = new Date();
-        // Verify promo code is valid
-        if (promoCode.startDate <= now && promoCode.endDate >= now) {
-          // Calculate discount based on percentage
-          appliedDiscount = Math.round((subtotal * promoCode.discountPercentage) / 100 * 100) / 100;
-        }
-      }
-    }
-
-    const total = subtotal + tax + deliveryFee - appliedDiscount;
 
     // Generate unique order number
     const orderNumber = "#" + Date.now().toString().slice(-4) + Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -147,15 +181,80 @@ export const checkoutService = {
           create: orderItemsData,
         },
       },
-      include: {
+      select: {
+        id: true,
+        orderNumber: true,
+        userId: true,
+        restaurantId: true,
+        deliveryAddressId: true,
+        paymentMethod: true,
+        specialInstructions: true,
+        promoCodeId: true,
+        subtotal: true,
+        tax: true,
+        deliveryFee: true,
+        discount: true,
+        total: true,
+        status: true,
+        estimatedDeliveryTime: true,
+        actualDeliveryTime: true,
+        paymentStatus: true,
+        paidAt: true,
+        createdAt: true,
+        updatedAt: true,
         items: {
-          include: { menuItem: true },
+          select: {
+            id: true,
+            orderId: true,
+            menuItemId: true,
+            quantity: true,
+            unitPrice: true,
+            totalPrice: true,
+            itemName: true,
+            specialNotes: true,
+            selectedVariations: true,
+            selectedAddOns: true,
+            createdAt: true,
+            updatedAt: true,
+            menuItem: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                price: true,
+                image: true,
+              },
+            },
+          },
         },
         restaurant: {
-          include: { user: true },
+          select: {
+            userId: true,
+            name: true,
+            mainCategory: true,
+            banner: true,
+            estimatedDeliveryTime: true,
+          },
         },
-        deliveryAddress: true,
-        user: true,
+        deliveryAddress: {
+          select: {
+            id: true,
+            label: true,
+            address: true,
+            city: true,
+            postalCode: true,
+            isDefault: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phoneNumber: true,
+            image: true,
+          },
+        },
       },
     });
 
@@ -164,6 +263,14 @@ export const checkoutService = {
       where: { cartId: cart.id },
     });
 
+    // Notify restaurant and admin about new order
+    try {
+      await notifyRestaurantAndAdminNewOrder(order);
+    } catch (error: any) {
+      console.error("[Checkout] Failed to send new order notification:", error.message);
+      // Don't fail order creation if notification fails
+    }
+
     return order;
   },
 
@@ -171,15 +278,80 @@ export const checkoutService = {
   async getOrderById(orderId: string) {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: {
+      select: {
+        id: true,
+        orderNumber: true,
+        userId: true,
+        restaurantId: true,
+        deliveryAddressId: true,
+        paymentMethod: true,
+        specialInstructions: true,
+        promoCodeId: true,
+        subtotal: true,
+        tax: true,
+        deliveryFee: true,
+        discount: true,
+        total: true,
+        status: true,
+        estimatedDeliveryTime: true,
+        actualDeliveryTime: true,
+        paymentStatus: true,
+        paidAt: true,
+        createdAt: true,
+        updatedAt: true,
         items: {
-          include: { menuItem: true },
+          select: {
+            id: true,
+            orderId: true,
+            menuItemId: true,
+            quantity: true,
+            unitPrice: true,
+            totalPrice: true,
+            itemName: true,
+            specialNotes: true,
+            selectedVariations: true,
+            selectedAddOns: true,
+            createdAt: true,
+            updatedAt: true,
+            menuItem: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                price: true,
+                image: true,
+              },
+            },
+          },
         },
         restaurant: {
-          include: { user: true },
+          select: {
+            userId: true,
+            name: true,
+            mainCategory: true,
+            banner: true,
+            estimatedDeliveryTime: true,
+          },
         },
-        deliveryAddress: true,
-        user: true,
+        deliveryAddress: {
+          select: {
+            id: true,
+            label: true,
+            address: true,
+            city: true,
+            postalCode: true,
+            isDefault: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phoneNumber: true,
+            image: true,
+          },
+        },
       },
     });
 
@@ -199,14 +371,69 @@ export const checkoutService = {
 
     const orders = await prisma.order.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        orderNumber: true,
+        userId: true,
+        restaurantId: true,
+        deliveryAddressId: true,
+        paymentMethod: true,
+        specialInstructions: true,
+        promoCodeId: true,
+        subtotal: true,
+        tax: true,
+        deliveryFee: true,
+        discount: true,
+        total: true,
+        status: true,
+        estimatedDeliveryTime: true,
+        actualDeliveryTime: true,
+        paymentStatus: true,
+        paidAt: true,
+        createdAt: true,
+        updatedAt: true,
         items: {
-          include: { menuItem: true },
+          select: {
+            id: true,
+            orderId: true,
+            menuItemId: true,
+            quantity: true,
+            unitPrice: true,
+            totalPrice: true,
+            itemName: true,
+            specialNotes: true,
+            selectedVariations: true,
+            selectedAddOns: true,
+            menuItem: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                price: true,
+                image: true,
+              },
+            },
+          },
         },
         restaurant: {
-          include: { user: true },
+          select: {
+            userId: true,
+            name: true,
+            mainCategory: true,
+            banner: true,
+            estimatedDeliveryTime: true,
+          },
         },
-        deliveryAddress: true,
+        deliveryAddress: {
+          select: {
+            id: true,
+            label: true,
+            address: true,
+            city: true,
+            postalCode: true,
+            isDefault: true,
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
       take: limit,
@@ -241,15 +468,78 @@ export const checkoutService = {
     const updatedOrder = await prisma.order.update({
       where: { id: orderId },
       data: updatePayload,
-      include: {
+      select: {
+        id: true,
+        orderNumber: true,
+        userId: true,
+        restaurantId: true,
+        deliveryAddressId: true,
+        paymentMethod: true,
+        specialInstructions: true,
+        promoCodeId: true,
+        subtotal: true,
+        tax: true,
+        deliveryFee: true,
+        discount: true,
+        total: true,
+        status: true,
+        estimatedDeliveryTime: true,
+        actualDeliveryTime: true,
+        paymentStatus: true,
+        paidAt: true,
+        createdAt: true,
+        updatedAt: true,
         items: {
-          include: { menuItem: true },
+          select: {
+            id: true,
+            orderId: true,
+            menuItemId: true,
+            quantity: true,
+            unitPrice: true,
+            totalPrice: true,
+            itemName: true,
+            specialNotes: true,
+            selectedVariations: true,
+            selectedAddOns: true,
+            menuItem: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                price: true,
+                image: true,
+              },
+            },
+          },
         },
         restaurant: {
-          include: { user: true },
+          select: {
+            userId: true,
+            name: true,
+            mainCategory: true,
+            banner: true,
+            estimatedDeliveryTime: true,
+          },
         },
-        deliveryAddress: true,
-        user: true,
+        deliveryAddress: {
+          select: {
+            id: true,
+            label: true,
+            address: true,
+            city: true,
+            postalCode: true,
+            isDefault: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phoneNumber: true,
+            image: true,
+          },
+        },
       },
     });
 
@@ -293,12 +583,29 @@ export const checkoutService = {
   async getCheckoutSummary(userId: string) {
     const cart = await prisma.cart.findUnique({
       where: { userId },
-      include: {
+      select: {
+        id: true,
         items: {
-          include: {
-            menuItem: true,
+          select: {
+            id: true,
+            restaurantId: true,
+            menuItemId: true,
+            quantity: true,
+            specialNotes: true,
+            selectedVariations: true,
+            selectedAddOns: true,
+            menuItem: {
+              select: {
+                id: true,
+                name: true,
+                price: true,
+              },
+            },
             restaurant: {
-              include: { user: true },
+              select: {
+                userId: true,
+                name: true,
+              },
             },
           },
         },
@@ -321,6 +628,41 @@ export const checkoutService = {
       orderBy: { isDefault: "desc" },
     });
 
+    // Collect all variation and add-on option IDs to batch query
+    const variationOptionIds = new Set<string>();
+    const addOnOptionIds = new Set<string>();
+
+    for (const item of cart.items) {
+      if (item.selectedVariations) {
+        const variations = item.selectedVariations as Array<{ variationId: string; selectedOptionId: string }>;
+        variations.forEach((v) => variationOptionIds.add(v.selectedOptionId));
+      }
+      if (item.selectedAddOns) {
+        const addOns = item.selectedAddOns as Array<{ addOnId: string; selectedOptionIds: string[] }>;
+        addOns.forEach((a) => a.selectedOptionIds.forEach((id) => addOnOptionIds.add(id)));
+      }
+    }
+
+    // Batch fetch all variation and add-on options
+    const [variationOptions, addOnOptions] = await Promise.all([
+      variationOptionIds.size > 0
+        ? prisma.variationOption.findMany({
+            where: { id: { in: Array.from(variationOptionIds) } },
+            select: { id: true, priceModifier: true },
+          })
+        : Promise.resolve([]),
+      addOnOptionIds.size > 0
+        ? prisma.addOnOption.findMany({
+            where: { id: { in: Array.from(addOnOptionIds) } },
+            select: { id: true, price: true },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    // Create maps for quick lookup
+    const variationOptionMap = new Map(variationOptions.map((opt) => [opt.id, opt.priceModifier.toNumber()]));
+    const addOnOptionMap = new Map(addOnOptions.map((opt) => [opt.id, opt.price.toNumber()]));
+
     // Calculate summary including variations and add-ons
     let subtotal = 0;
     const itemsByRestaurant: any = {};
@@ -329,38 +671,34 @@ export const checkoutService = {
       const restaurantId = item.restaurantId;
       let itemUnitPrice = item.menuItem.price.toNumber();
 
-      // Add variation option prices
+      // Add variation option prices (using cached map)
       if (item.selectedVariations) {
         const variations = item.selectedVariations as Array<{
           variationId: string;
           selectedOptionId: string;
         }>;
-        for (const variation of variations) {
-          const option = await prisma.variationOption.findUnique({
-            where: { id: variation.selectedOptionId },
-          });
-          if (option) {
-            itemUnitPrice += option.priceModifier.toNumber();
+        variations.forEach((variation) => {
+          const priceModifier = variationOptionMap.get(variation.selectedOptionId);
+          if (priceModifier !== undefined) {
+            itemUnitPrice += priceModifier;
           }
-        }
+        });
       }
 
-      // Add add-on option prices
+      // Add add-on option prices (using cached map)
       if (item.selectedAddOns) {
         const addOns = item.selectedAddOns as Array<{
           addOnId: string;
           selectedOptionIds: string[];
         }>;
-        for (const addOn of addOns) {
-          for (const optionId of addOn.selectedOptionIds) {
-            const option = await prisma.addOnOption.findUnique({
-              where: { id: optionId },
-            });
-            if (option) {
-              itemUnitPrice += option.price.toNumber();
+        addOns.forEach((addOn) => {
+          addOn.selectedOptionIds.forEach((optionId) => {
+            const price = addOnOptionMap.get(optionId);
+            if (price !== undefined) {
+              itemUnitPrice += price;
             }
-          }
-        }
+          });
+        });
       }
 
       const itemTotal = itemUnitPrice * item.quantity;
@@ -369,7 +707,7 @@ export const checkoutService = {
       if (!itemsByRestaurant[restaurantId]) {
         itemsByRestaurant[restaurantId] = {
           restaurantId,
-          restaurantName: item.restaurant.user?.name || "Restaurant",
+          restaurantName: item.restaurant.name || "Restaurant",
           items: [],
         };
       }

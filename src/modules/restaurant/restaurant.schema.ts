@@ -47,11 +47,11 @@ export const declineOrderSchema = z.object({
     .max(500, "Reason cannot exceed 500 characters"),
 });
 
-// Schema to update order status (mark as ready, for delivery, delivered)
+// Schema to update order status (mark as ready, for delivery, delivered, or reject)
 export const updateOrderStatusSchema = z.object({
   orderId: z.string().min(1, "Order ID is required").uuid("Invalid order ID"),
   restaurantId: z.string().min(1, "Restaurant ID is required"),
-  status: z.enum(["ACCEPTED", "PREPARING", "READY", "OUT_FOR_DELIVERY", "DELIVERED"], {
+  status: z.enum(["ACCEPTED", "PREPARING", "READY", "OUT_FOR_DELIVERY", "DELIVERED", "REJECTED"], {
     message: "Invalid order status",
   }),
 });
@@ -77,6 +77,14 @@ export const getRestaurantAnalyticsSchema = z.object({
   restaurantId: z.string().min(1, "Restaurant ID is required"),
   page: z.number().int().positive().default(1).optional(),
   limit: z.number().int().positive().max(100).default(10).optional(),
+});
+
+// Schema for getting all restaurants system-wide (public access)
+export const getAllRestaurantsSystemWideSchema = z.object({
+  page: z.number().int().positive().default(1).optional(),
+  limit: z.number().int().positive().max(100).default(10).optional(),
+  mallId: z.string().optional(),
+  category: z.string().optional(),
 });
 
 
@@ -125,7 +133,6 @@ export const adminCreateRestaurantSchema = z.object({
     .optional(),
 });
 
-''
 // TypeScript types inferred from schemas
 export type UpdateRestaurantInput = z.infer<typeof updateRestaurantSchema>;
 export type AcceptOrderInput = z.infer<typeof acceptOrderSchema>;
@@ -134,6 +141,7 @@ export type UpdateOrderStatusInput = z.infer<typeof updateOrderStatusSchema>;
 export type GetRestaurantOrdersInput = z.infer<typeof getRestaurantOrdersSchema>;
 export type GetOrderDetailsInput = z.infer<typeof getOrderDetailsSchema>;
 export type GetRestaurantAnalyticsInput = z.infer<typeof getRestaurantAnalyticsSchema>;
+export type GetAllRestaurantsSystemWideInput = z.infer<typeof getAllRestaurantsSystemWideSchema>;
 export type RestaurantSignupInput = z.infer<typeof restaurantSignupSchema>;
 export type AdminCreateRestaurantInput = z.infer<typeof adminCreateRestaurantSchema>;
 

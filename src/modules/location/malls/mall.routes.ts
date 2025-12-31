@@ -1,12 +1,8 @@
 import { Router } from "express";
 import { mallController } from "./mall.controller";
-// import { requireAuth } from "../../../middlewares/auth.middleware";
-// import { authorize } from "../../../middlewares/role.middleware";
+import { requireAuth, requireAdminRole } from "../../../middlewares/role.middleware";
 
 const router = Router();
-
-// In future you can protect with RBAC:
-// router.post("/", requireAuth, authorize("ADMIN"), mallController.create);
 
 /**
  * @swagger
@@ -76,7 +72,8 @@ const router = Router();
  *             schema:
  *               $ref: '#/components/schemas/ValidationError'
  */
-router.post("/mall/create", mallController.create);
+// Admin-only routes for mall management
+router.post("/mall/create", requireAuth, requireAdminRole, mallController.create);
 
 /**
  * @swagger
@@ -113,6 +110,10 @@ router.post("/mall/create", mallController.create);
  *                     nullable: true
  *                   cityId:
  *                     type: string
+ *                   restaurantCount:
+ *                     type: integer
+ *                     description: "Exact number of restaurants in this mall"
+ *                     example: 7
  *                   createdAt:
  *                     type: string
  *                     format: date-time
@@ -208,6 +209,10 @@ router.get("/mall/get/:id", mallController.getById);
  *                     nullable: true
  *                   cityId:
  *                     type: string
+ *                   restaurantCount:
+ *                     type: integer
+ *                     description: "Exact number of restaurants in this mall"
+ *                     example: 7
  *                   createdAt:
  *                     type: string
  *                     format: date-time
@@ -301,7 +306,7 @@ router.get("/mall/get-by-city/:cityId", mallController.getByCityId);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.patch("/mall/update/:id", mallController.update);
+router.patch("/mall/update/:id", requireAuth, requireAdminRole, mallController.update);
 
 /**
  * @swagger
@@ -336,7 +341,7 @@ router.patch("/mall/update/:id", mallController.update);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.delete("/mall/delete/:id", mallController.delete);
+router.delete("/mall/delete/:id", requireAuth, requireAdminRole, mallController.delete);
 
 /**
  * @swagger
@@ -371,6 +376,7 @@ router.delete("/mall/delete/:id", mallController.delete);
  *       200:
  *         description: Mall statistics retrieved successfully
  */
-router.get("/analytics", mallController.getMallStatistics);
+// Analytics route - admin only
+router.get("/analytics", requireAuth, requireAdminRole, mallController.getMallStatistics);
 
 export default router;

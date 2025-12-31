@@ -1,7 +1,11 @@
 import { Router } from "express";
 import * as controller from "./subscriptionplan.controller";
+import { requireAuth, requireAdminRole } from "../../../../middlewares/role.middleware";
 
 const router = Router();
+
+// Apply admin role to all subscription plan routes (requireAuth is applied globally)
+router.use(requireAdminRole);
 
 /**
  * @swagger

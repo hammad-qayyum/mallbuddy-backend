@@ -1,6 +1,7 @@
 import express, { Router } from "express";
 import { ordersController } from "./orders.controller";
 import { stripeWebhookHandler } from "../payments/stripe-webhooks/stripe.webhook";
+import { requireAuth, requireUserRole, requireRestaurantRole, requireRole } from "../../middlewares/role.middleware";
 
 const router = Router();
 
@@ -108,7 +109,8 @@ const router = Router();
  *       500:
  *         description: Server error
  */
-router.get("/list", ordersController.getUserOrders);
+// User routes - require authentication and user role
+router.get("/list", requireAuth, requireUserRole, ordersController.getUserOrders);
 
 /**
  * @swagger
@@ -193,7 +195,7 @@ router.get("/list", ordersController.getUserOrders);
  *       500:
  *         description: Server error
  */
-router.get("/active", ordersController.getActiveOrders);
+router.get("/active", requireAuth, requireUserRole, ordersController.getActiveOrders);
 
 /**
  * @swagger
@@ -254,7 +256,7 @@ router.get("/active", ordersController.getActiveOrders);
  *       500:
  *         description: Server error
  */
-router.get("/past", ordersController.getPastOrders);
+router.get("/past", requireAuth, requireUserRole, ordersController.getPastOrders);
 
 /**
  * @swagger
@@ -319,7 +321,7 @@ router.get("/past", ordersController.getPastOrders);
  *       500:
  *         description: Server error
  */
-router.post("/cancel", ordersController.cancelOrder);
+router.post("/cancel", requireAuth, requireUserRole, ordersController.cancelOrder);
 
 /**
  * @swagger
@@ -387,7 +389,7 @@ router.post("/cancel", ordersController.cancelOrder);
  *       500:
  *         description: Server error
  */
-router.post("/reorder", ordersController.reorder);
+router.post("/reorder", requireAuth, requireUserRole, ordersController.reorder);
 
 /**
  * @swagger
@@ -425,7 +427,7 @@ router.post("/reorder", ordersController.reorder);
  *       500:
  *         description: Server error
  */
-router.get("/cancellation-reasons", ordersController.getCancellationReasons);
+router.get("/cancellation-reasons", requireAuth, requireUserRole, ordersController.getCancellationReasons);
 
 /**
  * @swagger
@@ -655,9 +657,11 @@ router.get("/cancellation-reasons", ordersController.getCancellationReasons);
  *       404:
  *         description: Restaurant not found
  */
-router.get("/restaurant/:restaurantId/accepted", ordersController.getAcceptedOrders);
+// Restaurant routes - require authentication and restaurant role
+router.get("/restaurant/:restaurantId/accepted", requireAuth, requireRestaurantRole, ordersController.getAcceptedOrders);
 
-router.get("/:orderId", ordersController.getOrderDetails);
+// Both users and restaurants can view order details
+router.get("/:orderId", requireAuth, requireRole("USER", "RESTAURANT"), ordersController.getOrderDetails);
 
 /**
  * @swagger
@@ -709,7 +713,7 @@ router.get("/:orderId", ordersController.getOrderDetails);
  *       500:
  *         description: Internal server error
  */
-router.get("/summary/:orderId", ordersController.getOrderSummary);
+router.get("/summary/:orderId", requireAuth, requireRole("USER", "RESTAURANT"), ordersController.getOrderSummary);
 
 /**
  * @swagger
@@ -783,7 +787,7 @@ router.get("/summary/:orderId", ordersController.getOrderSummary);
  *       500:
  *         description: Server error
  */
-router.get("/:orderId/reorder-preview", ordersController.getOrderForReorder);
+router.get("/:orderId/reorder-preview", requireAuth, requireUserRole, ordersController.getOrderForReorder);
 
 
 router.post(

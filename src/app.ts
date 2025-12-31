@@ -14,7 +14,30 @@ import restaurantConnectRoutes from "./modules/payments/restaurant-connect-accou
 
 const app = express();
 
-app.use(cors());
+// CORS configuration
+// const allowedOrigins = process.env.ALLOWED_ORIGINS
+//   ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim())
+//   : process.env.NODE_ENV === "production"
+//   ? []
+//   : ["http://localhost:5000", "http://localhost:5001"];
+
+// app.use(
+//   cors({
+//     origin: (origin, callback) => {
+//       // Allow requests with no origin (like mobile apps or curl requests)
+//       if (!origin) return callback(null, true);
+      
+//       if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+//         callback(null, true);
+//       } else {
+//         callback(new Error("Not allowed by CORS"));
+//       }
+//     },
+//     credentials: true,
+//     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+//     allowedHeaders: ["Content-Type", "Authorization"],
+//   })
+// );
 
 
 // Stripe webhooks must be before attachAuth (uses raw body)
@@ -35,7 +58,9 @@ app.post(
 app.use(express.json());
 app.use(cookieParser());
 
-// Attach auth middleware early so it's available for all routes
+// Apply general rate limiting to all routes
+// app.use("/api", apiLimiter);
+
 // Attach auth middleware early so it's available for all routes
 app.use(attachAuth);
 
@@ -98,10 +123,6 @@ app.use((req, res) => {
 });
 
 // Global error handler
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-app.use((err: any, req: any, res: any, next: any) => {
-    console.error('[Unhandled Error]', err?.stack || err);
-    res.status(err?.status || 500).json({ success: false, message: err?.message || 'Internal Server Error' });
-});
+
 
 export default app;

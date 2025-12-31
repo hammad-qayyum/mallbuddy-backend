@@ -1,7 +1,11 @@
 import { Router } from "express";
 import { deliveryAddressController } from "./delivery-address.controller";
+import { requireAuth, requireUserRole } from "../../middlewares/role.middleware";
 
 const router = Router();
+
+// Apply user role to all delivery address routes (requireAuth is applied globally)
+router.use(requireUserRole);
 
 /**
  * @swagger

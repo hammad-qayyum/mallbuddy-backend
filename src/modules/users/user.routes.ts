@@ -1,11 +1,11 @@
 import {Router} from "express";
 import {userController} from "./user.controller";
-import {requireAuth} from "../../middlewares/auth.middleware";
+import {requireAuth, requireUserRole} from "../../middlewares/role.middleware";
 import { uploadProfilePicture } from "../../config/upload";
 
 const router = Router();
 
-// All these routes are protected and require user to be logged in
+// All these routes require USER role (requireAuth is applied globally)
 
 /**
  * @swagger
@@ -79,7 +79,7 @@ const router = Router();
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get("/me", requireAuth, userController.getMyProfile);
+router.get("/me", userController.getMyProfile);
 
 /**
  * @swagger
@@ -219,7 +219,7 @@ router.get("/me", requireAuth, userController.getMyProfile);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.patch("/me", requireAuth, uploadProfilePicture.single("image"), userController.updateProfile);
+router.patch("/me", uploadProfilePicture.single("image"), userController.updateProfile);
 
 /**
  * @swagger
@@ -277,7 +277,7 @@ router.patch("/me", requireAuth, uploadProfilePicture.single("image"), userContr
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.patch("/me/password", requireAuth, userController.changePassword);
+router.patch("/me/password", userController.changePassword);
 
 /**
  * @swagger
@@ -298,7 +298,7 @@ router.patch("/me/password", requireAuth, userController.changePassword);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.delete("/me", requireAuth, userController.deleteMyProfile);
+router.delete("/me", userController.deleteMyProfile);
 
 /**
  * @swagger
@@ -371,7 +371,7 @@ router.delete("/me", requireAuth, userController.deleteMyProfile);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post("/me/profile-picture", requireAuth, uploadProfilePicture.single("profilePicture"), userController.uploadProfilePicture);
+router.post("/me/profile-picture", uploadProfilePicture.single("profilePicture"), userController.uploadProfilePicture);
 
 /**
  * @swagger
@@ -444,7 +444,6 @@ router.post("/me/profile-picture", requireAuth, uploadProfilePicture.single("pro
  */
 router.patch(
     "/me/mall",
-    requireAuth,
     userController.updateMyMall
   );
 
@@ -519,7 +518,6 @@ router.patch(
  */
 router.patch(
     "/me/country",
-    requireAuth,
     userController.updateMyCountry
   );
 
@@ -594,7 +592,6 @@ router.patch(
  */
 router.patch(
     "/me/city",
-    requireAuth,
     userController.updateMyCity
   );
 
@@ -658,7 +655,6 @@ router.patch(
  */
 router.post(
   "/create-stripe-customer",
-  requireAuth,
   userController.createStripeCustomer
 );
 

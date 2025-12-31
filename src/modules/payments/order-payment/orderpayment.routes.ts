@@ -2,11 +2,10 @@ import { Router } from "express";
 import { createPaymentIntent } from "./orderpayment.controller";
 import { stripeWebhookHandler } from "../stripe-webhooks/stripe.webhook";
 import express from "express";
-// import { requireAuth } from "../../../middlewares/auth.middleware";
+import { requireAuth, requireUserRole } from "../../../middlewares/role.middleware";
 
 const router = Router();
 
-// router.use(requireAuth); // optional
 
 /**
  * @swagger
@@ -121,7 +120,8 @@ const router = Router();
  *                   type: string
  *                   example: "Failed to create payment intent"
  */
-router.post("/create-payment-intent", createPaymentIntent);
+// Payment intent creation requires authenticated user
+router.post("/create-payment-intent", requireAuth, createPaymentIntent);
 
 
 export default router;

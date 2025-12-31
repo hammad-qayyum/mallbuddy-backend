@@ -6,7 +6,13 @@ export const createPromoCodeSchema = z.object({
   restaurantId: z.string().min(1, "Restaurant is required"),
   code: z.string().min(3, "Code must be at least 3 characters"),
   discountPercentage: z.number().min(0).max(100, "Discount percentage must be between 0 and 100"),
-  endDate: z.string().datetime("End date must be a valid ISO datetime"),
+  endDate: z.string().min(1, "End date is required").refine(
+    (date) => {
+      const parsed = new Date(date);
+      return !isNaN(parsed.getTime());
+    },
+    { message: "End date must be a valid date" }
+  ),
   // startDate is auto-generated on the server
 });
 
@@ -16,7 +22,13 @@ export const updatePromoCodeSchema = z.object({
   restaurantId: z.string().optional(),
   code: z.string().min(3, "Code must be at least 3 characters").optional(),
   discountPercentage: z.number().min(0).max(100, "Discount percentage must be between 0 and 100").optional(),
-  endDate: z.string().datetime("End date must be a valid ISO datetime").optional(),
+  endDate: z.string().min(1).refine(
+    (date) => {
+      const parsed = new Date(date);
+      return !isNaN(parsed.getTime());
+    },
+    { message: "End date must be a valid date" }
+  ).optional(),
   // startDate cannot be updated
 });
 

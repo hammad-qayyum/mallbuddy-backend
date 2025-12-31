@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { trackOrderController } from "./track-order.controller";
+import { requireAuth, requireUserRole } from "../../middlewares/role.middleware";
 
 const router = Router();
 
@@ -110,7 +111,8 @@ const router = Router();
  *       500:
  *         description: Internal server error
  */
-router.get("/:orderId", trackOrderController.getOrderTracking);
+// Track order routes require authenticated user
+router.get("/:orderId", requireAuth, requireUserRole, trackOrderController.getOrderTracking);
 
 /**
  * @swagger
@@ -168,6 +170,6 @@ router.get("/:orderId", trackOrderController.getOrderTracking);
  *       500:
  *         description: Internal server error
  */
-router.get("/status/:orderId", trackOrderController.getOrderStatus);
+router.get("/status/:orderId", requireAuth, requireUserRole, trackOrderController.getOrderStatus);
 
 export default router;

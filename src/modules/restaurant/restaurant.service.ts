@@ -10,6 +10,11 @@ import {
 } from "./restaurant.schema";
 import { exploreService } from "../explore/explore.service";
 import { galleryService } from "../gallery/gallery.service";
+import { refundOrder } from "../payments/order-refund/orderrefund.service";
+import {
+  notifyUserOrderStatus,
+  notifyRestaurantAndAdminCancelled,
+} from "../notifications/notification.service";
 
 function hasGalleryModel() {
   try {
@@ -41,10 +46,160 @@ export const restaurantService = {
       where,
       skip: (page - 1) * limit,
       take: limit,
-      include: { user: true },
+      include: { 
+        user: true,
+        mall: {
+          select: {
+            name: true
+          }
+        },
+        subscriptions: {
+          where: {
+            status: 'ACTIVE'
+          },
+          include: {
+            plan: {
+              select: {
+                name: true
+              }
+            }
+          },
+          take: 1,
+          orderBy: {
+            createdAt: 'desc'
+          }
+        }
+      },
     });
 
-    return { data, total, page, limit };
+    // Transform data to include restaurantId, membershipPlan, and mallName
+    const transformedData = data.map(restaurant => ({
+      ...restaurant,
+      restaurantId: restaurant.userId,
+      membershipPlan: restaurant.subscriptions[0]?.plan?.name || null,
+      mallName: restaurant.mall?.name || null
+    }));
+
+    return { data: transformedData, total, page, limit };
+  },
+
+  // Get all restaurants system-wide (public access - no sensitive info)
+  async getAllRestaurantsSystemWidePublic(
+    page: number = 1,
+    limit: number = 10,
+    mallId?: string,
+    category?: string
+  ) {
+    const where: any = {};
+    if (mallId) where.mallId = mallId;
+    if (category) where.mainCategory = category;
+
+    const total = await prisma.restaurant.count({ where });
+
+    const restaurants = await prisma.restaurant.findMany({
+      where,
+      skip: (page - 1) * limit,
+      take: limit,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            image: true,
+            // Exclude email and phoneNumber for public access
+          },
+        },
+        mall: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            cityId: true,
+          },
+        },
+        cuisineCategory: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        subscriptions: {
+          where: {
+            status: 'ACTIVE'
+          },
+          include: {
+            plan: {
+              select: {
+                name: true
+              }
+            }
+          },
+          take: 1,
+          orderBy: {
+            createdAt: 'desc'
+          }
+        },
+        _count: {
+          select: {
+            orders: true,
+            menuCategories: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    // Transform to public format (no sensitive info like revenue)
+    const publicRestaurants = restaurants.map((restaurant) => ({
+      restaurantId: restaurant.userId,
+      userId: restaurant.userId,
+      mallId: restaurant.mallId,
+      mallName: restaurant.mall?.name || null,
+      membershipPlan: restaurant.subscriptions[0]?.plan?.name || null,
+      name: restaurant.name,
+      mainCategory: restaurant.mainCategory,
+      banner: restaurant.banner,
+      description: restaurant.description,
+      story: restaurant.story,
+      location: restaurant.location,
+      cuisineCategoryId: restaurant.cuisineCategoryId,
+      cuisineCategory: restaurant.cuisineCategory
+        ? {
+            id: restaurant.cuisineCategory.id,
+            name: restaurant.cuisineCategory.name,
+          }
+        : null,
+      isFavorite: restaurant.isFavorite,
+      user: {
+        id: restaurant.user.id,
+        name: restaurant.user.name,
+        image: restaurant.user.image,
+        // Exclude email and phoneNumber
+      },
+      mall: restaurant.mall
+        ? {
+            id: restaurant.mall.id,
+            name: restaurant.mall.name,
+            address: restaurant.mall.address,
+            cityId: restaurant.mall.cityId,
+          }
+        : null,
+      statistics: {
+        totalOrders: restaurant._count.orders,
+        totalMenuCategories: restaurant._count.menuCategories,
+        // Exclude revenue for public access
+      },
+      createdAt: restaurant.createdAt,
+      updatedAt: restaurant.updatedAt,
+    }));
+
+    return {
+      data: publicRestaurants,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   },
 
   async getRestaurantDetails(restaurantId: string) {
@@ -353,12 +508,32 @@ export const restaurantService = {
       include: {
         user: {
           select: {
+            id: true,
             name: true,
             phoneNumber: true,
+            expoPushToken: true,
+          },
+        },
+        restaurant: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                expoPushToken: true,
+              },
+            },
           },
         },
       },
     });
+
+    // Notify user about order acceptance
+    try {
+      await notifyUserOrderStatus(updatedOrder);
+    } catch (error: any) {
+      console.error("[Restaurant] Failed to send order acceptance notification:", error.message);
+      // Don't fail order acceptance if notification fails
+    }
 
     return {
       id: updatedOrder.id,
@@ -393,18 +568,60 @@ export const restaurantService = {
     const updatedOrder = await prisma.order.update({
       where: { id: input.orderId },
       data: {
-        status: "CANCELLED",
+        status: "REJECTED",
         specialInstructions: `Restaurant decline reason: ${input.reason}`,
       },
       include: {
         user: {
           select: {
+            id: true,
             name: true,
             phoneNumber: true,
+            expoPushToken: true,
+          },
+        },
+        restaurant: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                expoPushToken: true,
+              },
+            },
           },
         },
       },
     });
+
+    // Automatically trigger refund if:
+    // 1. Payment method is CARD
+    // 2. Payment status is PAID
+    // 3. Stripe payment intent exists
+    let refundInitiated = false;
+    if (
+      order.paymentMethod === "CARD" &&
+      order.paymentStatus === "PAID" &&
+      order.stripePaymentIntentId
+    ) {
+      try {
+        console.log(`[DeclineOrder] Initiating automatic refund for rejected order ${order.id}`);
+        await refundOrder(order.id, undefined, input.restaurantId, "RESTAURANT");
+        refundInitiated = true;
+        console.log(`[DeclineOrder] Automatic refund initiated successfully for order ${order.id}`);
+      } catch (error: any) {
+        // Log error but don't fail the rejection
+        console.error(`[DeclineOrder] Failed to initiate automatic refund for order ${order.id}:`, error.message);
+        // Note: Order is still rejected, but refund failed - this should be handled manually
+      }
+    }
+
+    // Notify restaurant and admin about order cancellation/rejection
+    try {
+      await notifyRestaurantAndAdminCancelled(updatedOrder);
+    } catch (error: any) {
+      console.error("[Restaurant] Failed to send order rejection notification:", error.message);
+      // Don't fail order rejection if notification fails
+    }
 
     return {
       id: updatedOrder.id,
@@ -412,7 +629,10 @@ export const restaurantService = {
       status: updatedOrder.status,
       customerName: updatedOrder.user.name,
       reason: input.reason,
-      message: "Order declined successfully",
+      message: refundInitiated 
+        ? "Order declined successfully. Refund has been initiated." 
+        : "Order declined successfully",
+      refundInitiated,
     };
   },
 
@@ -433,13 +653,13 @@ export const restaurantService = {
 
     // Validate status transition
     const validTransitions: { [key: string]: string[] } = {
-      PENDING: ["ACCEPTED"],
+      PENDING: ["ACCEPTED", "REJECTED"],
       ACCEPTED: ["PREPARING", "CANCELLED"],
       PREPARING: ["READY"],
+      REJECTED: ["REJECTED"],
       READY: ["OUT_FOR_DELIVERY"],
       OUT_FOR_DELIVERY: ["DELIVERED"],
       DELIVERED: [],
-      CANCELLED: [],
     };
 
     if (!validTransitions[order.status]?.includes(input.status)) {
@@ -461,12 +681,33 @@ export const restaurantService = {
       include: {
         user: {
           select: {
+            id: true,
             name: true,
             phoneNumber: true,
+            expoPushToken: true,
+          },
+        },
+        restaurant: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                expoPushToken: true,
+              },
+            },
           },
         },
       },
     });
+
+    // Notify user about order status updates (ACCEPTED → PREPARING → READY → CANCELLED)
+    // Only notify for statuses that have messages defined
+    try {
+      await notifyUserOrderStatus(updatedOrder);
+    } catch (error: any) {
+      console.error("[Restaurant] Failed to send order status notification:", error.message);
+      // Don't fail status update if notification fails
+    }
 
     return {
       id: updatedOrder.id,

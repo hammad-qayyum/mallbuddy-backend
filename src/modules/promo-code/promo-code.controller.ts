@@ -27,6 +27,38 @@ export const promoCodeController = {
   },
 
   /**
+   * GET /promo-codes/restaurant/:restaurantId
+   * Get all valid promo codes for a specific restaurant
+   * Public endpoint - for restaurant-specific promos
+   */
+  async getValidPromoCodesByRestaurant(req: Request, res: Response) {
+    try {
+      const { restaurantId } = req.params;
+
+      if (!restaurantId) {
+        return res.status(400).json({
+          success: false,
+          message: "Restaurant ID is required",
+        });
+      }
+
+      const promoCodes = await promoCodeService.getValidPromoCodesByRestaurant(restaurantId);
+
+      return res.json({
+        success: true,
+        data: promoCodes,
+        totalCount: promoCodes.length,
+      });
+    } catch (error: any) {
+      console.error('[promoCodeController] getValidPromoCodesByRestaurant error:', error?.stack || error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to fetch restaurant promo codes",
+      });
+    }
+  },
+
+  /**
    * POST /promo-codes/apply
    * Apply a promo code to an order
    * Public endpoint - validate and calculate discount

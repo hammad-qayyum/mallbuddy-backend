@@ -1,5 +1,12 @@
 import prisma from "../../config/prisma";
 import { CancelOrderInput, ReorderInput, GetAcceptedOrdersInput } from "./orders.schema";
+import { refundOrder } from "../payments/order-refund/orderrefund.service";
+import {
+  notifyUserOrderStatus,
+  notifyRestaurantAndAdminNewOrder,
+  notifyRestaurantAndAdminCancelled,
+} from "../notifications/notification.service";
+
 
 export const ordersService = {
   /**
@@ -237,6 +244,19 @@ export const ordersService = {
       throw new Error(`Order cannot be cancelled. Current status: ${order.status}`);
     }
 
+    // Prevent cancellation if order has been accepted by restaurant
+    if (order.status === "ACCEPTED" || order.status === "PREPARING" || order.status === "READY" || order.status === "OUT_FOR_DELIVERY") {
+      throw new Error(`Order cannot be cancelled after it has been accepted by the restaurant. Current status: ${order.status}`);
+    }
+
+    // Store original status and payment info before updating (for refund logic)
+    const originalStatus = order.status;
+    const shouldAutoRefund = 
+      originalStatus === "PENDING" &&
+      order.paymentMethod === "CARD" &&
+      order.paymentStatus === "PAID" &&
+      order.stripePaymentIntentId;
+
     // Update order status to CANCELLED
     const updatedOrder = await prisma.order.update({
       where: { id: input.orderId },
@@ -246,11 +266,18 @@ export const ordersService = {
       },
       include: {
         items: true,
-        restaurant: {
+        user: {
           select: {
+            id: true,
+            expoPushToken: true,
+          },
+        },
+        restaurant: {
+          include: {
             user: {
               select: {
-                name: true,
+                id: true,
+                expoPushToken: true,
               },
             },
           },
@@ -258,12 +285,50 @@ export const ordersService = {
       },
     });
 
+    // Automatically trigger refund if:
+    // 1. Order was in PENDING status (not accepted yet)
+    // 2. Payment method is CARD
+    // 3. Payment status is PAID
+    // 4. Stripe payment intent exists
+    let refundInitiated = false;
+    if (shouldAutoRefund) {
+      try {
+        console.log(`[CancelOrder] Initiating automatic refund for cancelled order ${order.id}`);
+        await refundOrder(order.id, undefined, input.userId, "USER");
+        refundInitiated = true;
+        console.log(`[CancelOrder] Automatic refund initiated successfully for order ${order.id}`);
+      } catch (error: any) {
+        // Log error but don't fail the cancellation
+        console.error(`[CancelOrder] Failed to initiate automatic refund for order ${order.id}:`, error.message);
+        // Note: Order is still cancelled, but refund failed - this should be handled manually
+      }
+    }
+
+    // Notify user about order cancellation
+    try {
+      await notifyUserOrderStatus(updatedOrder);
+    } catch (error: any) {
+      console.error("[Orders] Failed to send order cancellation notification to user:", error.message);
+      // Don't fail cancellation if notification fails
+    }
+
+    // Notify restaurant and admin about order cancellation
+    try {
+      await notifyRestaurantAndAdminCancelled(updatedOrder);
+    } catch (error: any) {
+      console.error("[Orders] Failed to send order cancellation notification to restaurant/admin:", error.message);
+      // Don't fail cancellation if notification fails
+    }
+
     return {
       id: updatedOrder.id,
       orderNumber: updatedOrder.orderNumber,
       status: updatedOrder.status,
       reason: input.reason,
-      message: "Order cancelled successfully",
+      message: refundInitiated 
+        ? "Order cancelled successfully. Refund has been initiated." 
+        : "Order cancelled successfully",
+      refundInitiated,
     };
   },
 
@@ -532,11 +597,28 @@ export const ordersService = {
   async getOrderSummary(orderId: string) {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: {
+      select: {
+        id: true,
+        orderNumber: true,
+        status: true,
+        total: true,
+        createdAt: true,
         restaurant: {
-          include: { user: true },
+          select: {
+            userId: true,
+            name: true,
+            mainCategory: true,
+            banner: true,
+          },
         },
-        items: true,
+        items: {
+          select: {
+            id: true,
+            itemName: true,
+            quantity: true,
+            totalPrice: true,
+          },
+        },
       },
     });
 

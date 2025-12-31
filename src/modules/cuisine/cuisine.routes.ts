@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { cuisineController } from "./cuisine.controller";
 import { uploadCuisineCategoryImage } from "../../config/upload";
+import { requireAuth, requireAdminRole } from "../../middlewares/role.middleware";
 
 const router = Router();
 
@@ -104,7 +105,8 @@ const router = Router();
  *                 value:
  *                   message: "Mall not found"
  */
-router.post("/cuisine/create-category/:mallId", uploadCuisineCategoryImage.single("image"), cuisineController.create);
+// Admin-only routes for cuisine category management
+router.post("/cuisine/create-category/:mallId", requireAuth, requireAdminRole, uploadCuisineCategoryImage.single("image"), cuisineController.create);
 
 /**
  * @swagger
@@ -283,7 +285,7 @@ router.get("/cuisine/get-category/:id", cuisineController.getById);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.patch("/cuisine/update-category/:id", uploadCuisineCategoryImage.single("image"), cuisineController.update);
+router.patch("/cuisine/update-category/:id", requireAuth, requireAdminRole, uploadCuisineCategoryImage.single("image"), cuisineController.update);
 
 /**
  * @swagger
@@ -318,6 +320,6 @@ router.patch("/cuisine/update-category/:id", uploadCuisineCategoryImage.single("
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.delete("/cuisine/delete-category/:id", cuisineController.delete);
+router.delete("/cuisine/delete-category/:id", requireAuth, requireAdminRole, cuisineController.delete);
 
 export default router;

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { galleryController } from "./gallery.controller";
 import { uploadRestaurantGallery } from "../../config/upload";
+import { requireAuth, requireRestaurantRole, requireRestaurantOwnership } from "../../middlewares/role.middleware";
 
 const router = Router();
 
@@ -71,6 +72,9 @@ router.get("/restaurant/:restaurantId/gallery/ping", (req, res) => {
 // POST /restaurant/:restaurantId/gallery
 router.post(
   "/restaurant/:restaurantId/gallery",
+  requireAuth,
+  requireRestaurantRole,
+  requireRestaurantOwnership,
   (req, res, next) => {
     try {
       console.log('[gallery.routes] gallery POST matched for', req.params.restaurantId, 'originalUrl:', req.originalUrl);
@@ -133,6 +137,9 @@ router.post(
 // DELETE /restaurant/:restaurantId/gallery/:galleryId
 router.delete(
   "/restaurant/:restaurantId/gallery/:galleryId",
+  requireAuth,
+  requireRestaurantRole,
+  requireRestaurantOwnership,
   (req, res, next) => {
     try {
       console.log('[gallery.routes] gallery DELETE matched for', req.params.galleryId, 'restaurant:', req.params.restaurantId);

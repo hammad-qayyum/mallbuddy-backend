@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { promotionController } from "./promotion.controller";
 import { uploadPromotionBanner } from "../../../config/upload";
+import { requireAuth, requireRestaurantRole, requireRestaurantOwnership } from "../../../middlewares/role.middleware";
 
 const router = Router();
 
@@ -109,8 +110,12 @@ const router = Router();
  *       500:
  *         description: Internal server error
  */
+// Promotion management routes - require restaurant role and ownership (GET routes are public)
 router.post(
   "/restaurant/:restaurantId/promotions",
+  requireAuth,
+  requireRestaurantRole,
+  requireRestaurantOwnership,
   uploadPromotionBanner.single("banner"),
   promotionController.createPromotion
 );
@@ -342,6 +347,8 @@ router.get("/promotions/:id", promotionController.getPromotionById);
  */
 router.put(
   "/promotions/:id",
+  requireAuth,
+  requireRestaurantRole,
   uploadPromotionBanner.single("banner"),
   promotionController.updatePromotion
 );
@@ -373,7 +380,7 @@ router.put(
  *       500:
  *         description: Internal server error
  */
-router.delete("/promotions/:id", promotionController.deletePromotion);
+router.delete("/promotions/:id", requireAuth, requireRestaurantRole, promotionController.deletePromotion);
 
 export default router;
 

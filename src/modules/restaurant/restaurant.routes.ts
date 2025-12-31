@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { restaurantController } from "./restaurant.controller";
 import { uploadRestaurantBanner } from "../../config/upload";
+import { requireAuth, requireAdminRole, requireRestaurantRole, requireRestaurantOwnership, requireRole } from "../../middlewares/role.middleware";
 
 const router = Router();
 
@@ -150,7 +151,8 @@ const router = Router();
  *       409:
  *         description: Email already registered
  */
-router.post("/admin/restaurants/create", uploadRestaurantBanner.single("banner"), restaurantController.createByAdmin);
+// Admin route - require admin role
+router.post("/admin/restaurants/create", requireAuth, requireAdminRole, uploadRestaurantBanner.single("banner"), restaurantController.createByAdmin);
 
 /**
  * @swagger
@@ -202,10 +204,21 @@ router.post("/admin/restaurants/create", uploadRestaurantBanner.single("banner")
  *                   items:
  *                     type: object
  *                     properties:
+ *                       restaurantId:
+ *                         type: string
+ *                         description: "Restaurant ID (same as userId)"
  *                       userId:
  *                         type: string
  *                       mallId:
  *                         type: string
+ *                       mallName:
+ *                         type: string
+ *                         nullable: true
+ *                         description: "Name of the mall where the restaurant is located"
+ *                       membershipPlan:
+ *                         type: string
+ *                         nullable: true
+ *                         description: "Active membership plan name"
  *                       name:
  *                         type: string
  *                         nullable: true
@@ -256,6 +269,153 @@ router.post("/admin/restaurants/create", uploadRestaurantBanner.single("banner")
  *               $ref: '#/components/schemas/Error'
  */
 router.get("/restaurant/get-all/:mallId", restaurantController.getAll);
+
+/**
+ * @swagger
+ * /restaurants/all:
+ *   get:
+ *     summary: Get all restaurants system-wide with pagination
+ *     tags: [Restaurants]
+ *     description: |
+ *       Get all restaurants in the system with pagination, optional filtering by mall or category.
+ *       Returns publicly available restaurant details including owner info (without sensitive data), mall info, and basic statistics.
+ *       This is a public endpoint accessible to all users.
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *           minimum: 1
+ *         description: "Page number for pagination (default: 1)"
+ *         example: 1
+ *       - in: query
+ *         name: limit
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *           minimum: 1
+ *           maximum: 100
+ *         description: "Number of results per page (default: 10, max: 100)"
+ *         example: 10
+ *       - in: query
+ *         name: mallId
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Filter by mall ID (optional)
+ *         example: "123e4567-e89b-12d3-a456-426614174000"
+ *       - in: query
+ *         name: category
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Filter by main category (optional)
+ *         example: "CHINESE"
+ *     responses:
+ *       200:
+ *         description: Restaurants retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Restaurants retrieved successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           restaurantId:
+ *                             type: string
+ *                           userId:
+ *                             type: string
+ *                           mallId:
+ *                             type: string
+ *                           mallName:
+ *                             type: string
+ *                             nullable: true
+ *                           membershipPlan:
+ *                             type: string
+ *                             nullable: true
+ *                           name:
+ *                             type: string
+ *                           mainCategory:
+ *                             type: string
+ *                           banner:
+ *                             type: string
+ *                             nullable: true
+ *                           description:
+ *                             type: string
+ *                             nullable: true
+ *                           story:
+ *                             type: string
+ *                             nullable: true
+ *                           location:
+ *                             type: string
+ *                             nullable: true
+ *                           cuisineCategoryId:
+ *                             type: string
+ *                             nullable: true
+ *                           cuisineCategory:
+ *                             type: object
+ *                             nullable: true
+ *                             properties:
+ *                               id:
+ *                                 type: string
+ *                               name:
+ *                                 type: string
+ *                           isFavorite:
+ *                             type: boolean
+ *                           user:
+ *                             type: object
+ *                             properties:
+ *                               id:
+ *                                 type: string
+ *                               name:
+ *                                 type: string
+ *                               image:
+ *                                 type: string
+ *                                 nullable: true
+ *                           mall:
+ *                             type: object
+ *                             nullable: true
+ *                             properties:
+ *                               id:
+ *                                 type: string
+ *                               name:
+ *                                 type: string
+ *                               address:
+ *                                 type: string
+ *                               cityId:
+ *                                 type: string
+ *                           statistics:
+ *                             type: object
+ *                             properties:
+ *                               totalOrders:
+ *                                 type: integer
+ *                               totalMenuCategories:
+ *                                 type: integer
+ *                     total:
+ *                       type: integer
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     totalPages:
+ *                       type: integer
+ *       400:
+ *         description: Invalid request parameters
+ */
+// Public route - no authentication required
+router.get("/restaurants/all", restaurantController.getAllSystemWide);
 
 /**
  * @swagger
@@ -494,7 +654,8 @@ router.get("/restaurant/get-details/:restaurantId", restaurantController.getDeta
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.patch("/restaurant/update/:restaurantId", uploadRestaurantBanner.single("banner"), restaurantController.update);
+// Restaurant management routes - require restaurant role and ownership
+router.patch("/restaurant/update/:restaurantId", requireAuth, requireRestaurantRole, requireRestaurantOwnership, uploadRestaurantBanner.single("banner"), restaurantController.update);
 
 /**
  * @swagger
@@ -529,7 +690,7 @@ router.patch("/restaurant/update/:restaurantId", uploadRestaurantBanner.single("
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.delete("/restaurant/delete/:restaurantId", restaurantController.delete);
+router.delete("/restaurant/delete/:restaurantId", requireAuth, requireRestaurantRole, requireRestaurantOwnership, restaurantController.delete);
 
 /**
  * @swagger
@@ -758,7 +919,8 @@ router.get("/restaurant/get-menu/:restaurantId", restaurantController.getFullMen
  *       404:
  *         description: Restaurant not found
  */
-router.get("/restaurants/:restaurantId/orders", restaurantController.getRestaurantOrders);
+// Restaurant order routes - require restaurant role and ownership
+router.get("/restaurants/:restaurantId/orders", requireAuth, requireRestaurantRole, requireRestaurantOwnership, restaurantController.getRestaurantOrders);
 
 /**
  * @swagger
@@ -873,7 +1035,7 @@ router.get("/restaurants/:restaurantId/orders", restaurantController.getRestaura
  *       404:
  *         description: Order not found
  */
-router.get("/restaurants/:restaurantId/orders/:orderId", restaurantController.getRestaurantOrderDetails);
+router.get("/restaurants/:restaurantId/orders/:orderId", requireAuth, requireRestaurantRole, requireRestaurantOwnership, restaurantController.getRestaurantOrderDetails);
 
 /**
  * @swagger
@@ -923,7 +1085,7 @@ router.get("/restaurants/:restaurantId/orders/:orderId", restaurantController.ge
  *       404:
  *         description: Order not found
  */
-router.post("/restaurants/:restaurantId/orders/:orderId/accept", restaurantController.acceptOrder);
+router.post("/restaurants/:restaurantId/orders/:orderId/accept", requireAuth, requireRestaurantRole, requireRestaurantOwnership, restaurantController.acceptOrder);
 
 /**
  * @swagger
@@ -987,7 +1149,7 @@ router.post("/restaurants/:restaurantId/orders/:orderId/accept", restaurantContr
  *       404:
  *         description: Order not found
  */
-router.post("/restaurants/:restaurantId/orders/:orderId/decline", restaurantController.declineOrder);
+router.post("/restaurants/:restaurantId/orders/:orderId/decline", requireAuth, requireRestaurantRole, requireRestaurantOwnership, restaurantController.declineOrder);
 
 /**
  * @swagger
@@ -996,23 +1158,32 @@ router.post("/restaurants/:restaurantId/orders/:orderId/decline", restaurantCont
  *     summary: Update order status
  *     tags: [Orders - Restaurant Screen]
  *     description: |
- *       Update the status of an order. Valid transitions:
- *       - PENDING → ACCEPTED
- *       - ACCEPTED → PREPARING or CANCELLED
- *       - PREPARING → READY
- *       - READY → OUT_FOR_DELIVERY
- *       - OUT_FOR_DELIVERY → DELIVERED
+ *       Update the status of an order. Valid status transitions:
+ *       - **PENDING** → ACCEPTED or REJECTED
+ *       - **ACCEPTED** → PREPARING or CANCELLED
+ *       - **PREPARING** → READY
+ *       - **READY** → OUT_FOR_DELIVERY
+ *       - **OUT_FOR_DELIVERY** → DELIVERED
+ *       
+ *       **Note:** Use REJECTED status to reject a pending order. This is an alternative
+ *       to using the `/decline` endpoint. When an order is rejected, the customer will
+ *       be notified and any payment will be refunded if applicable.
  *     parameters:
  *       - in: path
  *         name: restaurantId
  *         required: true
  *         schema:
  *           type: string
+ *         description: Restaurant ID (must match authenticated restaurant)
+ *         example: "123e4567-e89b-12d3-a456-426614174000"
  *       - in: path
  *         name: orderId
  *         required: true
  *         schema:
  *           type: string
+ *           format: uuid
+ *         description: Order ID to update
+ *         example: "123e4567-e89b-12d3-a456-426614174001"
  *     requestBody:
  *       required: true
  *       content:
@@ -1023,9 +1194,20 @@ router.post("/restaurants/:restaurantId/orders/:orderId/decline", restaurantCont
  *             properties:
  *               status:
  *                 type: string
- *                 enum: [ACCEPTED, PREPARING, READY, OUT_FOR_DELIVERY, DELIVERED]
- *                 description: New order status
+ *                 enum: [ACCEPTED, PREPARING, READY, OUT_FOR_DELIVERY, DELIVERED, REJECTED]
+ *                 description: |
+ *                   New order status. Valid values:
+ *                   - **ACCEPTED**: Order accepted by restaurant (from PENDING)
+ *                   - **REJECTED**: Order rejected by restaurant (from PENDING)
+ *                   - **PREPARING**: Food is being prepared (from ACCEPTED)
+ *                   - **READY**: Order is ready for pickup/delivery (from PREPARING)
+ *                   - **OUT_FOR_DELIVERY**: Order is out for delivery (from READY)
+ *                   - **DELIVERED**: Order has been delivered (from OUT_FOR_DELIVERY)
  *                 example: "READY"
+ *               estimatedDeliveryTime:
+ *                 type: string
+ *                 description: "Optional estimated delivery time (format: HH:MM AM/PM)"
+ *                 example: "05:30 PM"
  *     responses:
  *       200:
  *         description: Order status updated successfully
@@ -1036,6 +1218,7 @@ router.post("/restaurants/:restaurantId/orders/:orderId/decline", restaurantCont
  *               properties:
  *                 message:
  *                   type: string
+ *                   example: "Order status updated successfully"
  *                 data:
  *                   type: object
  *                   properties:
@@ -1045,14 +1228,36 @@ router.post("/restaurants/:restaurantId/orders/:orderId/decline", restaurantCont
  *                       type: string
  *                     status:
  *                       type: string
+ *                       enum: [ACCEPTED, PREPARING, READY, OUT_FOR_DELIVERY, DELIVERED, REJECTED]
  *                     customerName:
  *                       type: string
+ *                     estimatedDeliveryTime:
+ *                       type: string
+ *                       nullable: true
  *       400:
  *         description: Invalid status transition or request
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Invalid status transition from PENDING to DELIVERED"
  *       404:
  *         description: Order not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Order not found"
+ *       500:
+ *         description: Internal server error
  */
-router.patch("/restaurants/:restaurantId/orders/:orderId/status", restaurantController.updateOrderStatus);
+router.patch("/restaurants/:restaurantId/orders/:orderId/status", requireAuth, requireRestaurantRole, requireRestaurantOwnership, restaurantController.updateOrderStatus);
 
 /**
  * @swagger
@@ -1096,8 +1301,11 @@ router.patch("/restaurants/:restaurantId/orders/:orderId/status", restaurantCont
  *       404:
  *         description: Restaurant not found
  */
+// Restaurant analytics - restaurants can view their own, admins can view any
 router.get(
   "/restaurants/:restaurantId/analytics/orders-revenue",
+  requireAuth,
+  requireRole("ADMIN", "RESTAURANT"),
   restaurantController.getRestaurantAnalytics
 );
 

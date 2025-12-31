@@ -5,14 +5,39 @@ export const trackOrderService = {
   async getOrderTrackingInfo(orderId: string) {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: {
+      select: {
+        id: true,
+        orderNumber: true,
+        status: true,
+        estimatedDeliveryTime: true,
+        actualDeliveryTime: true,
+        specialInstructions: true,
+        createdAt: true,
         restaurant: {
-          include: { user: true },
+          select: {
+            userId: true,
+            name: true,
+            location: true,
+          },
         },
         items: {
-          include: { menuItem: true },
+          select: {
+            id: true,
+            itemName: true,
+            quantity: true,
+            menuItem: {
+              select: {
+                image: true,
+              },
+            },
+          },
         },
-        deliveryAddress: true,
+        deliveryAddress: {
+          select: {
+            address: true,
+            city: true,
+          },
+        },
       },
     });
 
@@ -46,7 +71,7 @@ export const trackOrderService = {
       specialInstructions: order.specialInstructions,
       restaurant: {
         id: order.restaurant.userId,
-        name: order.restaurant.user.name,
+        name: order.restaurant.name,
         location: order.restaurant.location,
       },
       deliveryAddress: {

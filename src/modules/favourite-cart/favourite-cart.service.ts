@@ -7,6 +7,58 @@ import {
   RestoreFavouriteCartInput,
 } from "./favourite-cart.schema";
 
+// Helper select objects for consistent data selection
+const favouriteCartItemSelect = {
+  id: true,
+  favouriteCartId: true,
+  restaurantId: true,
+  menuItemId: true,
+  quantity: true,
+  specialNotes: true,
+  selectedVariations: true,
+  selectedAddOns: true,
+  createdAt: true,
+  updatedAt: true,
+  menuItem: {
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      price: true,
+      image: true,
+      preparationTime: true,
+    },
+  },
+  restaurant: {
+    select: {
+      userId: true,
+      name: true,
+      mainCategory: true,
+      banner: true,
+    },
+  },
+};
+
+const favouriteCartItemWithCategorySelect = {
+  ...favouriteCartItemSelect,
+  menuItem: {
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      price: true,
+      image: true,
+      preparationTime: true,
+      category: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  },
+};
+
 export const favouriteCartService = {
   // Create a new favourite cart
   async createFavouriteCart(userId: string, data: CreateFavouriteCartInput) {
@@ -25,14 +77,15 @@ export const favouriteCartService = {
         name: data.name,
         description: data.description || null,
       },
-      include: {
+      select: {
+        id: true,
+        userId: true,
+        name: true,
+        description: true,
+        createdAt: true,
+        updatedAt: true,
         items: {
-          include: {
-            menuItem: true,
-            restaurant: {
-              include: { user: true },
-            },
-          },
+          select: favouriteCartItemSelect,
         },
       },
     });
@@ -63,14 +116,15 @@ export const favouriteCartService = {
         // Fetch the favourite cart with items included
         return prisma.favouriteCart.findUnique({
           where: { id: favouriteCart.id },
-          include: {
+          select: {
+            id: true,
+            userId: true,
+            name: true,
+            description: true,
+            createdAt: true,
+            updatedAt: true,
             items: {
-              include: {
-                menuItem: true,
-                restaurant: {
-                  include: { user: true },
-                },
-              },
+              select: favouriteCartItemSelect,
               orderBy: { createdAt: "asc" },
             },
           },
@@ -85,18 +139,15 @@ export const favouriteCartService = {
   async getFavouriteCarts(userId: string) {
     const favouriteCarts = await prisma.favouriteCart.findMany({
       where: { userId },
-      include: {
+      select: {
+        id: true,
+        userId: true,
+        name: true,
+        description: true,
+        createdAt: true,
+        updatedAt: true,
         items: {
-          include: {
-            menuItem: {
-              include: {
-                category: true,
-              },
-            },
-            restaurant: {
-              include: { user: true },
-            },
-          },
+          select: favouriteCartItemWithCategorySelect,
           orderBy: { createdAt: "asc" },
         },
       },
@@ -113,18 +164,15 @@ export const favouriteCartService = {
         id: favouriteCartId,
         userId,
       },
-      include: {
+      select: {
+        id: true,
+        userId: true,
+        name: true,
+        description: true,
+        createdAt: true,
+        updatedAt: true,
         items: {
-          include: {
-            menuItem: {
-              include: {
-                category: true,
-              },
-            },
-            restaurant: {
-              include: { user: true },
-            },
-          },
+          select: favouriteCartItemWithCategorySelect,
           orderBy: { createdAt: "asc" },
         },
       },
@@ -221,12 +269,7 @@ export const favouriteCartService = {
             quantity: existingItem.quantity + data.quantity,
             ...(data.specialNotes && { specialNotes: data.specialNotes }),
           },
-          include: {
-            menuItem: true,
-            restaurant: {
-              include: { user: true },
-            },
-          },
+          select: favouriteCartItemSelect,
         });
       }
     }
@@ -242,12 +285,7 @@ export const favouriteCartService = {
         selectedVariations: data.selectedVariations ? (data.selectedVariations as any) : null,
         selectedAddOns: data.selectedAddOns ? (data.selectedAddOns as any) : null,
       },
-      include: {
-        menuItem: true,
-        restaurant: {
-          include: { user: true },
-        },
-      },
+      select: favouriteCartItemSelect,
     });
   },
 
@@ -289,12 +327,7 @@ export const favouriteCartService = {
         ...(data.quantity && { quantity: data.quantity }),
         ...(data.specialNotes !== undefined && { specialNotes: data.specialNotes }),
       },
-      include: {
-        menuItem: true,
-        restaurant: {
-          include: { user: true },
-        },
-      },
+      select: favouriteCartItemSelect,
     });
   },
 
@@ -351,14 +384,15 @@ export const favouriteCartService = {
         ...(data.name && { name: data.name }),
         ...(data.description !== undefined && { description: data.description }),
       },
-      include: {
+      select: {
+        id: true,
+        userId: true,
+        name: true,
+        description: true,
+        createdAt: true,
+        updatedAt: true,
         items: {
-          include: {
-            menuItem: true,
-            restaurant: {
-              include: { user: true },
-            },
-          },
+          select: favouriteCartItemSelect,
         },
       },
     });
@@ -505,10 +539,34 @@ export const favouriteCartService = {
             quantity: existingItem.quantity + favItem.quantity,
             specialNotes: favItem.specialNotes,
           },
-          include: {
-            menuItem: true,
+          select: {
+            id: true,
+            cartId: true,
+            restaurantId: true,
+            menuItemId: true,
+            quantity: true,
+            specialNotes: true,
+            selectedVariations: true,
+            selectedAddOns: true,
+            createdAt: true,
+            updatedAt: true,
+            menuItem: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                price: true,
+                image: true,
+                preparationTime: true,
+              },
+            },
             restaurant: {
-              include: { user: true },
+              select: {
+                userId: true,
+                name: true,
+                mainCategory: true,
+                banner: true,
+              },
             },
           },
         });
@@ -525,10 +583,34 @@ export const favouriteCartService = {
             selectedVariations: favItem.selectedVariations ? (favItem.selectedVariations as any) : null,
             selectedAddOns: favItem.selectedAddOns ? (favItem.selectedAddOns as any) : null,
           },
-          include: {
-            menuItem: true,
+          select: {
+            id: true,
+            cartId: true,
+            restaurantId: true,
+            menuItemId: true,
+            quantity: true,
+            specialNotes: true,
+            selectedVariations: true,
+            selectedAddOns: true,
+            createdAt: true,
+            updatedAt: true,
+            menuItem: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                price: true,
+                image: true,
+                preparationTime: true,
+              },
+            },
             restaurant: {
-              include: { user: true },
+              select: {
+                userId: true,
+                name: true,
+                mainCategory: true,
+                banner: true,
+              },
             },
           },
         });
@@ -570,50 +652,73 @@ export const favouriteCartService = {
 
     let totalPrice = 0;
 
+    // Collect all variation and add-on option IDs to batch query
+    const variationOptionIds = new Set<string>();
+    const addOnOptionIds = new Set<string>();
+
+    for (const item of favouriteCart.items) {
+      if (item.selectedVariations) {
+        const variations = item.selectedVariations as Array<{ variationId: string; selectedOptionId: string }>;
+        variations.forEach((v) => variationOptionIds.add(v.selectedOptionId));
+      }
+      if (item.selectedAddOns) {
+        const addOns = item.selectedAddOns as Array<{ addOnId: string; selectedOptionIds: string[] }>;
+        addOns.forEach((a) => a.selectedOptionIds.forEach((id) => addOnOptionIds.add(id)));
+      }
+    }
+
+    // Batch fetch all variation and add-on options
+    const [variationOptions, addOnOptions] = await Promise.all([
+      variationOptionIds.size > 0
+        ? prisma.variationOption.findMany({
+            where: { id: { in: Array.from(variationOptionIds) } },
+            select: { id: true, priceModifier: true },
+          })
+        : Promise.resolve([]),
+      addOnOptionIds.size > 0
+        ? prisma.addOnOption.findMany({
+            where: { id: { in: Array.from(addOnOptionIds) } },
+            select: { id: true, price: true },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    // Create maps for quick lookup
+    const variationOptionMap = new Map(variationOptions.map((opt) => [opt.id, opt.priceModifier.toNumber()]));
+    const addOnOptionMap = new Map(addOnOptions.map((opt) => [opt.id, opt.price.toNumber()]));
+
     for (const item of favouriteCart.items) {
       const restId = item.restaurantId;
       let itemUnitPrice = Number(item.menuItem.price || 0);
 
-      // Add variation option prices
+      // Add variation option prices (using cached map)
       if (item.selectedVariations) {
         const variations = item.selectedVariations as Array<{
           variationId: string;
           selectedOptionId: string;
         }>;
-        for (const variation of variations) {
-          try {
-            const option = await prisma.variationOption.findUnique({
-              where: { id: variation.selectedOptionId },
-            });
-            if (option) {
-              itemUnitPrice += option.priceModifier.toNumber();
-            }
-          } catch (error) {
-            // Option not found, skip
+        variations.forEach((variation) => {
+          const priceModifier = variationOptionMap.get(variation.selectedOptionId);
+          if (priceModifier !== undefined) {
+            itemUnitPrice += priceModifier;
           }
-        }
+        });
       }
 
-      // Add add-on option prices
+      // Add add-on option prices (using cached map)
       if (item.selectedAddOns) {
         const addOns = item.selectedAddOns as Array<{
           addOnId: string;
           selectedOptionIds: string[];
         }>;
-        for (const addOn of addOns) {
-          for (const optionId of addOn.selectedOptionIds) {
-            try {
-              const option = await prisma.addOnOption.findUnique({
-                where: { id: optionId },
-              });
-              if (option) {
-                itemUnitPrice += option.price.toNumber();
-              }
-            } catch (error) {
-              // Option not found, skip
+        addOns.forEach((addOn) => {
+          addOn.selectedOptionIds.forEach((optionId) => {
+            const price = addOnOptionMap.get(optionId);
+            if (price !== undefined) {
+              itemUnitPrice += price;
             }
-          }
-        }
+          });
+        });
       }
 
       const itemTotal = itemUnitPrice * item.quantity;
@@ -622,7 +727,7 @@ export const favouriteCartService = {
       if (!restaurantMap.has(restId)) {
         restaurantMap.set(restId, {
           restaurantId: restId,
-          restaurantName: item.restaurant.user.name || "Unknown",
+          restaurantName: item.restaurant.name || "Unknown",
           items: [],
           subtotal: 0,
         });

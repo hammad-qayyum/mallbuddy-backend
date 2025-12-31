@@ -1,7 +1,11 @@
 import { Router } from "express";
 import { cartController } from "./cart.controller";
+import { requireAuth, requireUserRole } from "../../middlewares/role.middleware";
 
 const router = Router();
+
+// Apply user role to all cart routes (requireAuth is applied globally)
+router.use(requireUserRole);
 
 /**
  * @swagger

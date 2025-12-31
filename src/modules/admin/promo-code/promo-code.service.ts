@@ -1,3 +1,4 @@
+
 import prisma from "../../../config/prisma";
 import { CreatePromoCodeRequest, UpdatePromoCodeRequest } from "./promo-code.schema";
 
@@ -34,7 +35,7 @@ export const adminPromoCodeService = {
             name: true,
           },
         },
-        restaurant: {
+        Restaurant: {
           select: {
             userId: true,
             name: true,
@@ -62,7 +63,7 @@ export const adminPromoCodeService = {
             name: true,
           },
         },
-        restaurant: {
+        Restaurant: {
           select: {
             userId: true,
             name: true,
@@ -103,5 +104,75 @@ export const adminPromoCodeService = {
     });
 
     return { success: true, message: "Promo code deleted successfully" };
+  },
+
+  /**
+   * Admin: Get valid (non-expired) promo codes for a specific restaurant
+   */
+  async getValidPromoCodesByRestaurant(restaurantId: string) {
+    const now = new Date();
+    const promoCodes = await prisma.promoCode.findMany({
+      where: {
+        restaurantId: restaurantId,
+        endDate: {
+          gte: now, // Not expired
+        },
+        startDate: {
+          lte: now, // Already started
+        },
+      },
+      include: {
+        mall: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        Restaurant: {
+          select: {
+            userId: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        endDate: "desc",
+      },
+    });
+
+    return promoCodes;
+  },
+
+  /**
+   * Admin: Search promo codes by code name
+   */
+  async searchPromoCodes(searchTerm: string) {
+    const promoCodes = await prisma.promoCode.findMany({
+      where: {
+        code: {
+          contains: searchTerm,
+          mode: 'insensitive',
+        },
+      },
+      include: {
+        mall: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        Restaurant: {
+          select: {
+            userId: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return promoCodes;
   },
 };

@@ -22,6 +22,12 @@ export const adminPromoCodeController = {
           errors: err.errors,
         });
       }
+      if (err.code === "P2002") {
+        return res.status(409).json({
+          success: false,
+          message: "Promo code already exists. Please use a unique code.",
+        });
+      }
       return res.status(500).json({
         success: false,
         message: "Failed to create promo code",
@@ -151,6 +157,75 @@ export const adminPromoCodeController = {
       return res.status(500).json({
         success: false,
         message: "Failed to delete promo code",
+        error: err.message,
+      });
+    }
+  },
+
+  // Admin: Get valid promo codes by restaurant ID
+  async getValidPromoCodesByRestaurant(req: Request, res: Response) {
+    try {
+      const { restaurantId } = req.params;
+
+      if (!restaurantId) {
+        return res.status(400).json({
+          success: false,
+          message: "Restaurant ID is required",
+        });
+      }
+
+      const promoCodes = await adminPromoCodeService.getValidPromoCodesByRestaurant(restaurantId);
+
+      return res.json({
+        success: true,
+        data: promoCodes,
+        total: promoCodes.length,
+        message: promoCodes.length === 0 ? "No valid promo codes found for this restaurant" : undefined,
+      });
+    } catch (err: any) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to fetch restaurant promo codes",
+        error: err.message,
+      });
+    }
+  },
+
+  // Admin: Search promo codes by code name
+  async searchPromoCodes(req: Request, res: Response) {
+    try {
+      const { search } = req.query;
+      
+      // More flexible validation - accept any truthy value
+      if (!search) {
+        return res.status(400).json({
+          success: false,
+          message: "Search term is required",
+        });
+      }
+
+      const searchTerm = String(search).trim();
+      
+      if (searchTerm.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Search term cannot be empty",
+        });
+      }
+      
+      const promoCodes = await adminPromoCodeService.searchPromoCodes(searchTerm);
+      
+      // Return empty array instead of error when no results found
+      return res.json({
+        success: true,
+        data: promoCodes,
+        total: promoCodes.length,
+        message: promoCodes.length === 0 ? "No promo codes found" : undefined,
+      });
+    } catch (err: any) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to search promo codes",
         error: err.message,
       });
     }

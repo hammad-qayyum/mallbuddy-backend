@@ -6,8 +6,12 @@ import {
   getRestaurantSubscriptions,
   attachPaymentMethod,
 } from "./subscription.controller";
+import { requireAuth, requireRestaurantRole } from "../../../middlewares/role.middleware";
 
 const router = Router();
+
+// Apply restaurant role to all subscription routes (requireAuth is applied globally)
+router.use(requireRestaurantRole);
 
 /**
  * @swagger

@@ -2,7 +2,8 @@ import { stripe } from "../../../libs/stripe";
 import prisma from "../../../config/prisma";
 import { auth } from "../../../libs/betterauth";
 import { Request } from "express";
-
+import dotenv from "dotenv";
+dotenv.config();
 
 export async function createStripePaymentIntent(req: Request, orderId: string) {
   // Fetch order with user and restaurant (needed for Connect payments)
@@ -92,8 +93,9 @@ export async function createStripePaymentIntent(req: Request, orderId: string) {
 
   if (isConnectPayment) {
     // Create PaymentIntent with Stripe Connect (split payment)
-    // Calculate platform commission (default 10% if not set)
-    const commission = Math.round(amountInCents * (order.restaurant.commissionRate ?? 0.1));
+    // Calculate platform commission (use restaurant's rate or default from env)
+    const defaultCommissionRate = Number(process.env.DEFAULT_COMMISSION_RATE );
+    const commission = Math.round(amountInCents * (order.restaurant.commissionRate ?? defaultCommissionRate));
 
     paymentIntent = await stripe.paymentIntents.create({
       amount: amountInCents,

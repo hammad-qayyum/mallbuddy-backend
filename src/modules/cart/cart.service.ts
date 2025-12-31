@@ -6,12 +6,40 @@ export const cartService = {
   async getOrCreateCart(userId: string) {
     let cart = await prisma.cart.findUnique({
       where: { userId },
-      include: {
+      select: {
+        id: true,
+        userId: true,
+        createdAt: true,
+        updatedAt: true,
         items: {
-          include: {
-            menuItem: true,
+          select: {
+            id: true,
+            cartId: true,
+            restaurantId: true,
+            menuItemId: true,
+            quantity: true,
+            specialNotes: true,
+            selectedVariations: true,
+            selectedAddOns: true,
+            createdAt: true,
+            updatedAt: true,
+            menuItem: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                price: true,
+                image: true,
+                preparationTime: true,
+              },
+            },
             restaurant: {
-              include: { user: true },
+              select: {
+                userId: true,
+                name: true,
+                mainCategory: true,
+                banner: true,
+              },
             },
           },
         },
@@ -22,12 +50,40 @@ export const cartService = {
     if (!cart) {
       cart = await prisma.cart.create({
         data: { userId },
-        include: {
+        select: {
+          id: true,
+          userId: true,
+          createdAt: true,
+          updatedAt: true,
           items: {
-            include: {
-              menuItem: true,
+            select: {
+              id: true,
+              cartId: true,
+              restaurantId: true,
+              menuItemId: true,
+              quantity: true,
+              specialNotes: true,
+              selectedVariations: true,
+              selectedAddOns: true,
+              createdAt: true,
+              updatedAt: true,
+              menuItem: {
+                select: {
+                  id: true,
+                  name: true,
+                  description: true,
+                  price: true,
+                  image: true,
+                  preparationTime: true,
+                },
+              },
               restaurant: {
-                include: { user: true },
+                select: {
+                  userId: true,
+                  name: true,
+                  mainCategory: true,
+                  banner: true,
+                },
               },
             },
           },
@@ -42,16 +98,46 @@ export const cartService = {
   async getCart(userId: string) {
     const cart = await prisma.cart.findUnique({
       where: { userId },
-      include: {
+      select: {
+        id: true,
+        userId: true,
+        createdAt: true,
+        updatedAt: true,
         items: {
-          include: {
+          select: {
+            id: true,
+            cartId: true,
+            restaurantId: true,
+            menuItemId: true,
+            quantity: true,
+            specialNotes: true,
+            selectedVariations: true,
+            selectedAddOns: true,
+            createdAt: true,
+            updatedAt: true,
             menuItem: {
-              include: {
-                category: true,
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                price: true,
+                image: true,
+                preparationTime: true,
+                category: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
               },
             },
             restaurant: {
-              include: { user: true },
+              select: {
+                userId: true,
+                name: true,
+                mainCategory: true,
+                banner: true,
+              },
             },
           },
           orderBy: { createdAt: "desc" },
@@ -192,10 +278,34 @@ export const cartService = {
             quantity: existingItem.quantity + data.quantity,
             ...(data.specialNotes && { specialNotes: data.specialNotes }),
           },
-          include: {
-            menuItem: true,
+          select: {
+            id: true,
+            cartId: true,
+            restaurantId: true,
+            menuItemId: true,
+            quantity: true,
+            specialNotes: true,
+            selectedVariations: true,
+            selectedAddOns: true,
+            createdAt: true,
+            updatedAt: true,
+            menuItem: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                price: true,
+                image: true,
+                preparationTime: true,
+              },
+            },
             restaurant: {
-              include: { user: true },
+              select: {
+                userId: true,
+                name: true,
+                mainCategory: true,
+                banner: true,
+              },
             },
           },
         });
@@ -213,10 +323,34 @@ export const cartService = {
         selectedVariations: data.selectedVariations ? (data.selectedVariations as any) : null,
         selectedAddOns: data.selectedAddOns ? (data.selectedAddOns as any) : null,
       },
-      include: {
-        menuItem: true,
+      select: {
+        id: true,
+        cartId: true,
+        restaurantId: true,
+        menuItemId: true,
+        quantity: true,
+        specialNotes: true,
+        selectedVariations: true,
+        selectedAddOns: true,
+        createdAt: true,
+        updatedAt: true,
+        menuItem: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            price: true,
+            image: true,
+            preparationTime: true,
+          },
+        },
         restaurant: {
-          include: { user: true },
+          select: {
+            userId: true,
+            name: true,
+            mainCategory: true,
+            banner: true,
+          },
         },
       },
     });
@@ -243,10 +377,34 @@ export const cartService = {
         ...(data.quantity && { quantity: data.quantity }),
         ...(data.specialNotes !== undefined && { specialNotes: data.specialNotes }),
       },
-      include: {
-        menuItem: true,
+      select: {
+        id: true,
+        cartId: true,
+        restaurantId: true,
+        menuItemId: true,
+        quantity: true,
+        specialNotes: true,
+        selectedVariations: true,
+        selectedAddOns: true,
+        createdAt: true,
+        updatedAt: true,
+        menuItem: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            price: true,
+            image: true,
+            preparationTime: true,
+          },
+        },
         restaurant: {
-          include: { user: true },
+          select: {
+            userId: true,
+            name: true,
+            mainCategory: true,
+            banner: true,
+          },
         },
       },
     });
@@ -302,6 +460,41 @@ export const cartService = {
       };
     }
 
+    // Collect all variation and add-on option IDs to batch query
+    const variationOptionIds = new Set<string>();
+    const addOnOptionIds = new Set<string>();
+
+    for (const item of cart.items) {
+      if (item.selectedVariations) {
+        const variations = item.selectedVariations as Array<{ variationId: string; selectedOptionId: string }>;
+        variations.forEach((v) => variationOptionIds.add(v.selectedOptionId));
+      }
+      if (item.selectedAddOns) {
+        const addOns = item.selectedAddOns as Array<{ addOnId: string; selectedOptionIds: string[] }>;
+        addOns.forEach((a) => a.selectedOptionIds.forEach((id) => addOnOptionIds.add(id)));
+      }
+    }
+
+    // Batch fetch all variation and add-on options
+    const [variationOptions, addOnOptions] = await Promise.all([
+      variationOptionIds.size > 0
+        ? prisma.variationOption.findMany({
+            where: { id: { in: Array.from(variationOptionIds) } },
+            select: { id: true, priceModifier: true },
+          })
+        : Promise.resolve([]),
+      addOnOptionIds.size > 0
+        ? prisma.addOnOption.findMany({
+            where: { id: { in: Array.from(addOnOptionIds) } },
+            select: { id: true, price: true },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    // Create maps for quick lookup
+    const variationOptionMap = new Map(variationOptions.map((opt) => [opt.id, opt.priceModifier.toNumber()]));
+    const addOnOptionMap = new Map(addOnOptions.map((opt) => [opt.id, opt.price.toNumber()]));
+
     // Group items by restaurant
     const restaurantMap = new Map<
       string,
@@ -325,40 +518,28 @@ export const cartService = {
       // Calculate item price including variations and add-ons
       let itemUnitPrice = Number(item.menuItem.price || 0);
       
-      // Add variation option prices
+      // Add variation option prices (using cached map)
       if (item.selectedVariations) {
         const variations = item.selectedVariations as Array<{ variationId: string; selectedOptionId: string }>;
-        for (const variation of variations) {
-          try {
-            const option = await prisma.variationOption.findUnique({
-              where: { id: variation.selectedOptionId },
-            });
-            if (option) {
-              itemUnitPrice += option.priceModifier.toNumber();
-            }
-          } catch (error) {
-            // Option not found, skip
+        variations.forEach((variation) => {
+          const priceModifier = variationOptionMap.get(variation.selectedOptionId);
+          if (priceModifier !== undefined) {
+            itemUnitPrice += priceModifier;
           }
-        }
+        });
       }
       
-      // Add add-on option prices
+      // Add add-on option prices (using cached map)
       if (item.selectedAddOns) {
         const addOns = item.selectedAddOns as Array<{ addOnId: string; selectedOptionIds: string[] }>;
-        for (const addOn of addOns) {
-          for (const optionId of addOn.selectedOptionIds) {
-            try {
-              const option = await prisma.addOnOption.findUnique({
-                where: { id: optionId },
-              });
-              if (option) {
-                itemUnitPrice += option.price.toNumber();
-              }
-            } catch (error) {
-              // Option not found, skip
+        addOns.forEach((addOn) => {
+          addOn.selectedOptionIds.forEach((optionId) => {
+            const price = addOnOptionMap.get(optionId);
+            if (price !== undefined) {
+              itemUnitPrice += price;
             }
-          }
-        }
+          });
+        });
       }
       
       const itemTotal = itemUnitPrice * (item.quantity || 0);
@@ -367,7 +548,7 @@ export const cartService = {
       if (!restaurantMap.has(restId)) {
         restaurantMap.set(restId, {
           restaurantId: restId,
-          restaurantName: item.restaurant?.user?.name || "Unknown",
+          restaurantName: item.restaurant?.name || "Unknown",
           items: [],
           subtotal: 0,
         });

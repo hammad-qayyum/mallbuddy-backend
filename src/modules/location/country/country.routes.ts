@@ -1,11 +1,8 @@
 import { Router } from "express";
 import { countryController } from "./country.controller";
-// import { requireAuth } from "../../../middlewares/auth.middleware"; // for future RBAC
+import { requireAuth, requireAdminRole } from "../../../middlewares/role.middleware";
 
 const router = Router();
-
-// NOTE: For now, these are public.
-// Later, you can protect POST/PATCH/DELETE with admin RBAC middleware.
 
 /**
  * @swagger
@@ -57,7 +54,8 @@ const router = Router();
  *             schema:
  *               $ref: '#/components/schemas/ValidationError'
  */
-router.post("/country/create", countryController.create);
+// Admin-only routes for country management
+router.post("/country/create", requireAuth, requireAdminRole, countryController.create);
 
 /**
  * @swagger
@@ -198,7 +196,7 @@ router.get("/country/get/:id", countryController.getById);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.patch("/country/update/:id", countryController.update);
+router.patch("/country/update/:id", requireAuth, requireAdminRole, countryController.update);
 
 /**
  * @swagger
@@ -233,6 +231,6 @@ router.patch("/country/update/:id", countryController.update);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.delete("/country/delete/:id", countryController.delete);
+router.delete("/country/delete/:id", requireAuth, requireAdminRole, countryController.delete);
 
 export default router;

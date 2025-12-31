@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { cityController } from "./city.controller";
+import { requireAuth, requireAdminRole } from "../../../middlewares/role.middleware";
 
 const router = Router();
 
@@ -61,7 +62,8 @@ const router = Router();
  *             schema:
  *               $ref: '#/components/schemas/ValidationError'
  */
-router.post("/city/create", cityController.create);
+// Admin-only routes for city management
+router.post("/city/create", requireAuth, requireAdminRole, cityController.create);
 
 /**
  * @swagger
@@ -268,7 +270,7 @@ router.get("/city/get-by-country/:countryId", cityController.getByCountryId);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.patch("/city/update/:id", cityController.update);
+router.patch("/city/update/:id", requireAuth, requireAdminRole, cityController.update);
 
 /**
  * @swagger
@@ -303,6 +305,6 @@ router.patch("/city/update/:id", cityController.update);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.delete("/city/delete/:id", cityController.delete);
+router.delete("/city/delete/:id", requireAuth, requireAdminRole, cityController.delete);
 
 export default router;

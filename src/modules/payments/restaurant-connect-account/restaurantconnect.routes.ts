@@ -1,11 +1,11 @@
 import { Router } from "express";
 import * as controller from "./restaurantconnect.controller";
-import { requireAuth } from "../../../middlewares/auth.middleware";
+import { requireAuth, requireRestaurantRole } from "../../../middlewares/role.middleware";
 
 const router = Router();
 
-// All routes require authentication
-router.use(requireAuth);
+// All routes require restaurant role (requireAuth is applied globally)
+router.use(requireRestaurantRole);
 
 /**
  * @swagger
