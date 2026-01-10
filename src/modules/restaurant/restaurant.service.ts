@@ -5,6 +5,7 @@ import {
   AcceptOrderInput,
   DeclineOrderInput,
   UpdateOrderStatusInput,
+  UpdatePaymentStatusInput,
   GetRestaurantOrdersInput,
   GetOrderDetailsInput,
 } from "./restaurant.schema";
@@ -673,6 +674,12 @@ export const restaurantService = {
     // Set delivery time if marking as delivered
     if (input.status === "DELIVERED") {
       updateData.actualDeliveryTime = new Date();
+      
+      // Auto-mark COD orders as paid when delivered
+      if (order.paymentMethod === "CASH" && order.paymentStatus === "PENDING") {
+        updateData.paymentStatus = "PAID";
+        updateData.paidAt = new Date();
+      }
     }
 
     const updatedOrder = await prisma.order.update({
@@ -715,6 +722,117 @@ export const restaurantService = {
       status: updatedOrder.status,
       customerName: updatedOrder.user.name,
       message: `Order marked as ${input.status} successfully`,
+    };
+  },
+
+  // Update payment status for COD orders (disputes, corrections)
+  async updatePaymentStatus(input: UpdatePaymentStatusInput) {
+    const { orderId, restaurantId, paymentStatus, reason } = input;
+
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        restaurant: {
+          select: {
+            userId: true,
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      throw new Error("Order not found");
+    }
+
+    // Verify order belongs to the restaurant
+    if (order.restaurantId !== restaurantId) {
+      throw new Error("Unauthorized: This order does not belong to your restaurant");
+    }
+
+    // Only allow for COD orders
+    if (order.paymentMethod !== "CASH") {
+      throw new Error("Payment status updates are only allowed for COD (CASH) orders");
+    }
+
+    // Validate payment status transitions
+    const validTransitions: { [key: string]: string[] } = {
+      PENDING: ["PAID", "FAILED"], // Can mark as paid or failed
+      PAID: ["REFUNDED", "PENDING"], // Can refund or revert to pending
+      FAILED: ["PAID", "PENDING"], // Can mark as paid later or keep pending
+      REFUNDED: [], // Final state - cannot change
+    };
+
+    if (!validTransitions[order.paymentStatus]?.includes(paymentStatus)) {
+      throw new Error(
+        `Invalid payment status transition from ${order.paymentStatus} to ${paymentStatus}`
+      );
+    }
+
+    // Special validations
+    if (paymentStatus === "REFUNDED" && order.paymentStatus !== "PAID") {
+      throw new Error("Can only refund orders that are marked as PAID");
+    }
+
+    // Update payment status
+    const updateData: any = {
+      paymentStatus,
+    };
+
+    // Set paidAt when marking as PAID
+    if (paymentStatus === "PAID") {
+      updateData.paidAt = new Date();
+    }
+
+    // Clear paidAt when reverting from PAID
+    if (paymentStatus === "PENDING" && order.paymentStatus === "PAID") {
+      updateData.paidAt = null;
+    }
+
+    // Add reason to special instructions if provided
+    if (reason) {
+      const existingReason = order.specialInstructions || "";
+      updateData.specialInstructions = `${existingReason}\n[Payment Status Update: ${paymentStatus}] ${reason}`.trim();
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: updateData,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            phoneNumber: true,
+            expoPushToken: true,
+          },
+        },
+        restaurant: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                expoPushToken: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Log payment status change
+    console.log(`[PaymentStatus] Order ${orderId} payment status changed`, {
+      from: order.paymentStatus,
+      to: paymentStatus,
+      reason,
+      restaurantId,
+    });
+
+    return {
+      id: updatedOrder.id,
+      orderNumber: updatedOrder.orderNumber,
+      paymentStatus: updatedOrder.paymentStatus,
+      paidAt: updatedOrder.paidAt,
+      message: `Payment status updated to ${paymentStatus} successfully`,
     };
   },
 

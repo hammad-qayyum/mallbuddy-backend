@@ -15,29 +15,58 @@ import restaurantConnectRoutes from "./modules/payments/restaurant-connect-accou
 const app = express();
 
 // CORS configuration
-// const allowedOrigins = process.env.ALLOWED_ORIGINS
-//   ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim())
-//   : process.env.NODE_ENV === "production"
-//   ? []
-//   : ["http://localhost:5000", "http://localhost:5001"];
+const isProduction = process.env.NODE_ENV === "production";
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim())
+  : isProduction
+  ? [] // In production, require ALLOWED_ORIGINS to be set
+  : [
+      // Default development origins
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "http://localhost:5000",
+      "http://localhost:5001",
+      "http://127.0.0.1:3000",
+      "http://127.0.0.1:5000",
+    ];
 
-// app.use(
-//   cors({
-//     origin: (origin, callback) => {
-//       // Allow requests with no origin (like mobile apps or curl requests)
-//       if (!origin) return callback(null, true);
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, Postman, or curl requests)
+      if (!origin) return callback(null, true);
       
-//       if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
-//         callback(null, true);
-//       } else {
-//         callback(new Error("Not allowed by CORS"));
-//       }
-//     },
-//     credentials: true,
-//     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-//     allowedHeaders: ["Content-Type", "Authorization"],
-//   })
-// );
+      // In development, allow all origins if ALLOWED_ORIGINS is not set
+      if (!isProduction && (!process.env.ALLOWED_ORIGINS || allowedOrigins.length === 0)) {
+        return callback(null, true);
+      }
+      
+      // In production, require origin to be in allowed list
+      if (isProduction && allowedOrigins.length === 0) {
+        return callback(new Error("CORS: ALLOWED_ORIGINS must be set in production"));
+      }
+      
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`Not allowed by CORS: ${origin}`));
+      }
+    },
+    credentials: true, // Allow cookies and authentication headers
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "Accept",
+      "Origin",
+      "Access-Control-Request-Method",
+      "Access-Control-Request-Headers",
+    ],
+    exposedHeaders: ["Set-Cookie"], // Expose Set-Cookie header to client
+    maxAge: 86400, // Cache preflight requests for 24 hours
+  })
+);
 
 
 // Stripe webhooks must be before attachAuth (uses raw body)

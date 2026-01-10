@@ -1,4 +1,4 @@
-generator client {
+ generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
 }
@@ -20,6 +20,7 @@ model User {
   phoneNumber       String?             @unique
   name              String?
   emailVerified     Boolean?
+  phoneVerified     Boolean?
   selectedCityId    String?
   selectedCountryId String?
   selectedMallId    String?
@@ -167,7 +168,7 @@ model Restaurant {
   stripeCustomerId       String?                   @unique
   RestaurantStatus       RestaurantStatus          @default(ACTIVE)
   approvalStatus         RestaurantApprovalStatus  @default(PENDING)
-  businessHours          BusinessHours[]
+  businessDays           BusinessDay[]
   cartItems              CartItem[]
   favouriteCartItems     FavouriteCartItem[]
   menuCategories         MenuCategory[]
@@ -187,19 +188,48 @@ model Restaurant {
   @@index([approvalStatus])
 }
 
-model BusinessHours {
-  id           String     @id @default(uuid())
+enum DayOfWeek {
+  SUNDAY
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+}
+
+enum SlotType {
+  OPEN
+  BREAK
+}
+
+model BusinessDay {
+  id           String               @id @default(uuid())
   restaurantId String
-  dayOfWeek    String
+  day          DayOfWeek
+  isClosed     Boolean              @default(false)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  restaurant   Restaurant           @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
+  timeSlots    BusinessTimeSlot[]
+
+  @@unique([restaurantId, day])
+  @@index([restaurantId])
+}
+
+model BusinessTimeSlot {
+  id           String      @id @default(uuid())
+  businessDayId String
+  slotType     SlotType
   openTime     String
   closeTime    String
-  isClosed     Boolean    @default(false)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  businessDay  BusinessDay @relation(fields: [businessDayId], references: [id], onDelete: Cascade)
 
-  @@unique([restaurantId, dayOfWeek])
-  @@index([restaurantId])
+  // Prevent exact duplicate slots for the same day
+  @@unique([businessDayId, openTime, closeTime])
+  @@index([businessDayId])
 }
 
 model RestaurantGallery {
@@ -617,3 +647,6 @@ enum PaymentStatus {
   FAILED
   REFUNDED
 }
+
+
+

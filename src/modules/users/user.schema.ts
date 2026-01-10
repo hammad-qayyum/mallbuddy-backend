@@ -1,12 +1,28 @@
 import {z} from "zod";
 
+// Helper function to transform empty strings to undefined and apply validation
+// This allows fields to be truly optional - empty strings are treated as "not provided"
+const optionalString = (validation: z.ZodString) => {
+    return z.preprocess(
+        (val) => {
+            // Convert empty strings, null, or undefined to undefined
+            if (val === "" || val === null || val === undefined) {
+                return undefined;
+            }
+            return val;
+        },
+        z.union([validation, z.undefined()])
+    );
+};
+
 //Schema for updating general profile data
+// All fields are optional - empty strings are treated as undefined (field not provided)
 export const updateUserProfileSchema = z.object({
-    firstName: z.string().min(1, "First name is required").optional(),
-    lastName: z.string().min(1, "Last name is required").optional(),
-    email: z.string().email("Invalid email format").optional(),
-    phoneNumber: z.string().min(11, "Phone number must be at least 11 digits").optional(),
-    image: z.string().url("Image must be a valid URL").optional(),
+    firstName: optionalString(z.string().min(1, "First name is required")),
+    lastName: optionalString(z.string().min(1, "Last name is required")),
+    email: optionalString(z.string().email("Invalid email format")),
+    phoneNumber: optionalString(z.string().min(11, "Phone number must be at least 11 digits")),
+    image: optionalString(z.string().url("Image must be a valid URL")),
 });
 
 //Schema for updating password

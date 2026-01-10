@@ -24,9 +24,13 @@ export const adminSearchService = {
         select: {
           id: true,
           name: true,
-          city: true,
-          countryId: true,
-          createdAt: true,
+          city: {
+            select: {
+              id: true,
+              name: true,
+              countryId: true,
+            },
+          },
         },
       }),
       prisma.mall.count({ where }),

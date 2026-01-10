@@ -10,3 +10,6 @@ node_modules
 # Media
 media/
 /src/generated/prisma
+
+#build files
+dist/

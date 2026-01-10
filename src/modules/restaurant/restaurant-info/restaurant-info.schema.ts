@@ -1,11 +1,16 @@
 import { z } from "zod";
 
-// Business Hours Schema
-export const businessHoursSchema = z.object({
-  dayOfWeek: z.enum(["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"]),
+// Time slot schema (supports multiple slots per day)
+export const timeSlotSchema = z.object({
+  slotType: z.enum(["OPEN", "BREAK"]),
   openTime: z.string().regex(/^\d{2}:\d{2}$/, "Format: HH:mm (e.g., 09:00)"),
   closeTime: z.string().regex(/^\d{2}:\d{2}$/, "Format: HH:mm (e.g., 22:00)"),
+});
+
+export const businessDaySchema = z.object({
+  dayOfWeek: z.enum(["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"]),
   isClosed: z.boolean().default(false),
+  timeSlots: z.array(timeSlotSchema).optional(),
 });
 
 // Create/Update Restaurant Info Schema
@@ -15,10 +20,14 @@ export const restaurantInfoSchema = z.object({
   estimatedDeliveryTime: z.string().optional().nullable(),
 });
 
-// Business Hours Create/Update Schema
-export const createBusinessHoursSchema = z.array(businessHoursSchema);
+// Business Hours Create/Update Schema (array of days)
+export const createBusinessHoursSchema = z.array(businessDaySchema);
 
-export const updateBusinessHoursSchema = businessHoursSchema.omit({ dayOfWeek: true }).partial();
+// For updating a day: partial fields allowed and timeSlots optional
+export const updateBusinessHoursSchema = z.object({
+  isClosed: z.boolean().optional(),
+  timeSlots: z.array(timeSlotSchema).optional(),
+}).partial();
 
 // Response Schemas
 export const restaurantInfoResponseSchema = z.object({
@@ -28,12 +37,13 @@ export const restaurantInfoResponseSchema = z.object({
   address: z.string().nullable(),
   phoneNumber: z.string().nullable(),
   estimatedDeliveryTime: z.string().nullable(),
-  businessHours: z.array(businessHoursSchema),
+  businessHours: z.array(businessDaySchema),
   banner: z.string().nullable(),
   description: z.string().nullable(),
 });
 
-export type BusinessHoursInput = z.infer<typeof businessHoursSchema>;
+export type TimeSlotInput = z.infer<typeof timeSlotSchema>;
+export type BusinessDayInput = z.infer<typeof businessDaySchema>;
 export type RestaurantInfoInput = z.infer<typeof restaurantInfoSchema>;
 export type CreateBusinessHoursInput = z.infer<typeof createBusinessHoursSchema>;
 export type UpdateBusinessHoursInput = z.infer<typeof updateBusinessHoursSchema>;

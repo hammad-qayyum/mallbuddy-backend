@@ -603,12 +603,19 @@ export const ordersService = {
         status: true,
         total: true,
         createdAt: true,
+        paymentMethod: true,
+        estimatedDeliveryTime: true,
         restaurant: {
           select: {
             userId: true,
             name: true,
             mainCategory: true,
             banner: true,
+            user: {
+              select: {
+                name: true,
+              },
+            },
           },
         },
         items: {

@@ -841,63 +841,79 @@ const swaggerDefinition = {
                             },
                             businessHours: {
                                 type: "array",
-                                description: "Business hours for each day of the week",
+                                description: "Business days with multiple time slots",
                                 items: {
-                                    $ref: "#/components/schemas/BusinessHours",
+                                    $ref: "#/components/schemas/BusinessDay",
                                 },
                             },
                         },
                     },
                 },
             },
+            BusinessDay: {
+                type: "object",
+                description: "Business day record with multiple time slots",
+                properties: {
+                    id: { type: "string", description: "Business day id" },
+                    restaurantId: { type: "string", description: "Restaurant ID" },
+                    day: { type: "string", enum: ["MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY","SUNDAY"] },
+                    isClosed: { type: "boolean" },
+                    timeSlots: {
+                        type: "array",
+                        items: { $ref: "#/components/schemas/BusinessTimeSlot" }
+                    },
+                    createdAt: { type: "string", format: "date-time" },
+                    updatedAt: { type: "string", format: "date-time" },
+                },
+            },
+            BusinessTimeSlot: {
+                type: "object",
+                description: "Time slot for a BusinessDay",
+                properties: {
+                    id: { type: "string" },
+                    businessDayId: { type: "string" },
+                    slotType: { type: "string", enum: ["OPEN","BREAK"] },
+                    openTime: { type: "string", example: "09:00" },
+                    closeTime: { type: "string", example: "14:00" },
+                    createdAt: { type: "string", format: "date-time" },
+                    updatedAt: { type: "string", format: "date-time" },
+                },
+            },
+            // Input schema used by dist routes: '#/components/schemas/BusinessHoursInput'
+            BusinessHoursInput: {
+                type: "object",
+                description: "Business hours input for a single day (supports multiple time slots)",
+                properties: {
+                    dayOfWeek: { type: "string", enum: ["MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY","SUNDAY"] },
+                    isClosed: { type: "boolean" },
+                    timeSlots: {
+                        type: "array",
+                        items: { $ref: "#/components/schemas/BusinessTimeSlotInput" }
+                    }
+                }
+            },
+            // Helper input for time slots when creating/updating business hours
+            BusinessTimeSlotInput: {
+                type: "object",
+                description: "Input payload for a single time slot",
+                properties: {
+                    slotType: { type: "string", enum: ["OPEN","BREAK"] },
+                    openTime: { type: "string", example: "09:00" },
+                    closeTime: { type: "string", example: "14:00" }
+                }
+            },
+            // Output schema used by dist routes: '#/components/schemas/BusinessHours'
             BusinessHours: {
                 type: "object",
-                description: "Business hours for a specific day",
+                description: "Business hours response for a single day (with resolved time slots)",
                 properties: {
-                    id: {
-                        type: "string",
-                        description: "Business hours record ID",
-                        example: "hours-001",
-                    },
-                    restaurantId: {
-                        type: "string",
-                        description: "Restaurant ID",
-                        example: "123e4567-e89b-12d3-a456-426614174000",
-                    },
-                    dayOfWeek: {
-                        type: "string",
-                        enum: ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"],
-                        description: "Day of the week",
-                        example: "MONDAY",
-                    },
-                    openTime: {
-                        type: "string",
-                        description: "Opening time in HH:mm format (24-hour)",
-                        example: "09:00",
-                    },
-                    closeTime: {
-                        type: "string",
-                        description: "Closing time in HH:mm format (24-hour)",
-                        example: "22:00",
-                    },
-                    isClosed: {
-                        type: "boolean",
-                        description: "Whether restaurant is closed on this day",
-                        example: false,
-                    },
-                    createdAt: {
-                        type: "string",
-                        format: "date-time",
-                        description: "Creation timestamp",
-                        example: "2024-01-01T00:00:00.000Z",
-                    },
-                    updatedAt: {
-                        type: "string",
-                        format: "date-time",
-                        description: "Last update timestamp",
-                        example: "2024-01-01T00:00:00.000Z",
-                    },
-                },
+                    dayOfWeek: { type: "string", enum: ["MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY","SUNDAY"] },
+                    isClosed: { type: "boolean" },
+                    timeSlots: {
+                        type: "array",
+                        items: { $ref: "#/components/schemas/BusinessTimeSlot" }
+                    }
+                }
             },
             ExploreRestaurantSummary: {
                 type: "object",

@@ -1261,6 +1261,140 @@ router.patch("/restaurants/:restaurantId/orders/:orderId/status", requireAuth, r
 
 /**
  * @swagger
+ * /restaurants/{restaurantId}/orders/{orderId}/payment-status:
+ *   patch:
+ *     summary: Update payment status for COD orders
+ *     tags: [Orders - Restaurant Screen]
+ *     description: |
+ *       Update payment status for Cash on Delivery (COD) orders. Used for:
+ *       - Marking payment as not collected (PENDING)
+ *       - Marking payment as collected (PAID) - if missed during delivery
+ *       - Processing refunds (REFUNDED) - for disputes or issues
+ *       - Marking payment as failed (FAILED)
+ *       
+ *       **Note:** This endpoint is only for COD orders. Card payments are handled automatically via Stripe.
+ *       
+ *       **Valid Status Transitions:**
+ *       - PENDING → PAID, FAILED
+ *       - PAID → REFUNDED, PENDING
+ *       - FAILED → PAID, PENDING
+ *       - REFUNDED → (final state, cannot change)
+ *     parameters:
+ *       - in: path
+ *         name: restaurantId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Restaurant ID (must match authenticated restaurant)
+ *         example: "123e4567-e89b-12d3-a456-426614174000"
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Order ID to update
+ *         example: "123e4567-e89b-12d3-a456-426614174001"
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [paymentStatus]
+ *             properties:
+ *               paymentStatus:
+ *                 type: string
+ *                 enum: [PENDING, PAID, FAILED, REFUNDED]
+ *                 description: |
+ *                   New payment status:
+ *                   - **PENDING**: Payment not collected (e.g., delivery person forgot)
+ *                   - **PAID**: Payment collected (e.g., marked after delivery)
+ *                   - **FAILED**: Payment collection failed
+ *                   - **REFUNDED**: Payment refunded (for disputes)
+ *                 example: "REFUNDED"
+ *               reason:
+ *                 type: string
+ *                 maxLength: 500
+ *                 description: Optional reason for the payment status change
+ *                 example: "Customer dispute - wrong order delivered"
+ *           examples:
+ *             markNotPaid:
+ *               summary: Mark payment as not collected
+ *               value:
+ *                 paymentStatus: "PENDING"
+ *                 reason: "Delivery person forgot to collect payment"
+ *             markPaid:
+ *               summary: Mark payment as collected
+ *               value:
+ *                 paymentStatus: "PAID"
+ *                 reason: "Payment collected after delivery, updating status"
+ *             refund:
+ *               summary: Process refund for dispute
+ *               value:
+ *                 paymentStatus: "REFUNDED"
+ *                 reason: "Customer dispute - wrong items delivered"
+ *     responses:
+ *       200:
+ *         description: Payment status updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Payment status updated to REFUNDED successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     orderNumber:
+ *                       type: string
+ *                     paymentStatus:
+ *                       type: string
+ *                       enum: [PENDING, PAID, FAILED, REFUNDED]
+ *                     paidAt:
+ *                       type: string
+ *                       format: date-time
+ *                       nullable: true
+ *       400:
+ *         description: Invalid request, status transition, or not a COD order
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   examples:
+ *                     - "Invalid payment status transition from PAID to PENDING"
+ *                     - "Payment status updates are only allowed for COD (CASH) orders"
+ *                     - "Can only refund orders that are marked as PAID"
+ *       404:
+ *         description: Order not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Order not found"
+ *       500:
+ *         description: Internal server error
+ */
+router.patch(
+  "/restaurants/:restaurantId/orders/:orderId/payment-status",
+  requireAuth,
+  requireRestaurantRole,
+  requireRestaurantOwnership,
+  restaurantController.updatePaymentStatus
+);
+
+/**
+ * @swagger
  * /restaurants/{restaurantId}/analytics/orders-revenue:
  *   get:
  *     summary: Get restaurant analytics (orders and revenue)

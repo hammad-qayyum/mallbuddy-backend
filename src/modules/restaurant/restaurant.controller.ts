@@ -8,6 +8,7 @@ import {
   acceptOrderSchema,
   declineOrderSchema,
   updateOrderStatusSchema,
+  updatePaymentStatusSchema,
   getRestaurantAnalyticsSchema,
   adminCreateRestaurantSchema,
   getAllRestaurantsSystemWideSchema,
@@ -392,6 +393,45 @@ export const restaurantController = {
         return res.status(404).json({ message: error.message });
       }
       if (error.message.includes("Unauthorized") || error.message.includes("Invalid status transition")) {
+        return res.status(400).json({ message: error.message });
+      }
+      return res.status(500).json({ message: error.message });
+    }
+  },
+
+  /**
+   * PATCH /restaurants/:restaurantId/orders/:orderId/payment-status - Update payment status for COD orders
+   */
+  async updatePaymentStatus(req: Request, res: Response) {
+    try {
+      const { restaurantId, orderId } = req.params;
+      const { paymentStatus, reason } = req.body;
+
+      const parseResult = updatePaymentStatusSchema.safeParse({
+        orderId,
+        restaurantId,
+        paymentStatus,
+        reason,
+      });
+
+      if (!parseResult.success) {
+        return res.status(400).json({
+          message: "Invalid request body",
+          errors: parseResult.error.issues,
+        });
+      }
+
+      const result = await restaurantService.updatePaymentStatus(parseResult.data);
+
+      return res.json({
+        message: result.message,
+        data: result,
+      });
+    } catch (error: any) {
+      if (error.message.includes("not found")) {
+        return res.status(404).json({ message: error.message });
+      }
+      if (error.message.includes("Unauthorized") || error.message.includes("Invalid") || error.message.includes("only allowed")) {
         return res.status(400).json({ message: error.message });
       }
       return res.status(500).json({ message: error.message });

@@ -8,7 +8,7 @@ export const createSubscriptionPlanSchema = z.object({
     z.number().min(0, "Price must be at least 0")
   ),
   interval: z.enum(["MONTHLY", "YEARLY"], {
-    errorMap: () => ({ message: "Interval must be either MONTHLY or YEARLY" }),
+    message: "Interval must be either MONTHLY or YEARLY",
   }),
   features: z.any().optional(), // JSON object for features
 });

@@ -114,7 +114,27 @@ router.patch("/restaurant/:restaurantId/info", requireAuth, requireRestaurantRol
  *                 data:
  *                   type: array
  *                   items:
- *                     $ref: '#/components/schemas/BusinessHours'
+ *                     type: object
+ *                     properties:
+ *                       dayOfWeek:
+ *                         type: string
+ *                         enum: [MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, SUNDAY]
+ *                       isClosed:
+ *                         type: boolean
+ *                       timeSlots:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                           properties:
+ *                             slotType:
+ *                               type: string
+ *                               enum: [OPEN, BREAK]
+ *                             openTime:
+ *                               type: string
+ *                               example: "09:00"
+ *                             closeTime:
+ *                               type: string
+ *                               example: "22:00"
  */
 router.get("/restaurant/:restaurantId/business-hours", restaurantInfoController.getBusinessHours);
 
@@ -139,16 +159,38 @@ router.get("/restaurant/:restaurantId/business-hours", restaurantInfoController.
  *           schema:
  *             type: array
  *             items:
- *               $ref: '#/components/schemas/BusinessHoursInput'
+ *               type: object
+ *               properties:
+ *                 dayOfWeek:
+ *                   type: string
+ *                   enum: [MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, SUNDAY]
+ *                 isClosed:
+ *                   type: boolean
+ *                 timeSlots:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       slotType:
+ *                         type: string
+ *                         enum: [OPEN, BREAK]
+ *                       openTime:
+ *                         type: string
+ *                       closeTime:
+ *                         type: string
  *           example:
  *             - dayOfWeek: MONDAY
- *               openTime: "09:00"
- *               closeTime: "22:00"
  *               isClosed: false
- *             - dayOfWeek: TUESDAY
- *               openTime: "09:00"
- *               closeTime: "22:00"
- *               isClosed: false
+ *               timeSlots:
+ *                 - slotType: OPEN
+ *                   openTime: "09:00"
+ *                   closeTime: "14:00"
+ *                 - slotType: BREAK
+ *                   openTime: "14:00"
+ *                   closeTime: "18:00"
+ *                 - slotType: OPEN
+ *                   openTime: "18:00"
+ *                   closeTime: "22:00"
  *     responses:
  *       201:
  *         description: Business hours created successfully
@@ -162,7 +204,23 @@ router.get("/restaurant/:restaurantId/business-hours", restaurantInfoController.
  *                 data:
  *                   type: array
  *                   items:
- *                     $ref: '#/components/schemas/BusinessHours'
+ *                     type: object
+ *                     properties:
+ *                       dayOfWeek:
+ *                         type: string
+ *                       isClosed:
+ *                         type: boolean
+ *                       timeSlots:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                           properties:
+ *                             slotType:
+ *                               type: string
+ *                             openTime:
+ *                               type: string
+ *                             closeTime:
+ *                               type: string
  *       403:
  *         description: You can only update your own restaurant
  *     security:
@@ -215,7 +273,23 @@ router.post("/restaurant/:restaurantId/business-hours", requireAuth, requireRest
  *                 success:
  *                   type: boolean
  *                 data:
- *                   $ref: '#/components/schemas/BusinessHours'
+ *                   type: object
+ *                   properties:
+ *                     dayOfWeek:
+ *                       type: string
+ *                     isClosed:
+ *                       type: boolean
+ *                     timeSlots:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           slotType:
+ *                             type: string
+ *                           openTime:
+ *                             type: string
+ *                           closeTime:
+ *                             type: string
  *       403:
  *         description: You can only update your own restaurant
  *       404:

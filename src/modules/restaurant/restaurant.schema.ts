@@ -56,6 +56,19 @@ export const updateOrderStatusSchema = z.object({
   }),
 });
 
+// Schema to update payment status for COD orders (disputes, corrections)
+export const updatePaymentStatusSchema = z.object({
+  orderId: z.string().min(1, "Order ID is required").uuid("Invalid order ID"),
+  restaurantId: z.string().min(1, "Restaurant ID is required"),
+  paymentStatus: z.enum(["PENDING", "PAID", "FAILED", "REFUNDED"], {
+    message: "Invalid payment status",
+  }),
+  reason: z
+    .string()
+    .max(500, "Reason cannot exceed 500 characters")
+    .optional(),
+});
+
 // Schema to get restaurant orders with filters
 export const getRestaurantOrdersSchema = z.object({
   restaurantId: z.string().min(1, "Restaurant ID is required"),
@@ -138,6 +151,7 @@ export type UpdateRestaurantInput = z.infer<typeof updateRestaurantSchema>;
 export type AcceptOrderInput = z.infer<typeof acceptOrderSchema>;
 export type DeclineOrderInput = z.infer<typeof declineOrderSchema>;
 export type UpdateOrderStatusInput = z.infer<typeof updateOrderStatusSchema>;
+export type UpdatePaymentStatusInput = z.infer<typeof updatePaymentStatusSchema>;
 export type GetRestaurantOrdersInput = z.infer<typeof getRestaurantOrdersSchema>;
 export type GetOrderDetailsInput = z.infer<typeof getOrderDetailsSchema>;
 export type GetRestaurantAnalyticsInput = z.infer<typeof getRestaurantAnalyticsSchema>;

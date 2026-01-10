@@ -31,7 +31,11 @@ export const mallService = {
     const malls = await prisma.mall.findMany({
       ...(cityId && { where: { cityId } }),
       orderBy: { name: "asc" },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        cityId: true,
         _count: {
           select: {
             restaurants: true,
@@ -47,8 +51,6 @@ export const mallService = {
         name: mall.name,
         address: mall.address,
         cityId: mall.cityId,
-        createdAt: mall.createdAt,
-        updatedAt: mall.updatedAt,
         restaurantCount: mall._count.restaurants,
       };
     });
