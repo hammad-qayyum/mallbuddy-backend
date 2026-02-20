@@ -16,12 +16,8 @@ const app = express();
 
 app.use(
   cors({
-    origin: true,
+    origin: "http://203.161.60.191:5000",
     credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "Accept"],
-    exposedHeaders: ["Content-Type", "Authorization"],
-    maxAge: 86400,
   })
 );
 
