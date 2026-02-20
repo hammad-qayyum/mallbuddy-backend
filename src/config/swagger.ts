@@ -1,7 +1,5 @@
 import swaggerJsdoc from "swagger-jsdoc";
 
-const SERVER_URL = process.env.SERVER_URL || "http://203.161.60.191:5000";
-const API_URL = `${SERVER_URL}/api`;
 
 const swaggerDefinition = {
     openapi: "3.0.0",
@@ -14,11 +12,11 @@ const swaggerDefinition = {
         },
     },
     servers: [
-        {
-            url: API_URL,
-            description: "Production server",
-        },
-    ],
+  {
+    url: "/api",
+    description: "Current server",
+  },
+],
     // top-level tags are declared further below in the file; avoid duplicate `tags` keys
     paths: {
         "/restaurant/{restaurantId}/gallery": {
