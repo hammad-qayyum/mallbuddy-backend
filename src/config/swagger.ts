@@ -12,10 +12,8 @@ const swaggerDefinition = {
     },
     servers: [
         {
-            // The application mounts API routes under `/api` in `app.ts`.
-            // Point Swagger requests to the mounted API so "Try it" calls hit the correct paths.
-            url: "http://localhost:5000/api",
-            description: "Development server (API root)",
+            url: "http://203.161.60.191:5000/api",
+            description: "Development server",
         },
     ],
     // top-level tags are declared further below in the file; avoid duplicate `tags` keys
