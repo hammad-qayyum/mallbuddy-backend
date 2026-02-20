@@ -970,5 +970,220 @@ export const restaurantService = {
     };
   },
 
+  // ============================
+  // Explore endpoints
+  // ============================
+
+  async getExploreRestaurants() {
+    const restaurants = await prisma.restaurant.findMany({
+      where: {
+        approvalStatus: "APPROVED",
+      },
+      include: {
+        mall: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+          },
+        },
+        cuisineCategory: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return restaurants.map((restaurant) => ({
+      id: restaurant.userId,
+      name: restaurant.name,
+      banner: restaurant.banner,
+      description: restaurant.description,
+      location: restaurant.location,
+      mainCategory: restaurant.mainCategory,
+      mall: restaurant.mall,
+      cuisineCategory: restaurant.cuisineCategory,
+      isFavorite: restaurant.isFavorite,
+    }));
+  },
+
+  async getExploreRestaurantDetail(restaurantId: string) {
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { userId: restaurantId },
+      include: {
+        mall: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+          },
+        },
+        cuisineCategory: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        menuCategories: {
+          include: {
+            items: true,
+          },
+        },
+      },
+    });
+
+    if (!restaurant) return null;
+
+    // Fetch gallery images
+    let galleryRows: { id: string; imageUrl: string }[] = [];
+    if (hasGalleryModel()) {
+      galleryRows = await (prisma as any).restaurantGallery.findMany({
+        where: { restaurantId },
+        select: { id: true, imageUrl: true },
+        orderBy: { createdAt: "asc" },
+      });
+    } else {
+      galleryRows = (await prisma.$queryRaw`
+        SELECT "id", "imageUrl"
+        FROM "RestaurantGallery"
+        WHERE "restaurantId" = ${restaurantId}
+        ORDER BY "createdAt" ASC
+      `) as { id: string; imageUrl: string }[];
+    }
+
+    const gallery = galleryRows.map((g) => ({ id: g.id, imageUrl: g.imageUrl }));
+
+    return {
+      id: restaurant.userId,
+      name: restaurant.name,
+      banner: restaurant.banner,
+      description: restaurant.description,
+      story: restaurant.story,
+      location: restaurant.location,
+      mainCategory: restaurant.mainCategory,
+      mall: restaurant.mall,
+      cuisineCategory: restaurant.cuisineCategory,
+      isFavorite: restaurant.isFavorite,
+      menuCategories: restaurant.menuCategories,
+      gallery,
+    };
+  },
+
+  async getRestaurantGallery(restaurantId: string) {
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { userId: restaurantId },
+      select: { userId: true, name: true },
+    });
+
+    if (!restaurant) return null;
+
+    let galleryRows: { id: string; imageUrl: string; createdAt: Date }[] = [];
+    if (hasGalleryModel()) {
+      galleryRows = await (prisma as any).restaurantGallery.findMany({
+        where: { restaurantId },
+        select: { id: true, imageUrl: true, createdAt: true },
+        orderBy: { createdAt: "asc" },
+      });
+    } else {
+      galleryRows = (await prisma.$queryRaw`
+        SELECT "id", "imageUrl", "createdAt"
+        FROM "RestaurantGallery"
+        WHERE "restaurantId" = ${restaurantId}
+        ORDER BY "createdAt" ASC
+      `) as { id: string; imageUrl: string; createdAt: Date }[];
+    }
+
+    return {
+      restaurantId: restaurant.userId,
+      restaurantName: restaurant.name,
+      gallery: galleryRows.map((g) => ({
+        id: g.id,
+        imageUrl: g.imageUrl,
+        createdAt: g.createdAt,
+      })),
+    };
+  },
+
+  async getRestaurantStory(restaurantId: string) {
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { userId: restaurantId },
+      select: {
+        userId: true,
+        name: true,
+        story: true,
+        banner: true,
+      },
+    });
+
+    if (!restaurant) return null;
+
+    return {
+      id: restaurant.userId,
+      name: restaurant.name,
+      story: restaurant.story,
+      banner: restaurant.banner,
+    };
+  },
+
+  async addGallery(restaurantId: string, imageUrls: string[]) {
+    if (!hasGalleryModel()) {
+      throw new Error("RestaurantGallery model not available");
+    }
+
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { userId: restaurantId },
+      select: { userId: true },
+    });
+
+    if (!restaurant) {
+      throw new Error("Restaurant not found");
+    }
+
+    const galleryEntries = await (prisma as any).restaurantGallery.createMany({
+      data: imageUrls.map((imageUrl) => ({
+        restaurantId,
+        imageUrl,
+      })),
+    });
+
+    return galleryEntries;
+  },
+
+  async deleteGalleryImage(restaurantId: string, galleryId: string) {
+    if (!hasGalleryModel()) {
+      throw new Error("RestaurantGallery model not available");
+    }
+
+    const galleryImage = await (prisma as any).restaurantGallery.findUnique({
+      where: { id: galleryId },
+    });
+
+    if (!galleryImage) {
+      throw new Error("Gallery image not found");
+    }
+
+    if (galleryImage.restaurantId !== restaurantId) {
+      throw new Error("Gallery image does not belong to this restaurant");
+    }
+
+    // Delete the file from uploads
+    if (galleryImage.imageUrl && galleryImage.imageUrl.startsWith("/uploads/")) {
+      try {
+        deleteImageFile(galleryImage.imageUrl);
+      } catch (e) {
+        console.error("Error deleting gallery image file:", e);
+      }
+    }
+
+    await (prisma as any).restaurantGallery.delete({
+      where: { id: galleryId },
+    });
+
+    return { success: true, message: "Gallery image deleted successfully" };
+  },
+
   
 };

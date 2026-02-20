@@ -478,4 +478,82 @@ export const restaurantController = {
     }
   },
 
+  /**
+   * POST /restaurant/:restaurantId/gallery - Add gallery images
+   */
+  async addGallery(req: Request, res: Response) {
+    try {
+      const { restaurantId } = req.params;
+
+      if (!restaurantId) {
+        return res.status(400).json({
+          message: "Restaurant ID is required",
+        });
+      }
+
+      if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
+        return res.status(400).json({
+          message: "No images uploaded",
+        });
+      }
+
+      const imageUrls = req.files.map((file: any) => {
+        return `/uploads/restaurants/gallery/${file.filename}`;
+      });
+
+      const result = await restaurantService.addGallery(restaurantId, imageUrls);
+
+      return res.status(201).json({
+        message: "Gallery images added successfully",
+        data: {
+          count: imageUrls.length,
+          images: imageUrls,
+        },
+      });
+    } catch (error: any) {
+      console.error("[restaurantController.addGallery] error:", error);
+      if (error.message.includes("not found")) {
+        return res.status(404).json({ message: error.message });
+      }
+      return res.status(500).json({ message: error.message });
+    }
+  },
+
+  /**
+   * DELETE /restaurant/:restaurantId/gallery/:galleryId - Delete a gallery image
+   */
+  async deleteGalleryImage(req: Request, res: Response) {
+    try {
+      const { restaurantId, galleryId } = req.params;
+
+      if (!restaurantId) {
+        return res.status(400).json({
+          message: "Restaurant ID is required",
+        });
+      }
+
+      if (!galleryId) {
+        return res.status(400).json({
+          message: "Gallery ID is required",
+        });
+      }
+
+      const result = await restaurantService.deleteGalleryImage(restaurantId, galleryId);
+
+      return res.json({
+        message: result.message,
+        data: result,
+      });
+    } catch (error: any) {
+      console.error("[restaurantController.deleteGalleryImage] error:", error);
+      if (error.message.includes("not found")) {
+        return res.status(404).json({ message: error.message });
+      }
+      if (error.message.includes("does not belong")) {
+        return res.status(403).json({ message: error.message });
+      }
+      return res.status(500).json({ message: error.message });
+    }
+  },
+
 };
