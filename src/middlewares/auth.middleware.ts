@@ -8,7 +8,10 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 
   if (!auth || !auth.user) {
     // If there is no auth or no user, the request is unauthorized
-    return res.status(401).json({ message: "Unauthorized" });
+    return res.status(401).json({
+      success: false,
+      message: "Unauthorized",
+    });
   }
 
   // If authenticated, just go to the next handler

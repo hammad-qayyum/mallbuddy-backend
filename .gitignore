@@ -2,7 +2,7 @@
 node_modules
 
 # Environment Variables
-
+.env
 
 # Migrations
 
@@ -10,3 +10,6 @@ node_modules
 # Media
 media/
 /src/generated/prisma
+
+#build files
+dist/
