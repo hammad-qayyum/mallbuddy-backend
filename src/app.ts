@@ -58,6 +58,9 @@ app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
     customCss: ".swagger-ui .topbar { display: none }",
     customSiteTitle: "Mall Food Delivery API Documentation",
+  swaggerOptions: {
+    withCredentials: true,
+  },
 }));
 
 // Note: `attachAuth` middleware removed — authentication handled elsewhere when needed.
