@@ -42,7 +42,7 @@ export function getCookieOptions(): CookieOptions {
   // Modern browsers allow this even on localhost
   return {
     httpOnly: true, // Prevent XSS attacks
-    secure: true, // Required when sameSite is "none" (works on localhost too)
+    secure: false, // Required when sameSite is "none" (works on localhost too)
     sameSite: "none", // Required for cross-origin requests with CORS
     path: "/", // Available to all paths
     // maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days (optional - session cookies by default)
