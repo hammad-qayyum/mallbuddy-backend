@@ -87,7 +87,7 @@ router.post("/country/create", requireAuth, requireAdminRole, countryController.
  *                     type: string
  *                     format: date-time
  */
-router.get("/country/get-all", requireAuth, countryController.getAll);
+router.get("/country/get-all", requireAuth,countryController.getAll);
 
 /**
  * @swagger
