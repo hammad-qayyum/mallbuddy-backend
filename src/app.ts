@@ -16,7 +16,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: "http://203.161.60.191:5000",
+    origin: true,
     credentials: true,
   })
 );
@@ -104,14 +104,14 @@ listRoutes();
 
 // 404 handler for unmatched routes (logs the request)
 // CORS configuration - allow all origins (same as last working commit)
-app.use(
-  cors({
-    origin: true,
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
+// app.use(
+//   cors({
+//     origin: true,
+//     credentials: true,
+//     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+//     allowedHeaders: ["Content-Type", "Authorization"],
+//   })
+// );
 
 
 // Global error handler

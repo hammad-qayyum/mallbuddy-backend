@@ -25,14 +25,14 @@ export function getCookieOptions(): CookieOptions {
   // For CORS with credentials, we need sameSite: "none" with secure: true
   // This works even in development on localhost (modern browsers support it)
   // Set USE_SAME_ORIGIN_COOKIES=true to use "lax" for same-origin only (no CORS)
-  const useSameOriginOnly = process.env.USE_SAME_ORIGIN_COOKIES === "true";
+  const useSameOriginOnly = process.env.USE_SAME_ORIGIN_COOKIES === "false";
   
   if (useSameOriginOnly) {
     // Same-origin only (no cross-origin support)
     return {
       httpOnly: true,
       secure: false, // Only in production
-      sameSite: "lax",
+      sameSite: "none",
       path: "/",
     };
   }
@@ -43,7 +43,7 @@ export function getCookieOptions(): CookieOptions {
   return {
     httpOnly: true, // Prevent XSS attacks
     secure: false, // Required when sameSite is "none" (works on localhost too)
-    sameSite: "lax", // Required for cross-origin requests with CORS
+    sameSite: "none", // Required for cross-origin requests with CORS
     path: "/", // Available to all paths
     // maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days (optional - session cookies by default)
   };
