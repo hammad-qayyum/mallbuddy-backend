@@ -21,8 +21,6 @@ export interface CookieOptions {
  */
 export function getCookieOptions(): CookieOptions {
   const isProduction = process.env.NODE_ENV === "production";
-  const secureCookiesEnv = process.env.SECURE_COOKIES;
-  const secureCookies = secureCookiesEnv ? secureCookiesEnv === "true" : isProduction;
   
   // For CORS with credentials, we need sameSite: "none" with secure: true
   // This works even in development on localhost (modern browsers support it)
@@ -33,7 +31,7 @@ export function getCookieOptions(): CookieOptions {
     // Same-origin only (no cross-origin support)
     return {
       httpOnly: true,
-      secure: secureCookies,
+      secure: false, // Only in production
       sameSite: "lax",
       path: "/",
     };
@@ -44,8 +42,8 @@ export function getCookieOptions(): CookieOptions {
   // Modern browsers allow this even on localhost
   return {
     httpOnly: true, // Prevent XSS attacks
-    secure: secureCookies, // Required when sameSite is "none"
-    sameSite: secureCookies ? "none" : "lax",
+    secure: false, // Required when sameSite is "none" (works on localhost too)
+    sameSite: "lax", // Required for cross-origin requests with CORS
     path: "/", // Available to all paths
     // maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days (optional - session cookies by default)
   };
