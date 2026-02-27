@@ -99,6 +99,11 @@ export const requireAdminRole = requireRole("ADMIN");
 export const requireAdminOrRestaurant = requireRole("ADMIN", "RESTAURANT");
 
 /**
+ * Require either RESTAURANT or USER role
+ */
+export const requireRestaurantOrUserRole = requireRole("RESTAURANT", "USER");
+
+/**
  * Require authentication (any logged-in user)
  */
 export function requireAuth(req: Request, res: Response, next: NextFunction) {

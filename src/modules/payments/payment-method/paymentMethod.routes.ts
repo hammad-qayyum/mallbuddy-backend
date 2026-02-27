@@ -5,7 +5,7 @@ import {
   removePaymentMethod,
   makePaymentMethodDefault,
 } from "./paymentMethod.controller";
-import { requireAuth, requireUserRole } from "../../../middlewares/role.middleware";
+import { requireAuth, requireRestaurantOrUserRole } from "../../../middlewares/role.middleware";
 
 const router = Router();
 
@@ -66,7 +66,7 @@ const router = Router();
  *             schema:
  *               $ref: "#/components/schemas/Error"
  */
-router.post("/payment-methods", requireUserRole, addPaymentMethod);
+router.post("/payment-methods", requireRestaurantOrUserRole, addPaymentMethod);
 
 /**
  * @swagger
@@ -102,7 +102,7 @@ router.post("/payment-methods", requireUserRole, addPaymentMethod);
  *             schema:
  *               $ref: "#/components/schemas/Error"
  */
-router.get("/payment-methods", requireUserRole, getMyPaymentMethods);
+router.get("/payment-methods", requireRestaurantOrUserRole, getMyPaymentMethods);
 
 /**
  * @swagger
@@ -155,7 +155,7 @@ router.get("/payment-methods", requireUserRole, getMyPaymentMethods);
  *             schema:
  *               $ref: "#/components/schemas/Error"
  */
-router.delete("/payment-methods/:id", requireUserRole, removePaymentMethod);
+router.delete("/payment-methods/:id", requireRestaurantOrUserRole, removePaymentMethod);
 
 /**
  * @swagger
@@ -213,6 +213,6 @@ router.delete("/payment-methods/:id", requireUserRole, removePaymentMethod);
  *             schema:
  *               $ref: "#/components/schemas/Error"
  */
-router.patch("/payment-methods/:id/default", requireUserRole, makePaymentMethodDefault);
+router.patch("/payment-methods/:id/default", requireRestaurantOrUserRole, makePaymentMethodDefault);
 
 export default router;
