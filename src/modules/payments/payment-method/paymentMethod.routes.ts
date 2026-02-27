@@ -9,9 +9,6 @@ import { requireAuth, requireUserRole } from "../../../middlewares/role.middlewa
 
 const router = Router();
 
-// All routes require USER role (requireAuth is applied globally)
-router.use(requireUserRole);
-
 /**
  * @swagger
  * /payment-methods:
@@ -69,7 +66,7 @@ router.use(requireUserRole);
  *             schema:
  *               $ref: "#/components/schemas/Error"
  */
-router.post("/payment-methods", addPaymentMethod);
+router.post("/payment-methods", requireUserRole, addPaymentMethod);
 
 /**
  * @swagger
@@ -105,7 +102,7 @@ router.post("/payment-methods", addPaymentMethod);
  *             schema:
  *               $ref: "#/components/schemas/Error"
  */
-router.get("/payment-methods", getMyPaymentMethods);
+router.get("/payment-methods", requireUserRole, getMyPaymentMethods);
 
 /**
  * @swagger
@@ -158,7 +155,7 @@ router.get("/payment-methods", getMyPaymentMethods);
  *             schema:
  *               $ref: "#/components/schemas/Error"
  */
-router.delete("/payment-methods/:id", removePaymentMethod);
+router.delete("/payment-methods/:id", requireUserRole, removePaymentMethod);
 
 /**
  * @swagger
@@ -216,6 +213,6 @@ router.delete("/payment-methods/:id", removePaymentMethod);
  *             schema:
  *               $ref: "#/components/schemas/Error"
  */
-router.patch("/payment-methods/:id/default", makePaymentMethodDefault);
+router.patch("/payment-methods/:id/default", requireUserRole, makePaymentMethodDefault);
 
 export default router;

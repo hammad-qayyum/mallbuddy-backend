@@ -1,11 +1,10 @@
 import { Router } from "express";
 import * as controller from "./subscriptionplan.controller";
-import { requireAuth, requireAdminRole } from "../../../../middlewares/role.middleware";
+import { requireAuth, requireAdminRole, requireAdminOrRestaurant } from "../../../../middlewares/role.middleware";
 
 const router = Router();
 
 // Apply admin role to all subscription plan routes (requireAuth is applied globally)
-router.use(requireAdminRole);
 
 /**
  * @swagger
@@ -68,7 +67,7 @@ router.use(requireAdminRole);
  *       500:
  *         description: Internal server error
  */
-router.post("/", controller.createPlan);
+router.post("/", requireAdminRole, controller.createPlan);
 
 /**
  * @swagger
@@ -113,7 +112,7 @@ router.post("/", controller.createPlan);
  *       500:
  *         description: Internal server error
  */
-router.get("/", controller.getPlans);
+router.get("/", requireAdminOrRestaurant, controller.getPlans);
 
 /**
  * @swagger
@@ -137,7 +136,7 @@ router.get("/", controller.getPlans);
  *       500:
  *         description: Internal server error
  */
-router.get("/:id", controller.getPlanById);
+router.get("/:id", requireAdminOrRestaurant, controller.getPlanById);
 
 /**
  * @swagger
@@ -185,7 +184,7 @@ router.get("/:id", controller.getPlanById);
  *       500:
  *         description: Internal server error
  */
-router.put("/:id", controller.updatePlan);
+router.put("/:id", requireAdminRole, controller.updatePlan);
 
 /**
  * @swagger
@@ -213,6 +212,6 @@ router.put("/:id", controller.updatePlan);
  *       500:
  *         description: Internal server error
  */
-router.patch("/:id/deactivate", controller.deactivatePlan);
+router.patch("/:id/deactivate", requireAdminRole,controller.deactivatePlan);
 
 export default router;
