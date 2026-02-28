@@ -8,6 +8,7 @@ import mallRoutes from "../modules/location/malls/mall.routes";
 import cuisineRoutes from "../modules/cuisine/cuisine.routes";
 import restaurantRoutes from "../modules/restaurant/restaurant.routes";
 import restaurantInfoRoutes from "../modules/restaurant/restaurant-info/restaurant-info.routes";
+import onboardingRoutes from "../modules/restaurant/onboarding/onboarding.routes";
 import exploreRoutes from "../modules/explore/explore.routes";
 import galleryRoutes from "../modules/gallery/gallery.routes";
 import searchRoutes from "../modules/search/search.routes";
@@ -98,6 +99,9 @@ router.use("/admin/promo-codes", adminPromoCodeRoutes);
 
 // Restaurant Info routes (personal info and business hours)
 router.use("/", restaurantInfoRoutes);
+
+// Onboarding routes
+router.use("/", onboardingRoutes);
 
 // Promotion routes
 router.use("/", promotionRoutes);
