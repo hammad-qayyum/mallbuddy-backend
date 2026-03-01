@@ -21,6 +21,7 @@ const restaurantFieldsSchema = z.object({
   // Coerce boolean coming from multipart/form-data ("true"/"false")
   isFavorite: z
     .preprocess((val) => {
+      if (val === "" || val === undefined || val === null) return undefined;
       if (val === "true" || val === true) return true;
       if (val === "false" || val === false) return false;
       return val;
