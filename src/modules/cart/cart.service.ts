@@ -140,14 +140,14 @@ export const cartService = {
               },
             },
           },
-          orderBy: { createdAt: "desc" },
         },
       },
     });
 
     if (!cart) {
+      // Return empty cart structure
       return {
-        id: "",
+        id: null,
         userId,
         items: [],
         createdAt: new Date(),
@@ -155,7 +155,203 @@ export const cartService = {
       };
     }
 
-    return cart;
+    // Collect all variation and add-on option IDs to batch query
+    const variationOptionIds = new Set<string>();
+    const addOnOptionIds = new Set<string>();
+
+    for (const item of cart.items) {
+      if (item.selectedVariations) {
+        const variations = item.selectedVariations as Array<{ variationId: string; selectedOptionId: string }>;
+        variations.forEach((v) => variationOptionIds.add(v.selectedOptionId));
+      }
+      if (item.selectedAddOns) {
+        const addOns = item.selectedAddOns as Array<{ addOnId: string; selectedOptionIds: string[] }>;
+        addOns.forEach((a) => a.selectedOptionIds.forEach((id) => addOnOptionIds.add(id)));
+      }
+    }
+
+    // Batch fetch all variation options with their variation details
+    const variationOptionsData = variationOptionIds.size > 0
+      ? await prisma.variationOption.findMany({
+          where: { id: { in: Array.from(variationOptionIds) } },
+          select: {
+            id: true,
+            name: true,
+            priceModifier: true,
+            variation: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        })
+      : [];
+
+    // Batch fetch all add-on options with their add-on details
+    const addOnOptionsData = addOnOptionIds.size > 0
+      ? await prisma.addOnOption.findMany({
+          where: { id: { in: Array.from(addOnOptionIds) } },
+          select: {
+            id: true,
+            name: true,
+            price: true,
+            addOn: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        })
+      : [];
+
+    // Create maps for quick lookup
+    const variationOptionMap = new Map(
+      variationOptionsData.map((opt) => [
+        opt.id,
+        {
+          id: opt.id,
+          name: opt.name,
+          priceModifier: opt.priceModifier.toNumber(),
+          variationId: opt.variation.id,
+          variationName: opt.variation.name,
+        },
+      ])
+    );
+
+    const addOnOptionMap = new Map(
+      addOnOptionsData.map((opt) => [
+        opt.id,
+        {
+          id: opt.id,
+          name: opt.name,
+          price: opt.price.toNumber(),
+          addOnId: opt.addOn.id,
+          addOnName: opt.addOn.name,
+        },
+      ])
+    );
+
+    // Enrich cart items with detailed variation and add-on information
+    const enrichedItems = cart.items.map((item) => {
+      const basePrice = item.menuItem.price.toNumber();
+      let unitPrice = basePrice;
+      
+      // Process variations
+      let enrichedVariations: Array<{
+        variationId: string;
+        variationName: string;
+        selectedOptionId: string;
+        optionName: string;
+        priceModifier: number;
+      }> = [];
+
+      if (item.selectedVariations) {
+        const variations = item.selectedVariations as Array<{ variationId: string; selectedOptionId: string }>;
+        enrichedVariations = variations.map((v) => {
+          const optionData = variationOptionMap.get(v.selectedOptionId);
+          if (optionData) {
+            unitPrice += optionData.priceModifier;
+            return {
+              variationId: v.variationId,
+              variationName: optionData.variationName,
+              selectedOptionId: v.selectedOptionId,
+              optionName: optionData.name,
+              priceModifier: optionData.priceModifier,
+            };
+          }
+          return {
+            variationId: v.variationId,
+            variationName: "Unknown",
+            selectedOptionId: v.selectedOptionId,
+            optionName: "Unknown",
+            priceModifier: 0,
+          };
+        });
+      }
+
+      // Process add-ons
+      let enrichedAddOns: Array<{
+        addOnId: string;
+        addOnName: string;
+        options: Array<{
+          id: string;
+          name: string;
+          price: number;
+        }>;
+      }> = [];
+
+      if (item.selectedAddOns) {
+        const addOns = item.selectedAddOns as Array<{ addOnId: string; selectedOptionIds: string[] }>;
+        
+        // Group options by add-on
+        const addOnGroups = new Map<string, { addOnName: string; options: Array<{ id: string; name: string; price: number }> }>();
+        
+        addOns.forEach((addOn) => {
+          addOn.selectedOptionIds.forEach((optionId) => {
+            const optionData = addOnOptionMap.get(optionId);
+            if (optionData) {
+              unitPrice += optionData.price;
+              
+              if (!addOnGroups.has(addOn.addOnId)) {
+                addOnGroups.set(addOn.addOnId, {
+                  addOnName: optionData.addOnName,
+                  options: [],
+                });
+              }
+              
+              addOnGroups.get(addOn.addOnId)!.options.push({
+                id: optionData.id,
+                name: optionData.name,
+                price: optionData.price,
+              });
+            }
+          });
+        });
+
+        enrichedAddOns = Array.from(addOnGroups.entries()).map(([addOnId, data]) => ({
+          addOnId,
+          addOnName: data.addOnName,
+          options: data.options,
+        }));
+      }
+
+      const lineTotal = unitPrice * item.quantity;
+
+      return {
+        id: item.id,
+        cartId: item.cartId,
+        restaurantId: item.restaurantId,
+        menuItemId: item.menuItemId,
+        quantity: item.quantity,
+        specialNotes: item.specialNotes,
+        selectedVariations: enrichedVariations,
+        selectedAddOns: enrichedAddOns,
+        unitPrice,
+        lineTotal,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        menuItem: {
+          id: item.menuItem.id,
+          name: item.menuItem.name,
+          description: item.menuItem.description,
+          price: basePrice,
+          image: item.menuItem.image,
+          preparationTime: item.menuItem.preparationTime,
+          category: item.menuItem.category,
+        },
+        restaurant: item.restaurant,
+      };
+    });
+
+    return {
+      id: cart.id,
+      userId: cart.userId,
+      items: enrichedItems,
+      createdAt: cart.createdAt,
+      updatedAt: cart.updatedAt,
+    };
   },
 
   // Calculate item price including variations and add-ons
@@ -449,121 +645,7 @@ export const cartService = {
 
   // Get cart summary (total price, item count, by restaurant)
   async getCartSummary(userId: string) {
-    const cart = await this.getCart(userId);
-
-    if (!cart || !cart.items || cart.items.length === 0) {
-      return {
-        cartId: cart?.id || "",
-        totalItems: 0,
-        totalPrice: 0,
-        restaurants: [],
-      };
-    }
-
-    // Collect all variation and add-on option IDs to batch query
-    const variationOptionIds = new Set<string>();
-    const addOnOptionIds = new Set<string>();
-
-    for (const item of cart.items) {
-      if (item.selectedVariations) {
-        const variations = item.selectedVariations as Array<{ variationId: string; selectedOptionId: string }>;
-        variations.forEach((v) => variationOptionIds.add(v.selectedOptionId));
-      }
-      if (item.selectedAddOns) {
-        const addOns = item.selectedAddOns as Array<{ addOnId: string; selectedOptionIds: string[] }>;
-        addOns.forEach((a) => a.selectedOptionIds.forEach((id) => addOnOptionIds.add(id)));
-      }
-    }
-
-    // Batch fetch all variation and add-on options
-    const [variationOptions, addOnOptions] = await Promise.all([
-      variationOptionIds.size > 0
-        ? prisma.variationOption.findMany({
-            where: { id: { in: Array.from(variationOptionIds) } },
-            select: { id: true, priceModifier: true },
-          })
-        : Promise.resolve([]),
-      addOnOptionIds.size > 0
-        ? prisma.addOnOption.findMany({
-            where: { id: { in: Array.from(addOnOptionIds) } },
-            select: { id: true, price: true },
-          })
-        : Promise.resolve([]),
-    ]);
-
-    // Create maps for quick lookup
-    const variationOptionMap = new Map(variationOptions.map((opt) => [opt.id, opt.priceModifier.toNumber()]));
-    const addOnOptionMap = new Map(addOnOptions.map((opt) => [opt.id, opt.price.toNumber()]));
-
-    // Group items by restaurant
-    const restaurantMap = new Map<
-      string,
-      {
-        restaurantId: string;
-        restaurantName: string;
-        items: (typeof cart.items)[0][];
-        subtotal: number;
-      }
-    >();
-
-    let totalPrice = 0;
-
-    for (const item of cart.items) {
-      if (!item || !item.menuItem || !item.restaurantId) {
-        continue; // Skip invalid items
-      }
-
-      const restId = item.restaurantId;
-      
-      // Calculate item price including variations and add-ons
-      let itemUnitPrice = Number(item.menuItem.price || 0);
-      
-      // Add variation option prices (using cached map)
-      if (item.selectedVariations) {
-        const variations = item.selectedVariations as Array<{ variationId: string; selectedOptionId: string }>;
-        variations.forEach((variation) => {
-          const priceModifier = variationOptionMap.get(variation.selectedOptionId);
-          if (priceModifier !== undefined) {
-            itemUnitPrice += priceModifier;
-          }
-        });
-      }
-      
-      // Add add-on option prices (using cached map)
-      if (item.selectedAddOns) {
-        const addOns = item.selectedAddOns as Array<{ addOnId: string; selectedOptionIds: string[] }>;
-        addOns.forEach((addOn) => {
-          addOn.selectedOptionIds.forEach((optionId) => {
-            const price = addOnOptionMap.get(optionId);
-            if (price !== undefined) {
-              itemUnitPrice += price;
-            }
-          });
-        });
-      }
-      
-      const itemTotal = itemUnitPrice * (item.quantity || 0);
-      totalPrice += itemTotal;
-
-      if (!restaurantMap.has(restId)) {
-        restaurantMap.set(restId, {
-          restaurantId: restId,
-          restaurantName: item.restaurant?.name || "Unknown",
-          items: [],
-          subtotal: 0,
-        });
-      }
-
-      const restaurant = restaurantMap.get(restId)!;
-      restaurant.items.push(item);
-      restaurant.subtotal += itemTotal;
-    }
-
-    return {
-      cartId: cart.id || "",
-      totalItems: cart.items.length,
-      totalPrice: Number(totalPrice.toFixed(2)),
-      restaurants: Array.from(restaurantMap.values()),
-    };
+    // Just delegate to getCart since it already returns enriched data
+    return await this.getCart(userId);
   },
 };
