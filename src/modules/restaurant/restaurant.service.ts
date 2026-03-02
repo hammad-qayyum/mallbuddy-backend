@@ -247,20 +247,22 @@ export const restaurantService = {
       select: { banner: true },
     });
 
-    const updateData: any = {};
-    
+    const restaurantUpdateData: any = {};
+    const userUpdateData: any = {};
+
     // Only update fields that are provided and not empty
     if (data.mallId !== undefined && data.mallId !== null && data.mallId.trim() !== "") {
-      updateData.mallId = data.mallId;
+      restaurantUpdateData.mallId = data.mallId;
     }
     if (data.mainCategory !== undefined && data.mainCategory !== null && data.mainCategory.trim() !== "") {
-      updateData.mainCategory = data.mainCategory;
+      restaurantUpdateData.mainCategory = data.mainCategory;
     }
     if (data.name !== undefined && data.name !== null && data.name.trim() !== "") {
-      updateData.name = data.name;
+      restaurantUpdateData.name = data.name;
+      userUpdateData.name = data.name;
     }
     if (data.story !== undefined && data.story !== null && data.story.trim() !== "") {
-      updateData.story = data.story;
+      restaurantUpdateData.story = data.story;
     }
     if (data.banner !== undefined && data.banner !== null && data.banner.trim() !== "") {
       // remove previous uploaded banner file if present
@@ -271,23 +273,43 @@ export const restaurantService = {
           // ignore file deletion errors
         }
       }
-      updateData.banner = data.banner;
+      restaurantUpdateData.banner = data.banner;
     }
     if (data.description !== undefined && data.description !== null && data.description.trim() !== "") {
-      updateData.description = data.description;
+      restaurantUpdateData.description = data.description;
     }
     if (data.location !== undefined && data.location !== null && data.location.trim() !== "") {
-      updateData.location = data.location;
+      restaurantUpdateData.location = data.location;
     }
     if (data.cuisineCategoryId !== undefined && data.cuisineCategoryId !== null && data.cuisineCategoryId.trim() !== "") {
-      updateData.cuisineCategoryId = data.cuisineCategoryId;
+      restaurantUpdateData.cuisineCategoryId = data.cuisineCategoryId;
     }
     if ((data as any).isFavorite !== undefined && (data as any).isFavorite !== null) {
-      updateData.isFavorite = (data as any).isFavorite;
+      restaurantUpdateData.isFavorite = (data as any).isFavorite;
     }
+    // Add more user fields as needed (e.g., phoneNumber, firstName, lastName)
+    if ((data as any).phoneNumber !== undefined && (data as any).phoneNumber !== null && (data as any).phoneNumber.trim() !== "") {
+      userUpdateData.phoneNumber = (data as any).phoneNumber;
+    }
+    if ((data as any).firstName !== undefined && (data as any).firstName !== null && (data as any).firstName.trim() !== "") {
+      userUpdateData.firstName = (data as any).firstName;
+    }
+    if ((data as any).lastName !== undefined && (data as any).lastName !== null && (data as any).lastName.trim() !== "") {
+      userUpdateData.lastName = (data as any).lastName;
+    }
+
+    // Update user if any user fields are present
+    if (Object.keys(userUpdateData).length > 0) {
+      await prisma.user.update({
+        where: { id },
+        data: userUpdateData,
+      });
+    }
+
+    // Update restaurant
     return prisma.restaurant.update({
       where: { userId: id },
-      data: updateData,
+      data: restaurantUpdateData,
     });
   },
 
