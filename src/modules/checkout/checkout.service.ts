@@ -49,6 +49,34 @@ export const checkoutService = {
       throw new Error("Invalid restaurant ID");
     }
 
+    // --- BUSINESS HOURS CHECK ---
+    // Fetch business hours for the restaurant
+    const businessDays = await prisma.businessDay.findMany({
+      where: { restaurantId },
+      include: { timeSlots: true },
+    });
+
+    // Get current day and time
+    const now = new Date();
+    const daysOfWeek = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+    const today = daysOfWeek[now.getDay()];
+
+    const todayBusiness = businessDays.find((d: any) => d.day === today);
+    if (!todayBusiness || todayBusiness.isClosed) {
+      throw new Error("Restaurant is closed today. Cannot place order.");
+    }
+
+    // Check if current time is within any open time slot
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const currentTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    const isOpen = (todayBusiness.timeSlots || []).some((slot: any) => {
+      if (slot.slotType !== "OPEN") return false;
+      return slot.openTime <= currentTime && currentTime < slot.closeTime;
+    });
+    if (!isOpen) {
+      throw new Error("Restaurant is currently closed. Cannot place order.");
+    }
+
     // Collect all variation and add-on option IDs to batch query
     const variationOptionIds = new Set<string>();
     const addOnOptionIds = new Set<string>();

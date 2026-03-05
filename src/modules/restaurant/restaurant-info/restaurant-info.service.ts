@@ -122,27 +122,29 @@ export const restaurantInfoService = {
    */
   async createBusinessHours(restaurantId: string, hours: CreateBusinessHoursInput) {
     try {
-      // Replace all business days/slots atomically
-      await prisma.$transaction(async (tx) => {
-        await tx.businessDay.deleteMany({ where: { restaurantId } });
+      // Delete all business days for the restaurant first (outside transaction)
+      await prisma.businessDay.deleteMany({ where: { restaurantId } });
 
-        for (const d of hours) {
-          const created = await tx.businessDay.create({
-            data: {
-              restaurantId,
-              day: d.dayOfWeek,
-              isClosed: d.isClosed ?? false,
-              timeSlots: {
-                create: (d.timeSlots || []).map((s: any) => ({
-                  slotType: s.slotType,
-                  openTime: s.openTime,
-                  closeTime: s.closeTime,
-                })),
-              },
+      // Prepare all create operations
+      const createOps = hours.map((d: any) =>
+        prisma.businessDay.create({
+          data: {
+            restaurantId,
+            day: d.dayOfWeek,
+            isClosed: d.isClosed ?? false,
+            timeSlots: {
+              create: (d.timeSlots || []).map((s: any) => ({
+                slotType: s.slotType,
+                openTime: s.openTime,
+                closeTime: s.closeTime,
+              })),
             },
-          });
-        }
-      });
+          },
+        })
+      );
+
+      // Run all create operations in a non-interactive transaction for atomicity
+      await prisma.$transaction(createOps);
 
       return this.getBusinessHours(restaurantId);
     } catch (err) {
