@@ -10,6 +10,9 @@ import {
 // Helper: Parse HH:mm to minutes
 function parseTimeToMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number);
+  if (typeof h !== "number" || isNaN(h) || typeof m !== "number" || isNaN(m)) {
+    throw new Error(`Invalid time format: ${time}`);
+  }
   return h * 60 + m;
 }
 
@@ -29,22 +32,23 @@ function validateBusinessHours(days: BusinessDayInput[]): string[] {
       let lastType = null;
       for (let i = 0; i < slots.length; i++) {
         const slot = slots[i];
-        const open = parseTimeToMinutes(slot.openTime);
-        const close = parseTimeToMinutes(slot.closeTime);
+        if (!slot) continue;
+        const open = slot.openTime ? parseTimeToMinutes(slot.openTime) : 0;
+        const close = slot.closeTime ? parseTimeToMinutes(slot.closeTime) : 0;
         // Time ordering
         if (open >= close) {
           errors.push(`${day.dayOfWeek}: Slot ${i + 1} openTime must be before closeTime.`);
         }
-          // No overlaps (within the same day)
-          if (lastClose !== null && open < lastClose) {
-            errors.push(`${day.dayOfWeek}: Slot ${i + 1} overlaps with previous slot (same day).`);
+        // No overlaps (within the same day)
+        if (lastClose !== null && open < lastClose) {
+          errors.push(`${day.dayOfWeek}: Slot ${i + 1} overlaps with previous slot (same day).`);
         }
-          // Sequential logic: No consecutive OPENs (within the same day)
-          if (lastType === "OPEN" && slot.slotType === "OPEN") {
-            errors.push(`${day.dayOfWeek}: Consecutive OPEN slots without BREAK (same day).`);
+        // Sequential logic: No consecutive OPENs (within the same day)
+        if (lastType === "OPEN" && slot.slotType === "OPEN") {
+          errors.push(`${day.dayOfWeek}: Consecutive OPEN slots without BREAK (same day).`);
         }
         lastClose = close;
-        lastType = slot.slotType;
+        lastType = slot.slotType ?? null;
       }
     }
   }
