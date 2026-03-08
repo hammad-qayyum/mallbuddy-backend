@@ -1,10 +1,54 @@
 import { Request, Response } from "express";
 import restaurantInfoService from "./restaurant-info.service";
+
 import {
   restaurantInfoSchema,
   createBusinessHoursSchema,
   updateBusinessHoursSchema,
 } from "./restaurant-info.schema";
+
+// Helper: Parse HH:mm to minutes
+function parseTimeToMinutes(time) {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+}
+
+// Business hours validation
+function validateBusinessHours(days) {
+  const errors = [];
+  for (const day of days) {
+    if (day.isClosed && day.timeSlots && day.timeSlots.length > 0) {
+      errors.push(`${day.dayOfWeek}: Closed day cannot have timeSlots.`);
+      continue;
+    }
+    if (!day.isClosed && day.timeSlots && day.timeSlots.length > 0) {
+      // Sort slots by openTime
+      const slots = [...day.timeSlots].sort((a, b) => parseTimeToMinutes(a.openTime) - parseTimeToMinutes(b.openTime));
+      let lastClose = null;
+      let lastType = null;
+      for (let i = 0; i < slots.length; i++) {
+        const slot = slots[i];
+        const open = parseTimeToMinutes(slot.openTime);
+        const close = parseTimeToMinutes(slot.closeTime);
+        // Time ordering
+        if (open >= close) {
+          errors.push(`${day.dayOfWeek}: Slot ${i + 1} openTime must be before closeTime.`);
+        }
+          // No overlaps (within the same day)
+          if (lastClose !== null && open < lastClose) {
+            errors.push(`${day.dayOfWeek}: Slot ${i + 1} overlaps with previous slot (same day).`);
+        }
+          // Sequential logic: No consecutive OPENs (within the same day)
+          if (lastType === "OPEN" && slot.slotType === "OPEN") {
+            errors.push(`${day.dayOfWeek}: Consecutive OPEN slots without BREAK (same day).`);
+        }
+        lastClose = close;
+        lastType = slot.slotType;
+      }
+    }
+  }
+  return errors;
+}
 
 export const restaurantInfoController = {
   /**
@@ -106,11 +150,14 @@ export const restaurantInfoController = {
     // }
 
     const parseResult = createBusinessHoursSchema.safeParse(req.body);
-
     if (!parseResult.success) {
       return res.status(400).json({ success: false, message: "Invalid request body", errors: parseResult.error.flatten() });
     }
-
+    // Custom business hours validation
+    const validationErrors = validateBusinessHours(parseResult.data);
+    if (validationErrors.length > 0) {
+      return res.status(400).json({ success: false, message: "Business hours validation failed", errors: validationErrors });
+    }
     try {
       const hours = await restaurantInfoService.createBusinessHours(restaurantId, parseResult.data);
       return res.status(201).json({ success: true, data: hours });
