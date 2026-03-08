@@ -8,13 +8,14 @@ import {
 } from "./restaurant-info.schema";
 
 // Helper: Parse HH:mm to minutes
-function parseTimeToMinutes(time) {
+function parseTimeToMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number);
   return h * 60 + m;
 }
 
 // Business hours validation
-function validateBusinessHours(days) {
+import { BusinessDayInput } from "./restaurant-info.schema";
+function validateBusinessHours(days: BusinessDayInput[]): string[] {
   const errors = [];
   for (const day of days) {
     if (day.isClosed && day.timeSlots && day.timeSlots.length > 0) {
