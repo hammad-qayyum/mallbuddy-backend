@@ -86,7 +86,7 @@ export async function sendOTPSMS(
   ? phoneNumber
   : `+${phoneNumber}`;
   console.log("VERIFY SERVICE SID:", process.env.TWILIO_VERIFY_SERVICE_SID);
-console.log("Sending to:", `sms:${formattedPhone}`);
+console.log("Sending to:", formattedPhone);
 
     const response = await twilioClient.verify.v2
       .services(process.env.TWILIO_VERIFY_SERVICE_SID!)

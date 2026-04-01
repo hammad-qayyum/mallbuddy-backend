@@ -236,4 +236,78 @@ export const otpService = {
       identifierType,
     };
   },
+  /**
+   * Get verified identifier from verification token
+   */
+  async getVerifiedIdentifier(verificationToken: string) {
+    const record = await prisma.verification.findFirst({
+      where: { identifier: `token:${verificationToken}` },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!record) throw new Error("Invalid or expired verification token");
+    if (record.expiresAt < new Date()) {
+      await prisma.verification.delete({ where: { id: record.id } });
+      throw new Error("Verification token expired");
+    }
+    // Optionally delete after use
+    await prisma.verification.delete({ where: { id: record.id } });
+    return JSON.parse(record.value);
+  },
+
+  /**
+   * Request password reset OTP (email or phone)
+   */
+  async requestPasswordResetOTP(email?: string, phoneNumber?: string) {
+    if (!email && !phoneNumber) {
+      throw new Error("Email or phone number is required");
+    }
+    // You may want to check if the user exists here
+    if (email) {
+      const otp = generateOTP();
+      // Use a different identifier for password reset
+      await storeEmailOTP(email, otp, "user");
+      await sendOTPEmail(email, otp, "user");
+      return {
+        message: "Password reset OTP sent to email",
+        ...(process.env.NODE_ENV === "development" && { otp }),
+      };
+    }
+    if (phoneNumber) {
+      const normalized = normalizePhoneNumber(phoneNumber);
+      await sendOTPSMS(normalized);
+      return {
+        message: "Password reset OTP sent to SMS",
+      };
+    }
+  },
+
+  /**
+   * Verify password reset OTP (email or phone)
+   */
+  async verifyPasswordResetOTP(email?: string, phoneNumber?: string, otp?: string) {
+    if (!otp) throw new Error("OTP required");
+    let identifier = email || phoneNumber!;
+    if (email) {
+      const result = await verifyEmailOTP(identifier, otp, "user");
+      if (!result.valid) {
+        if (result.expired) throw new Error("OTP expired");
+        throw new Error("Invalid OTP");
+      }
+    } else if (phoneNumber) {
+      const normalized = normalizePhoneNumber(phoneNumber);
+      if (!twilioClient) throw new Error("Twilio not configured");
+      const verification = await twilioClient.verify.v2
+        .services(process.env.TWILIO_VERIFY_SERVICE_SID!)
+        .verificationChecks.create({
+          to: normalized,
+          code: otp,
+        });
+      if (verification.status !== "approved") {
+        throw new Error("Invalid OTP");
+      }
+      identifier = normalized;
+    }
+    // You may want to return a token or confirmation here
+    return { verified: true, identifier };
+  },
 };
