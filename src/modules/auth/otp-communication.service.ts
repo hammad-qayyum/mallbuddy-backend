@@ -11,6 +11,10 @@ const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_T
   : null;
 
 const OTP_EXPIRY_MINUTES = parseInt(process.env.OTP_EXPIRY_MINUTES || "10", 10);
+// TEMPORARY DEBUG - CHECK ENV
+console.log("TWILIO ACCOUNT SID:", process.env.TWILIO_ACCOUNT_SID);
+console.log("TWILIO AUTH TOKEN:", process.env.TWILIO_AUTH_TOKEN ? "SET" : "NOT SET");
+console.log("TWILIO VERIFY SERVICE SID:", process.env.TWILIO_VERIFY_SERVICE_SID);
 
 /**
  * Send OTP via email using Resend

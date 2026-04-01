@@ -10,6 +10,11 @@ const twilioClient =
     ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
     : null;
 
+
+// TEMPORARY DEBUG - CHECK ENV
+console.log("TWILIO ACCOUNT SID:", process.env.TWILIO_ACCOUNT_SID);
+console.log("TWILIO AUTH TOKEN:", process.env.TWILIO_AUTH_TOKEN ? "SET" : "NOT SET");
+console.log("TWILIO VERIFY SERVICE SID:", process.env.TWILIO_VERIFY_SERVICE_SID);
 /**
  * Generate a random 6-digit OTP (Email only)
  */
