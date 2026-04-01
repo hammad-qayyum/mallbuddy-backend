@@ -287,6 +287,7 @@ export const otpService = {
   async verifyPasswordResetOTP(email?: string, phoneNumber?: string, otp?: string) {
     if (!otp) throw new Error("OTP required");
     let identifier = email || phoneNumber!;
+    let identifierType: "email" | "phone" = email ? "email" : "phone";
     if (email) {
       const result = await verifyEmailOTP(identifier, otp, "user");
       if (!result.valid) {
@@ -306,8 +307,29 @@ export const otpService = {
         throw new Error("Invalid OTP");
       }
       identifier = normalized;
+      identifierType = "phone";
     }
-    // You may want to return a token or confirmation here
-    return { verified: true, identifier };
+    // Generate verification token and store in DB (like verifyOTP)
+    const verificationToken = generateVerificationToken();
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 30);
+    await prisma.verification.create({
+      data: {
+        identifier: `token:${verificationToken}`,
+        value: JSON.stringify({
+          identifier,
+          identifierType,
+          purpose: "password-reset",
+          verifiedAt: new Date().toISOString(),
+        }),
+        expiresAt,
+      },
+    });
+    return {
+      verified: true,
+      verificationToken,
+      identifier,
+      identifierType,
+    };
   },
 };
