@@ -73,43 +73,38 @@ export async function sendOTPEmail(
  * Send OTP via SMS using Twilio
  */
 export async function sendOTPSMS(
-  phoneNumber: string,
-  otp: string,
-  signupType: "user" | "restaurant"
+  phoneNumber: string
 ): Promise<void> {
-  if (!twilioClient) {
-    console.warn("[OTP SMS] Twilio not configured. Skipping SMS send.");
-    console.log(`[OTP SMS] Would send OTP ${otp} to ${phoneNumber} for ${signupType} signup`);
-    return;
-  }
 
-  if (!process.env.TWILIO_PHONE_NUMBER) {
-    console.warn("[OTP SMS] TWILIO_PHONE_NUMBER not configured. Skipping SMS send.");
-    console.log(`[OTP SMS] Would send OTP ${otp} to ${phoneNumber} for ${signupType} signup`);
+  if (!twilioClient) {
+    console.warn("[OTP] Twilio not configured.");
     return;
   }
 
   try {
-    const message = await twilioClient.messages.create({
-      body: `Your ${signupType === "restaurant" ? "restaurant" : "account"} verification code is: ${otp}. Valid for ${OTP_EXPIRY_MINUTES} minutes. Do not share this code with anyone.`,
-      to: phoneNumber,
-      from: process.env.TWILIO_PHONE_NUMBER,
-    });
+    const formattedPhone = phoneNumber.startsWith("+")
+  ? phoneNumber
+  : `+${phoneNumber}`;
+  console.log("VERIFY SERVICE SID:", process.env.TWILIO_VERIFY_SERVICE_SID);
+console.log("Sending to:", `sms:${formattedPhone}`);
 
-    console.log(`[OTP SMS] Successfully sent OTP to ${phoneNumber} via Twilio. Message SID: ${message.sid}`);
+    const response = await twilioClient.verify.v2
+      .services(process.env.TWILIO_VERIFY_SERVICE_SID!)
+      .verifications.create({
+        to: formattedPhone,
+        channel: "sms",
+      });
+
+    console.log(`[OTP SMS] Verification started for ${phoneNumber}. Status: ${response.status}`);
+
   } catch (error: any) {
-    console.error(`[OTP SMS] Error sending OTP to ${phoneNumber}:`, error);
-    
-    // Handle specific Twilio errors
-    if (error.code === 21211) {
-      throw new Error("Invalid phone number format");
-    } else if (error.code === 21614) {
-      throw new Error("Phone number is not a valid mobile number");
-    } else if (error.code === 21408) {
-      throw new Error("Permission to send SMS denied");
+    console.error(`[OTP SMS] Error sending OTP:`, error);
+
+    if (error.code === 60200) {
+      throw new Error("Invalid phone number");
     }
-    
-    throw new Error(`Failed to send verification SMS: ${error.message}`);
+
+    throw new Error(`Failed to send SMS OTP: ${error.message}`);
   }
 }
 

@@ -1,65 +1,67 @@
 import prisma from "../../config/prisma";
 import { normalizePhoneNumber } from "../common/utils";
 import { sendOTPEmail, sendOTPSMS } from "./otp-communication.service";
+import twilio from "twilio";
 
 const OTP_EXPIRY_MINUTES = parseInt(process.env.OTP_EXPIRY_MINUTES || "10", 10);
 
+const twilioClient =
+  process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
+    ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+    : null;
+
 /**
- * Generate a random 6-digit OTP
+ * Generate a random 6-digit OTP (Email only)
  */
 function generateOTP(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
 /**
- * Check if identifier (email or phone) is already registered
- * @param email - Email address
- * @param phoneNumber - Phone number
- * @param signupType - 'user' or 'restaurant' to check appropriate accounts
+ * Generate verification token
+ */
+function generateVerificationToken(): string {
+  return `vrf_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+}
+
+/**
+ * Check if identifier already registered
  */
 async function isIdentifierRegistered(
   email?: string,
   phoneNumber?: string,
   signupType: "user" | "restaurant" = "user"
 ): Promise<{ registered: boolean; type?: "email" | "phone" }> {
+
   if (email) {
     const user = await prisma.user.findUnique({
       where: { email },
-      select: { id: true, role: true },
+      select: { role: true },
     });
+
     if (user) {
-      // For restaurant signup, check if it's already a restaurant account
-      if (signupType === "restaurant" && user.role === "RESTAURANT") {
+      if (signupType === "restaurant" && user.role === "RESTAURANT")
         return { registered: true, type: "email" };
-      }
-      // For user signup, check if it's a regular user account
-      if (signupType === "user" && user.role === "USER") {
+
+      if (signupType === "user" && (user.role === "USER" || user.role === "RESTAURANT"))
         return { registered: true, type: "email" };
-      }
-      // If trying to signup as restaurant but email is USER, allow (different roles)
-      // If trying to signup as user but email is RESTAURANT, block
-      if (signupType === "user" && user.role === "RESTAURANT") {
-        return { registered: true, type: "email" };
-      }
     }
   }
 
   if (phoneNumber) {
-    const normalizedPhone = normalizePhoneNumber(phoneNumber);
+    const normalized = normalizePhoneNumber(phoneNumber);
+
     const user = await prisma.user.findUnique({
-      where: { phoneNumber: normalizedPhone },
-      select: { id: true, role: true },
+      where: { phoneNumber: normalized },
+      select: { role: true },
     });
+
     if (user) {
-      if (signupType === "restaurant" && user.role === "RESTAURANT") {
+      if (signupType === "restaurant" && user.role === "RESTAURANT")
         return { registered: true, type: "phone" };
-      }
-      if (signupType === "user" && user.role === "USER") {
+
+      if (signupType === "user" && (user.role === "USER" || user.role === "RESTAURANT"))
         return { registered: true, type: "phone" };
-      }
-      if (signupType === "user" && user.role === "RESTAURANT") {
-        return { registered: true, type: "phone" };
-      }
     }
   }
 
@@ -67,26 +69,19 @@ async function isIdentifierRegistered(
 }
 
 /**
- * Store OTP in database with signup type context
+ * Store email OTP in DB
  */
-async function storeOTP(
-  identifier: string,
-  otp: string,
-  type: "email" | "phone",
-  signupType: "user" | "restaurant"
-): Promise<void> {
+async function storeEmailOTP(identifier: string, otp: string, signupType: "user" | "restaurant") {
+
   const expiresAt = new Date();
   expiresAt.setMinutes(expiresAt.getMinutes() + OTP_EXPIRY_MINUTES);
 
-  // Delete any existing OTPs for this identifier and signup type
-  // Store signup type in identifier to differentiate
   const identifierWithType = `${signupType}:${identifier}`;
-  
+
   await prisma.verification.deleteMany({
     where: { identifier: identifierWithType },
   });
 
-  // Store new OTP
   await prisma.verification.create({
     data: {
       identifier: identifierWithType,
@@ -97,151 +92,82 @@ async function storeOTP(
 }
 
 /**
- * Generate a verification token
+ * Verify email OTP from DB
  */
-function generateVerificationToken(): string {
-  return `vrf_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-}
+async function verifyEmailOTP(identifier: string, otp: string, signupType: "user" | "restaurant") {
 
-/**
- * Verify OTP with signup type context and create verification token
- */
-async function verifyOTPInternal(
-  identifier: string,
-  otp: string,
-  signupType: "user" | "restaurant"
-): Promise<{ valid: boolean; expired?: boolean; verificationToken?: string; identifier?: string; identifierType?: "email" | "phone" }> {
   const identifierWithType = `${signupType}:${identifier}`;
-  
+
   const verification = await prisma.verification.findFirst({
     where: {
       identifier: identifierWithType,
       value: otp,
     },
-    orderBy: {
-      createdAt: "desc",
-    },
+    orderBy: { createdAt: "desc" },
   });
 
-  if (!verification) {
-    return { valid: false };
-  }
+  if (!verification) return { valid: false };
 
   if (verification.expiresAt < new Date()) {
-    await prisma.verification.delete({
-      where: { id: verification.id },
-    });
+    await prisma.verification.delete({ where: { id: verification.id } });
     return { valid: false, expired: true };
   }
 
-  // Delete the OTP verification record
-  await prisma.verification.delete({
-    where: { id: verification.id },
-  });
+  await prisma.verification.delete({ where: { id: verification.id } });
 
-  // Create a verification token that stores the verified identifier
-  const verificationToken = generateVerificationToken();
-  const tokenExpiresAt = new Date();
-  tokenExpiresAt.setMinutes(tokenExpiresAt.getMinutes() + 30); // Token valid for 30 minutes
-
-  // Determine identifier type
-  const identifierType = identifier.includes("@") ? "email" : "phone";
-
-  // Store verification token (only for signup, password reset handles its own token)
-  if (signupType) {
-    await prisma.verification.create({
-      data: {
-        identifier: `token:${verificationToken}`,
-        value: JSON.stringify({
-          identifier,
-          identifierType,
-          signupType,
-          purpose: "signup",
-          verifiedAt: new Date().toISOString(),
-        }),
-        expiresAt: tokenExpiresAt,
-      },
-    });
-  }
-
-  const result: {
-    valid: boolean;
-    expired?: boolean;
-    verificationToken?: string;
-    identifier?: string;
-    identifierType?: "email" | "phone";
-  } = {
-    valid: true,
-    identifier,
-    identifierType,
-  };
-
-  if (signupType) {
-    result.verificationToken = verificationToken;
-  }
-
-  return result;
+  return { valid: true };
 }
 
 export const otpService = {
+
   /**
-   * Request OTP for user or restaurant signup
+   * Request OTP
    */
   async requestOTP(
     email?: string,
     phoneNumber?: string,
     signupType: "user" | "restaurant" = "user"
   ) {
+
     if (!email && !phoneNumber) {
       throw new Error("Email or phone number is required");
     }
 
-    // Check if identifier is already registered
     const check = await isIdentifierRegistered(email, phoneNumber, signupType);
+
     if (check.registered) {
-      const identifierType = check.type === "email" ? "email" : "phone number";
-      throw new Error(
-        `This ${identifierType} is already registered${signupType === "restaurant" ? " as a restaurant" : ""}`
-      );
+      throw new Error(`${check.type} is already registered`);
     }
 
-    const otp = generateOTP();
-    const identifier = email || phoneNumber!;
+    if (email) {
 
-    // Store OTP with signup type context
-    await storeOTP(
-      identifier,
-      otp,
-      email ? "email" : "phone",
-      signupType
-    );
+      const otp = generateOTP();
 
-    // Send OTP using Resend (email) or Twilio (SMS)
-    try {
-      if (email) {
-        await sendOTPEmail(email, otp, signupType);
-      } else if (phoneNumber) {
-        await sendOTPSMS(phoneNumber, otp, signupType);
-      }
-    } catch (error: any) {
-      // If sending fails, clean up the stored OTP
-      const identifierWithType = `${signupType}:${identifier}`;
-      await prisma.verification.deleteMany({
-        where: { identifier: identifierWithType },
-      });
-      throw error;
+      await storeEmailOTP(email, otp, signupType);
+
+      await sendOTPEmail(email, otp, signupType);
+
+      return {
+        message: "OTP sent to email",
+        ...(process.env.NODE_ENV === "development" && { otp }),
+      };
+
     }
 
-    return {
-      message: `OTP sent to ${email ? "email" : "phone number"}`,
-      // In production, don't return the OTP. This is for testing only.
-      // Remove this in production:
-      ...(process.env.NODE_ENV === "development" && { otp }),
-    };
+    if (phoneNumber) {
+
+      const normalized = normalizePhoneNumber(phoneNumber);
+
+      await sendOTPSMS(normalized);
+
+      return {
+        message: "OTP sent to SMS",
+      };
+    }
   },
 
   /**
-   * Verify OTP for user or restaurant signup
+   * Verify OTP
    */
   async verifyOTP(
     email?: string,
@@ -249,161 +175,65 @@ export const otpService = {
     otp?: string,
     signupType: "user" | "restaurant" = "user"
   ) {
-    if (!email && !phoneNumber) {
-      throw new Error("Email or phone number is required");
-    }
-    if (!otp) {
-      throw new Error("OTP is required");
-    }
 
-    const identifier = email || phoneNumber!;
-    const result = await verifyOTPInternal(identifier, otp, signupType);
+    if (!otp) throw new Error("OTP required");
 
-    if (!result.valid) {
-      if (result.expired) {
-        throw new Error("OTP has expired. Please request a new one.");
+    let identifier = email || phoneNumber!;
+
+    if (email) {
+
+      const result = await verifyEmailOTP(identifier, otp, signupType);
+
+      if (!result.valid) {
+        if (result.expired) throw new Error("OTP expired");
+        throw new Error("Invalid OTP");
       }
-      throw new Error("Invalid OTP");
-    }
 
-    return {
-      verified: true,
-      verificationToken: result.verificationToken,
-      identifier: result.identifier,
-      identifierType: result.identifierType,
-    };
-  },
+    } else if (phoneNumber) {
 
-  /**
-   * Get verified identifier from verification token
-   */
-  async getVerifiedIdentifier(verificationToken: string): Promise<{
-    identifier: string;
-    identifierType: "email" | "phone";
-    signupType?: "user" | "restaurant";
-    purpose?: "signup" | "password-reset";
-  }> {
-    const verification = await prisma.verification.findFirst({
-      where: {
-        identifier: `token:${verificationToken}`,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+      const normalized = normalizePhoneNumber(phoneNumber);
 
-    if (!verification) {
-      throw new Error("Invalid verification token");
-    }
+      if (!twilioClient) throw new Error("Twilio not configured");
 
-    if (verification.expiresAt < new Date()) {
-      await prisma.verification.delete({
-        where: { id: verification.id },
-      });
-      throw new Error("Verification token has expired");
-    }
+      const verification = await twilioClient.verify.v2
+        .services(process.env.TWILIO_VERIFY_SERVICE_SID!)
+        .verificationChecks.create({
+          to: normalized,
+          code: otp,
+        });
 
-    const data = JSON.parse(verification.value);
-    return {
-      identifier: data.identifier,
-      identifierType: data.identifierType,
-      signupType: data.signupType,
-      purpose: data.purpose || "signup",
-    };
-  },
-
-  /**
-   * Request OTP for password reset
-   */
-  async requestPasswordResetOTP(email?: string, phoneNumber?: string) {
-    if (!email && !phoneNumber) {
-      throw new Error("Email or phone number is required");
-    }
-
-    // Check if identifier is registered (for password reset, user must exist)
-    const check = await isIdentifierRegistered(email, phoneNumber, "user");
-    if (!check.registered) {
-      throw new Error("No account found with this email or phone number");
-    }
-
-    const otp = generateOTP();
-    const identifier = email || phoneNumber!;
-
-    // Store OTP for password reset (different from signup)
-    await storeOTP(
-      identifier,
-      otp,
-      email ? "email" : "phone",
-      "user" // Use "user" as signupType for password reset
-    );
-
-    // Send OTP
-    try {
-      if (email) {
-        await sendOTPEmail(email, otp, "user");
-      } else if (phoneNumber) {
-        await sendOTPSMS(phoneNumber, otp, "user");
+      if (verification.status !== "approved") {
+        throw new Error("Invalid OTP");
       }
-    } catch (error: any) {
-      const identifierWithType = `user:${identifier}`;
-      await prisma.verification.deleteMany({
-        where: { identifier: identifierWithType },
-      });
-      throw error;
+
+      identifier = normalized;
     }
 
-    return {
-      message: `OTP sent to ${email ? "email" : "phone number"}`,
-      ...(process.env.NODE_ENV === "development" && { otp }),
-    };
-  },
-
-  /**
-   * Verify OTP for password reset
-   */
-  async verifyPasswordResetOTP(email?: string, phoneNumber?: string, otp?: string) {
-    if (!email && !phoneNumber) {
-      throw new Error("Email or phone number is required");
-    }
-    if (!otp) {
-      throw new Error("OTP is required");
-    }
-
-    const identifier = email || phoneNumber!;
-    const result = await verifyOTPInternal(identifier, otp, "user");
-
-    if (!result.valid) {
-      if (result.expired) {
-        throw new Error("OTP has expired. Please request a new one.");
-      }
-      throw new Error("Invalid OTP");
-    }
-
-    // Create verification token for password reset
     const verificationToken = generateVerificationToken();
-    const tokenExpiresAt = new Date();
-    tokenExpiresAt.setMinutes(tokenExpiresAt.getMinutes() + 30);
 
-    // Store verification token with password reset purpose
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 30);
+
+    const identifierType = email ? "email" : "phone";
+
     await prisma.verification.create({
       data: {
         identifier: `token:${verificationToken}`,
         value: JSON.stringify({
           identifier,
-          identifierType: result.identifierType,
-          purpose: "password-reset",
+          identifierType,
+          signupType,
           verifiedAt: new Date().toISOString(),
         }),
-        expiresAt: tokenExpiresAt,
+        expiresAt,
       },
     });
 
     return {
       verified: true,
       verificationToken,
-      identifier: result.identifier,
-      identifierType: result.identifierType,
+      identifier,
+      identifierType,
     };
   },
 };
-
