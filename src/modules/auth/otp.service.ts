@@ -179,42 +179,33 @@ export const otpService = {
     if (!otp) throw new Error("OTP required");
 
     let identifier = email || phoneNumber!;
+    let identifierType: "email" | "phone" = email ? "email" : "phone";
 
     if (email) {
-
       const result = await verifyEmailOTP(identifier, otp, signupType);
-
       if (!result.valid) {
         if (result.expired) throw new Error("OTP expired");
         throw new Error("Invalid OTP");
       }
-
     } else if (phoneNumber) {
-
       const normalized = normalizePhoneNumber(phoneNumber);
-
       if (!twilioClient) throw new Error("Twilio not configured");
-
       const verification = await twilioClient.verify.v2
         .services(process.env.TWILIO_VERIFY_SERVICE_SID!)
         .verificationChecks.create({
           to: normalized,
           code: otp,
         });
-
       if (verification.status !== "approved") {
         throw new Error("Invalid OTP");
       }
-
       identifier = normalized;
+      identifierType = "phone";
     }
 
     const verificationToken = generateVerificationToken();
-
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + 30);
-
-    const identifierType = email ? "email" : "phone";
 
     await prisma.verification.create({
       data: {
