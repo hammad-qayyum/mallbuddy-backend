@@ -201,6 +201,14 @@ export const otpService = {
           to: normalized,
           code: otp,
         });
+      // Log all Twilio details (mask Auth Token)
+      console.log("[Twilio OTP Verification]", {
+        TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
+        TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN ? process.env.TWILIO_AUTH_TOKEN.slice(0, 4) + '****' : undefined,
+        TWILIO_VERIFY_SERVICE_SID: process.env.TWILIO_VERIFY_SERVICE_SID,
+        phoneNumber: normalized,
+        verificationResponse: verification,
+      });
       if (verification.status !== "approved") {
         throw new Error("Invalid OTP");
       }
