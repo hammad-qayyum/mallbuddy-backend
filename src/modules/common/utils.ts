@@ -42,10 +42,18 @@ export function buildBetterAuthHeaders(req: Request): Headers {
 const PHONE_ALIAS_DOMAIN = "phone.auth.local";
 
 /**
- * Normalizes a user provided phone number into digits only.
+ * Normalizes a user provided phone number:
+ * - If it starts with '+', preserves the plus and removes all non-digits after it (E.164 format)
+ * - Otherwise, removes all non-digit characters
  */
-export const normalizePhoneNumber = (phoneNumber: string) =>
-  phoneNumber.replace(/[^\d]/g, "");
+export const normalizePhoneNumber = (phoneNumber: string) => {
+  if (phoneNumber.startsWith('+')) {
+    // Keep the plus, strip non-digits from the rest
+    return '+' + phoneNumber.slice(1).replace(/[^\d]/g, '');
+  }
+  // Remove all non-digits
+  return phoneNumber.replace(/[^\d]/g, '');
+};
 
 /**
  * Converts a normalized phone number into an alias email we
