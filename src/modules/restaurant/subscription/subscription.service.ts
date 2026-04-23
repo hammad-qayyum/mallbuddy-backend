@@ -75,7 +75,7 @@ export async function createRestaurantSubscription(restaurantId: string, planId:
 			startDate,
 			endDate,
 			amwalSubscriptionId: paymentId,
-		},
+		} as any,
 	});
 
 	return {
@@ -118,7 +118,7 @@ export async function updateRestaurantSubscription(subscriptionId: string, newPl
 			planId: newPlanId,
 			amwalSubscriptionId: paymentId,
 			status: "ACTIVE",
-		},
+		} as any,
 	});
 
 	return { dbSub, paymentUrl };

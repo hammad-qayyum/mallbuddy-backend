@@ -43,7 +43,7 @@ export async function amwalWebhookHandler(req: Request, res: Response) {
 
 		if (newStatus) {
 			await prisma.restaurantSubscription.updateMany({
-				where: { amwalSubscriptionId: subscriptionId },
+				where: { amwalSubscriptionId: subscriptionId } as any,
 				data: {
 					status: newStatus,
 					updatedAt: new Date(),

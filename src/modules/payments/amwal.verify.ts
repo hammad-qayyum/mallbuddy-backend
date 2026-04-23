@@ -11,9 +11,11 @@ export const verifyAmwalPayment = async (req: Request, res: Response) => {
 
     const sub = await prisma.restaurantSubscription.findUnique({ where: { id: orderId } });
     if (!sub) return res.status(404).json({ status: "NOT_FOUND" });
+    const amwalSubscriptionId =
+      (sub as any).amwalSubscriptionId ?? (sub as any).amualSubscriptionId ?? null;
     return res.json({
       status: sub.status,
-      amwalSubscriptionId: sub.amwalSubscriptionId,
+      amwalSubscriptionId,
       planId: sub.planId,
       restaurantId: sub.restaurantId,
       expiresAt: sub.endDate,
@@ -54,11 +56,13 @@ export const amwalReturnCallback = async (req: Request, res: Response) => {
       });
     }
 
+    const amwalSubscriptionId =
+      (sub as any).amwalSubscriptionId ?? (sub as any).amualSubscriptionId ?? null;
     return res.json({
       status: "RETURN_RECEIVED",
       orderId,
       subscriptionStatus: sub.status,
-      amwalSubscriptionId: sub.amwalSubscriptionId,
+      amwalSubscriptionId,
       planId: sub.planId,
       restaurantId: sub.restaurantId,
       message:
