@@ -1,4 +1,4 @@
-import { Router } from "express";
+import express, { Router } from "express";
 import {
   subscribeRestaurant,
   updateSubscription,
@@ -6,9 +6,14 @@ import {
   getRestaurantSubscriptions,
   attachPaymentMethod,
 } from "./subscription.controller";
+import { amwalWebhookHandler } from "./subscriptionWebhook";
 import { requireAuth, requireRestaurantRole } from "../../../middlewares/role.middleware";
 
 const router = Router();
+
+
+// Amwal MCN webhook route (no auth)
+router.post("/amwal-webhook", express.json(), amwalWebhookHandler);
 
 // Apply restaurant role to all subscription routes (requireAuth is applied globally)
 router.use(requireRestaurantRole);
@@ -23,7 +28,7 @@ router.use(requireRestaurantRole);
  *       - cookieAuth: []
  *     description: |
  *       Creates a new subscription for a restaurant to a specific plan.
- *       Creates a Stripe customer if one doesn't exist, then creates a Stripe subscription.
+ *       Initiates a subscription for a restaurant to a specific plan using Amwal Pay.
  *     requestBody:
  *       required: true
  *       content:
@@ -60,13 +65,9 @@ router.use(requireRestaurantRole);
  *                     subscription:
  *                       type: object
  *                       description: Database subscription record
- *                     clientSecret:
+ *                     paymentUrl:
  *                       type: string
- *                       nullable: true
- *                       description: Payment intent client secret for completing payment on frontend
- *                     stripeSubscription:
- *                       type: object
- *                       description: Stripe subscription object
+ *                       description: Amwal payment URL for completing payment
  *       400:
  *         description: Missing required fields
  *       404:
@@ -219,7 +220,7 @@ router.get("/list/:restaurantId", getRestaurantSubscriptions);
  *                 example: "123e4567-e89b-12d3-a456-426614174000"
  *               paymentMethodId:
  *                 type: string
- *                 description: Stripe payment method ID
+ *                 description: Payment method ID (not used for Amwal legacy flow)
  *                 example: "pm_1234567890"
  *     responses:
  *       200:

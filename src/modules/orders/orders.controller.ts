@@ -143,7 +143,7 @@ export const ordersController = {
       const result = await ordersService.reorderFromPastOrder(parseResult.data);
 
       return res.status(201).json({
-        message: result.message,
+        message: "Items added to cart successfully",
         data: result,
       });
     } catch (error: any) {

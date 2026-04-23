@@ -11,7 +11,6 @@ import {
 } from "./restaurant.schema";
 import { exploreService } from "../explore/explore.service";
 import { galleryService } from "../gallery/gallery.service";
-import { refundOrder } from "../payments/order-refund/orderrefund.service";
 import {
   notifyUserOrderStatus,
   notifyRestaurantAndAdminCancelled,
@@ -620,31 +619,31 @@ export const restaurantService = {
     // 1. Payment method is CARD
     // 2. Payment status is PAID
     // 3. Stripe payment intent exists
-    let refundInitiated = false;
-    if (
-      order.paymentMethod === "CARD" &&
-      order.paymentStatus === "PAID" &&
-      order.stripePaymentIntentId
-    ) {
-      try {
-        console.log(`[DeclineOrder] Initiating automatic refund for rejected order ${order.id}`);
-        await refundOrder(order.id, undefined, input.restaurantId, "RESTAURANT");
-        refundInitiated = true;
-        console.log(`[DeclineOrder] Automatic refund initiated successfully for order ${order.id}`);
-      } catch (error: any) {
-        // Log error but don't fail the rejection
-        console.error(`[DeclineOrder] Failed to initiate automatic refund for order ${order.id}:`, error.message);
-        // Note: Order is still rejected, but refund failed - this should be handled manually
-      }
-    }
+    // let refundInitiated = false;
+    // if (
+    //   order.paymentMethod === "CARD" &&
+    //   order.paymentStatus === "PAID" &&
+    //   order.stripePaymentIntentId
+    // ) {
+    //   try {
+    //     console.log(`[DeclineOrder] Initiating automatic refund for rejected order ${order.id}`);
+    //     await refundOrder(order.id, undefined, input.restaurantId, "RESTAURANT");
+    //     refundInitiated = true;
+    //     console.log(`[DeclineOrder] Automatic refund initiated successfully for order ${order.id}`);
+    //   } catch (error: any) {
+    //     // Log error but don't fail the rejection
+    //     console.error(`[DeclineOrder] Failed to initiate automatic refund for order ${order.id}:`, error.message);
+    //     // Note: Order is still rejected, but refund failed - this should be handled manually
+    //   }
+    // }
 
-    // Notify restaurant and admin about order cancellation/rejection
-    try {
-      await notifyRestaurantAndAdminCancelled(updatedOrder);
-    } catch (error: any) {
-      console.error("[Restaurant] Failed to send order rejection notification:", error.message);
-      // Don't fail order rejection if notification fails
-    }
+  //   // Notify restaurant and admin about order cancellation/rejection
+  //   try {
+  //     await notifyRestaurantAndAdminCancelled(updatedOrder);
+  //   } catch (error: any) {
+  //     console.error("[Restaurant] Failed to send order rejection notification:", error.message);
+  //     // Don't fail order rejection if notification fails
+  //   }
 
     return {
       id: updatedOrder.id,
@@ -652,10 +651,8 @@ export const restaurantService = {
       status: updatedOrder.status,
       customerName: updatedOrder.user.name,
       reason: input.reason,
-      message: refundInitiated 
-        ? "Order declined successfully. Refund has been initiated." 
-        : "Order declined successfully",
-      refundInitiated,
+      message: "Order declined successfully",
+      refundInitiated: false,
     };
   },
 

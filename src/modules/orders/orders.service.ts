@@ -1,6 +1,5 @@
 import prisma from "../../config/prisma";
 import { CancelOrderInput, ReorderInput, GetAcceptedOrdersInput } from "./orders.schema";
-import { refundOrder } from "../payments/order-refund/orderrefund.service";
 import {
   notifyUserOrderStatus,
   notifyRestaurantAndAdminNewOrder,
@@ -245,17 +244,10 @@ export const ordersService = {
     }
 
     // Prevent cancellation if order has been accepted by restaurant
-    if (order.status === "ACCEPTED" || order.status === "PREPARING" || order.status === "READY" || order.status === "OUT_FOR_DELIVERY") {
+    if (["ACCEPTED", "PREPARING", "READY", "OUT_FOR_DELIVERY"].includes(order.status)) {
       throw new Error(`Order cannot be cancelled after it has been accepted by the restaurant. Current status: ${order.status}`);
     }
 
-    // Store original status and payment info before updating (for refund logic)
-    const originalStatus = order.status;
-    const shouldAutoRefund = 
-      originalStatus === "PENDING" &&
-      order.paymentMethod === "CARD" &&
-      order.paymentStatus === "PAID" &&
-      order.stripePaymentIntentId;
 
     // Update order status to CANCELLED
     const updatedOrder = await prisma.order.update({
@@ -285,50 +277,22 @@ export const ordersService = {
       },
     });
 
-    // Automatically trigger refund if:
-    // 1. Order was in PENDING status (not accepted yet)
-    // 2. Payment method is CARD
-    // 3. Payment status is PAID
-    // 4. Stripe payment intent exists
-    let refundInitiated = false;
-    if (shouldAutoRefund) {
-      try {
-        console.log(`[CancelOrder] Initiating automatic refund for cancelled order ${order.id}`);
-        await refundOrder(order.id, undefined, input.userId, "USER");
-        refundInitiated = true;
-        console.log(`[CancelOrder] Automatic refund initiated successfully for order ${order.id}`);
-      } catch (error: any) {
-        // Log error but don't fail the cancellation
-        console.error(`[CancelOrder] Failed to initiate automatic refund for order ${order.id}:`, error.message);
-        // Note: Order is still cancelled, but refund failed - this should be handled manually
-      }
-    }
-
     // Notify user about order cancellation
     try {
       await notifyUserOrderStatus(updatedOrder);
-    } catch (error: any) {
-      console.error("[Orders] Failed to send order cancellation notification to user:", error.message);
-      // Don't fail cancellation if notification fails
-    }
+    } catch (error: any) {}
 
     // Notify restaurant and admin about order cancellation
     try {
       await notifyRestaurantAndAdminCancelled(updatedOrder);
-    } catch (error: any) {
-      console.error("[Orders] Failed to send order cancellation notification to restaurant/admin:", error.message);
-      // Don't fail cancellation if notification fails
-    }
+    } catch (error: any) {}
 
     return {
       id: updatedOrder.id,
       orderNumber: updatedOrder.orderNumber,
       status: updatedOrder.status,
       reason: input.reason,
-      message: refundInitiated 
-        ? "Order cancelled successfully. Refund has been initiated." 
-        : "Order cancelled successfully",
-      refundInitiated,
+      message: "Order cancelled successfully",
     };
   },
 
@@ -367,9 +331,11 @@ export const ordersService = {
       where: { userId: input.userId },
     });
 
-    cart ??= await prisma.cart.create({
-      data: { userId: input.userId },
-    });
+    if (!cart) {
+      cart = await prisma.cart.create({
+        data: { userId: input.userId },
+      });
+    }
 
     // Check if items are from the same restaurant
     const restaurantId = order.restaurantId;
@@ -395,7 +361,6 @@ export const ordersService = {
     );
 
     return {
-      message: "Items added to cart successfully",
       cartId: cart.id,
       itemsAdded: cartItems.length,
       items: cartItems.map((item) => ({
@@ -406,10 +371,10 @@ export const ordersService = {
     };
   },
 
-  /**
-   * Get common cancellation reasons
-   * Returns 5 options: 4 predefined reasons + "Other" for custom input
-   */
+  // /**
+  //  * Get common cancellation reasons
+  //  * Returns 5 options: 4 predefined reasons + "Other" for custom input
+  //  */
   async getCancellationReasons() {
     return {
       reasons: [
@@ -424,17 +389,7 @@ export const ordersService = {
           value: "Restaurant taking too long",
         },
         {
-          id: "3",
-          label: "Found better alternative",
-          value: "Found better alternative",
-        },
-        {
-          id: "4",
-          label: "Changed my mind",
-          value: "Changed my mind",
-        },
-        {
-          id: "5",
+
           label: "Other",
           value: "Other",
           isTextInput: true, // Indicates custom text input needed
@@ -452,14 +407,7 @@ export const ordersService = {
       include: {
         items: {
           include: {
-            menuItem: {
-              select: {
-                id: true,
-                name: true,
-                price: true,
-                image: true,
-              },
-            },
+            menuItem: true,
           },
         },
         restaurant: {
@@ -591,9 +539,9 @@ export const ordersService = {
     };
   },
 
-  /**
-   * Get order summary information (quick view)
-   */
+  // /**
+  //  * Get order summary information (quick view)
+  //  */
   async getOrderSummary(orderId: string) {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
@@ -646,9 +594,9 @@ export const ordersService = {
     };
   },
 
-  /**
-   * Get accepted orders (order queue) for restaurant
-   */
+  // /**
+  //  * Get accepted orders (order queue) for restaurant
+  //  */
   async getAcceptedOrders(input: GetAcceptedOrdersInput) {
     // Verify restaurant exists
     const restaurant = await prisma.restaurant.findUnique({
@@ -659,7 +607,7 @@ export const ordersService = {
       throw new Error("Restaurant not found");
     }
 
-    const where: any = { 
+    const where: any = {
       restaurantId: input.restaurantId,
       status: "ACCEPTED" as const,
     };
@@ -738,3 +686,4 @@ export const ordersService = {
     };
   },
 };
+

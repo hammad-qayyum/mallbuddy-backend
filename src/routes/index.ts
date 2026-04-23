@@ -26,10 +26,11 @@ import adminRestaurantRoutes from "../modules/admin/block_activate-restaurant/re
 import adminUserRoutes from "../modules/admin/block_activate-users/user.routes";
 import adminSearchRoutes from "../modules/admin/search/search.routes";
 import adminPromoCodeRoutes from "../modules/admin/promo-code/promo-code.routes";
-import paymentMethodRoutes from "../modules/payments/payment-method/paymentMethod.routes";
+import amwalRoutes from "../modules/payments/amwal.routes";
+//import paymentMethodRoutes from "../modules/payments/payment-method/paymentMethod.routes";
 import analyticsRoutes from "../modules/analytics/analytics.routes";
-import orderPaymentRoutes from "../modules/payments/order-payment/orderpayment.routes";
-import orderRefundRoutes from "../modules/payments/order-refund/orderrefund.routes";
+//import orderPaymentRoutes from "../modules/payments/order-payment/orderpayment.routes";
+//import orderRefundRoutes from "../modules/payments/order-refund/orderrefund.routes";
 import promotionRoutes from "../modules/restaurant/promotion/promotion.routes";
 import subscriptionRoutes from "../modules/restaurant/subscription/subscription.routes";
 import subscriptionPlanRoutes from "../modules/restaurant/subscription/subscriptionplan-admin/subscriptionplan.routes";
@@ -64,8 +65,14 @@ router.use((req, res, next) => {
     originalUrl.includes("/auth/login") ||
     originalUrl.includes("/auth/restaurant/signup") ||
     originalUrl.includes("/auth/better-auth");
+
+  // Keep Amwal payment endpoints publicly reachable for gateway callbacks and
+  // backend-only payment testing (initiate/return/verify/webhook).
+  const isPublicAmwalRoute =
+    path.startsWith("/payments/amwal") ||
+    originalUrl.includes("/payments/amwal");
   
-  if (isAuthRoute) {
+  if (isAuthRoute || isPublicAmwalRoute) {
     return next();
   }
   
@@ -147,16 +154,16 @@ router.use("/orders", ordersRoutes);
 router.use("/", analyticsRoutes);
 
 // Payment Method routes
-router.use("/", paymentMethodRoutes);
+//router.use("/", paymentMethodRoutes);
 
 // Favourite Cart routes (last)
 router.use("/favourite-carts", favouriteCartRoutes);
 
 // Order Payment routes
-router.use("/payments", orderPaymentRoutes);
+//router.use("/payments", orderPaymentRoutes);
 
 // Order Refund routes
-router.use("/payments", orderRefundRoutes);
+//router.use("/payments", orderRefundRoutes);
 
 // Restaurant Subscription routes
 router.use("/subscriptions", subscriptionRoutes);
@@ -166,6 +173,10 @@ router.use("/subscription-plans", subscriptionPlanRoutes);
 
 // Notification routes
 router.use("/notifications", notificationRoutes);
+
+
+// Amwal Pay endpoints (public, now in amwal.routes.ts for Swagger)
+router.use("/", amwalRoutes);
 
 /**
  * @swagger

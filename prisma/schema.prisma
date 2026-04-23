@@ -9,6 +9,7 @@ datasource db {
 }
 
 model User {
+    amwalCustomerId String? @unique
   id                String              @id @default(uuid())
   email             String              @unique
   role              Role                @default(USER)
@@ -24,7 +25,7 @@ model User {
   selectedCityId    String?
   selectedCountryId String?
   selectedMallId    String?
-  stripeCustomerId  String?             @unique
+
   Status            userStatus          @default(ACTIVE)
   accounts          Account[]
   cart              Cart?
@@ -144,6 +145,7 @@ model UserStatusHistory {
 }
 
 model Restaurant {
+    amwalCustomerId String? @unique
   userId                 String                    @id
   name                   String?
   mainCategory           String?
@@ -163,9 +165,7 @@ model Restaurant {
   onboardingCompletedAt  DateTime?
   bankAccountAdded       Boolean                   @default(false)
   commissionRate         Float                     @default(0.1)
-  stripeAccountStatus    String?
-  stripeConnectAccountId String?                   @unique
-  stripeCustomerId       String?                   @unique
+
   RestaurantStatus       RestaurantStatus          @default(ACTIVE)
   approvalStatus         RestaurantApprovalStatus  @default(PENDING)
   businessDays           BusinessDay[]
@@ -297,6 +297,7 @@ model PromoCodeUse {
 }
 
 model SubscriptionPlan {
+    amwalPlanId String?
   id            String                   @id @default(uuid())
   name          String
   price         Decimal
@@ -305,11 +306,12 @@ model SubscriptionPlan {
   isActive      Boolean                  @default(true)
   createdAt     DateTime                 @default(now())
   updatedAt     DateTime                 @updatedAt
-  stripePriceId String?
+
   subscriptions RestaurantSubscription[]
 }
 
 model RestaurantSubscription {
+    amwalSubscriptionId String? @unique
   id                   String             @id @default(uuid())
   restaurantId         String
   planId               String
@@ -318,12 +320,12 @@ model RestaurantSubscription {
   status               SubscriptionStatus
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
-  stripeSubscriptionId String?            @unique
+
   plan                 SubscriptionPlan   @relation(fields: [planId], references: [id])
   restaurant           Restaurant         @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
 
   @@index([restaurantId])
-  @@index([stripeSubscriptionId])
+
   @@index([status])
 }
 
@@ -503,6 +505,7 @@ model DeliveryAddress {
 }
 
 model Order {
+    amwalPaymentIntentId String? @unique
   id                    String          @id @default(uuid())
   orderNumber           String          @unique
   userId                String
@@ -523,7 +526,7 @@ model Order {
   promoCodeId           String?
   paidAt                DateTime?
   paymentStatus         PaymentStatus   @default(PENDING)
-  stripePaymentIntentId String?         @unique
+
   deliveryAddress       DeliveryAddress @relation(fields: [deliveryAddressId], references: [id], onDelete: Cascade)
   promoCode             PromoCode?      @relation(fields: [promoCodeId], references: [id])
   restaurant            Restaurant      @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
@@ -563,9 +566,10 @@ model OrderItem {
 }
 
 model UserPaymentMethod {
+    amwalPaymentMethodId String? @unique
   id         String   @id @default(uuid())
   userId     String
-  stripePmId String   @unique
+
   brand      String?
   last4      String?
   expMonth   Int?
@@ -578,11 +582,7 @@ model UserPaymentMethod {
   @@index([userId])
 }
 
-model StripeEvent {
-  id        String   @id
-  type      String
-  createdAt DateTime @default(now())
-}
+
 
 enum Role {
   USER

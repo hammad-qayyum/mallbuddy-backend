@@ -1,6 +1,6 @@
 import express, { Router } from "express";
 import { ordersController } from "./orders.controller";
-import { stripeWebhookHandler } from "../payments/stripe-webhooks/stripe.webhook";
+//import { stripeWebhookHandler } from "../payments/stripe-webhooks/stripe.webhook";
 import { requireAuth, requireUserRole, requireRestaurantRole, requireRole } from "../../middlewares/role.middleware";
 
 const router = Router();
@@ -790,10 +790,10 @@ router.get("/summary/:orderId", requireAuth, requireRole("USER", "RESTAURANT"), 
 router.get("/:orderId/reorder-preview", requireAuth, requireUserRole, ordersController.getOrderForReorder);
 
 
-router.post(
-    "/stripe",
-    express.raw({ type: "application/json" }),
-    stripeWebhookHandler
-  );
+// router.post(
+//     "/stripe",
+//     express.raw({ type: "application/json" }),
+//     stripeWebhookHandler
+//   );
 
 export default router;

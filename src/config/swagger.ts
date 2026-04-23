@@ -2322,10 +2322,10 @@ const swaggerDefinition = {
                         type: "string",
                         description: "User ID",
                     },
-                    stripePmId: {
+                    amwalPaymentMethodId: {
                         type: "string",
-                        description: "Stripe payment method ID",
-                        example: "pm_1ABC123def456GHI",
+                        description: "Amwal payment method ID",
+                        example: "amwal_1ABC123def456GHI",
                     },
                     brand: {
                         type: "string",
@@ -2375,8 +2375,8 @@ const swaggerDefinition = {
                 properties: {
                     paymentMethodId: {
                         type: "string",
-                        description: "Stripe payment method ID",
-                        example: "pm_1ABC123def456GHI",
+                        description: "Amwal payment method ID",
+                        example: "amwal_1ABC123def456GHI",
                     },
                 },
             },

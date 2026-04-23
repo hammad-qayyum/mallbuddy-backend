@@ -210,35 +210,4 @@ export const userController = {
         }
       },
 
-    
- // POST /users/create-stripe-customer
- async createStripeCustomer(req: Request, res: Response) {
-  try {
-    const auth = (req as any).auth;
-
-    if (!auth || !auth.user) {
-      return res.status(401).json({
-        message: "Unauthorized",
-      });
-    }
-
-    const userId = auth.user.id;
-
-    const user = await userService.createStripeCustomer(userId);
-
-    return res.status(201).json({
-      message: "Stripe customer created successfully",
-      user,
-    });
-  } catch (error: any) {
-    if (error.message === "User not found") {
-      return res.status(404).json({
-        message: error.message,
-      });
-    }
-    return res.status(500).json({
-      message: error.message ?? "Something went wrong",
-    });
-  }
-},
 };
