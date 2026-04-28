@@ -25,7 +25,12 @@ export const amwalWebhook = async (req: Request, res: Response) => {
   try {
   const body = req.body as Record<string, unknown>;
     console.log("[Amwal Webhook] Received:", body);
-  const { order_id, status, transaction_id } = body as Record<string, unknown>;
+  // coerce and validate incoming fields to known primitive types
+  const rawOrderId = (body as any).order_id;
+  const order_id = typeof rawOrderId === "string" ? rawOrderId : String(rawOrderId ?? "");
+  const status = typeof (body as any).status === "string" ? (body as any).status : String((body as any).status ?? "");
+  const transaction_id = typeof (body as any).transaction_id === "string" ? (body as any).transaction_id : String((body as any).transaction_id ?? "");
+
   if (!order_id) {
     return res.status(400).json({ success: false, message: "Missing order_id" });
   }
