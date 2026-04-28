@@ -30,7 +30,10 @@ function buildReturnUrl(restaurantId: string, planId: string): string {
  * Initiates a payment and creates a subscription record if payment is successful.
  */
 export async function createRestaurantSubscription(restaurantId: string, planId: string) {
-	const restaurant = await prisma.restaurant.findUnique({ where: { userId: restaurantId } });
+	const restaurant = await prisma.restaurant.findUnique({
+		where: { userId: restaurantId },
+		include: { user: { select: { email: true, name: true, firstName: true, lastName: true } } },
+	});
 	if (!restaurant) throw new Error("Restaurant not found");
 
 	const plan = await prisma.subscriptionPlan.findUnique({ where: { id: planId } });
@@ -42,7 +45,10 @@ export async function createRestaurantSubscription(restaurantId: string, planId:
 		amount,
 		currency: "SAR",
 		order_id: `sub_${restaurantId}_${Date.now()}`,
+		biller_ref_number: Date.now(),
 		description: `Subscription payment for plan ${plan.name}`,
+		payer_name: restaurant.name || undefined,
+		payer_email: restaurant.user?.email || undefined,
 		return_url: buildReturnUrl(restaurantId, planId),
 		metadata: { restaurantId, planId },
 	});
@@ -100,7 +106,10 @@ export async function updateRestaurantSubscription(subscriptionId: string, newPl
 		amount,
 		currency: "SAR",
 		order_id: `subchg_${subscriptionId}_${Date.now()}`,
+		biller_ref_number: Date.now(),
 		description: `Subscription plan change to ${plan.name}`,
+		payer_name: (sub as any).restaurant?.name || undefined,
+		payer_email: (sub as any).restaurant?.user?.email || undefined,
 		return_url: buildReturnUrl(sub.restaurantId, newPlanId),
 		metadata: { subscriptionId, newPlanId },
 	});

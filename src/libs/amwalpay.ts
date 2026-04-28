@@ -1,6 +1,5 @@
 import axios, { AxiosError, AxiosInstance, AxiosResponse } from 'axios';
 import dotenv from 'dotenv';
-import crypto from 'crypto';
 import { generateAmwalHash } from './amwalhash';
 dotenv.config();
 
@@ -21,7 +20,10 @@ export interface AmwalPaymentIntentInput {
   amount: number;
   currency: string;
   order_id: string;
+  biller_ref_number: number | undefined;
   description?: string;
+  payer_name: string | undefined;
+  payer_email: string | undefined;
   return_url: string;
   metadata?: Record<string, unknown>;
 }
@@ -69,7 +71,7 @@ export class AmwalPayService {
   private tid: string;
   private secureHash: string;
   private baseUrl: string;
-  private paymentPageUrl: string;
+  private paymentLinkApiUrl: string;
   private client: AxiosInstance;
 
   constructor() {
@@ -77,11 +79,12 @@ export class AmwalPayService {
     this.tid = requiredEnv('AMWAL_TID');
     this.secureHash = requiredEnv('AMWAL_SECURE_HASH');
     this.baseUrl = normalizeBaseUrl(requiredEnv('AMWAL_API_URL'));
-
-    // Hosted payment page URL — defaults to the standard Amwal test page path
-    this.paymentPageUrl =
-      process.env.AMWAL_PAYMENT_PAGE_URL ||
-      `${this.baseUrl}/PaymentPage/Index`;
+    this.paymentLinkApiUrl = normalizeBaseUrl(
+      process.env.AMWAL_PAYMENT_LINK_API_URL ||
+        (process.env.NODE_ENV === 'production'
+          ? 'https://webhook.amwalpg.com'
+          : 'https://test.amwalpg.com:14443')
+    );
 
     this.client = axios.create({
       timeout: Number(process.env.AMWAL_TIMEOUT_MS || 15000),
@@ -132,41 +135,63 @@ export class AmwalPayService {
    * Returns a synthetic response object whose `data.paymentUrl` contains
    * the redirect URL, matching the shape the controller already expects.
    */
-  createPaymentIntent(input: AmwalPaymentIntentInput): { data: { paymentUrl: string } } {
+  async createPaymentIntent(input: AmwalPaymentIntentInput): Promise<{ data: { paymentUrl: string } }> {
     const currencyId = CURRENCY_IDS[input.currency.toUpperCase()] ?? '682';
     const amountValue = input.amount.toFixed(2);
 
-    const params: Record<string, string> = {
-      MID: this.mid,
-      TID: this.tid,
-      TotalAmt: amountValue,
-      CurrencyId: currencyId,
-      OrderId: input.order_id,
-      ReturnUrl: input.return_url,
-      Lang: '2',
+    const requestBody: Record<string, unknown> = {
+      billerRefNumber: input.biller_ref_number ?? Date.now(),
+      payerName: input.payer_name || input.description || input.order_id,
+      amount: Number(amountValue),
+      currency: Number(currencyId),
+      paymentMethod: 1,
+      notificationMethod: 1,
+      emailNotificationValue: input.payer_email || '',
+      smsNotificationValue: '',
+      terminalId: Number(this.tid),
+      merchantId: Number(this.mid),
+      expireDateTime: '',
+      maxNumberOfPayment: 1,
+      paymentViewType: 2,
+      redirectUrl: input.return_url,
     };
 
-    if (input.description) {
-      params.OrderDescription = input.description;
+    requestBody.secureHashValue = generateAmwalHash(requestBody, this.secureHash);
+
+    const requestUrl = `${this.paymentLinkApiUrl}/MerchantOrder/CreatePaymentLink`;
+    try {
+      const result = await this.client.post(requestUrl, requestBody);
+      const responseData = result.data as Record<string, unknown> | string;
+      let paymentUrl: string | null = null;
+
+      if (typeof responseData === 'string' && responseData.trim()) {
+        paymentUrl = responseData;
+      } else if (responseData && typeof responseData === 'object') {
+        const dataField = responseData.data;
+        if (typeof dataField === 'string' && dataField.trim()) {
+          paymentUrl = dataField;
+        } else {
+          const urlField = responseData.url;
+          if (typeof urlField === 'string' && urlField.trim()) {
+            paymentUrl = urlField;
+          }
+        }
+      }
+
+      if (!paymentUrl) {
+        throw new Error('Amwal payment link response did not include a payment URL');
+      }
+
+      console.log('[AmwalPayService] Payment link created for order', input.order_id);
+      return { data: { paymentUrl } };
+    } catch (error) {
+      const providerError = extractProviderError(error);
+      console.error('[AmwalPayService] createPaymentIntent error:', {
+        ...providerError,
+        requestBody,
+      });
+      const responseDetails = providerError.body ? ` | ${JSON.stringify(providerError.body)}` : '';
+      throw new Error(`Failed to create Amwal payment link: ${providerError.message}${responseDetails}`);
     }
-
-    // Gateway requires fixed field order for signature input.
-    const rawString =
-      this.mid +
-      this.tid +
-      input.order_id +
-      amountValue +
-      currencyId +
-      input.return_url +
-      this.secureHash;
-
-    const hash = crypto.createHash('sha256').update(rawString).digest('hex');
-    params.SecureHash = hash;
-
-    const query = new URLSearchParams(params).toString();
-    const paymentUrl = `${this.paymentPageUrl}?${query}`;
-
-    console.log('[AmwalPayService] Payment redirect URL built for order', input.order_id);
-    return { data: { paymentUrl } };
   }
 }

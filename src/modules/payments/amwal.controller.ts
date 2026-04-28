@@ -18,7 +18,10 @@ export const initiateAmwalSubscriptionPayment = async (req: Request, res: Respon
     if (!restaurantId || !planId) {
       return res.status(400).json({ success: false, error: "restaurantId and planId are required" });
     }
-    const restaurant = await prisma.restaurant.findUnique({ where: { userId: restaurantId } });
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { userId: restaurantId },
+      include: { user: { select: { email: true, name: true, firstName: true, lastName: true } } },
+    });
     if (!restaurant) return res.status(404).json({ success: false, error: "Restaurant not found" });
     const plan = await prisma.subscriptionPlan.findUnique({ where: { id: planId } });
     if (!plan) return res.status(404).json({ success: false, error: "Plan not found" });
@@ -43,11 +46,14 @@ export const initiateAmwalSubscriptionPayment = async (req: Request, res: Respon
 
     // Build the signed hosted-payment-page redirect URL (no outbound API call needed)
     const amwal = new AmwalPayService();
-    const result = amwal.createPaymentIntent({
+    const result = await amwal.createPaymentIntent({
       amount,
       currency: "SAR",
       order_id: dbSub.id,
+      biller_ref_number: Date.now(),
       description: `Subscription payment for plan ${plan.name}`,
+      payer_name: plan.name,
+      payer_email: restaurant.user?.email || undefined,
       return_url: returnUrl,
     });
 
