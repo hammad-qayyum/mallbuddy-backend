@@ -20,32 +20,20 @@ export interface CookieOptions {
  * - In production, always use "none" with secure: true for cross-origin support
  */
 export function getCookieOptions(): CookieOptions {
-  const isProduction = process.env.NODE_ENV === "production";
-  
-  // For CORS with credentials, we need sameSite: "none" with secure: true
-  // This works even in development on localhost (modern browsers support it)
-  // Set USE_SAME_ORIGIN_COOKIES=true to use "lax" for same-origin only (no CORS)
-  const useSameOriginOnly = process.env.USE_SAME_ORIGIN_COOKIES === "false";
-  
-  if (useSameOriginOnly) {
-    // Same-origin only (no cross-origin support)
-    return {
-      httpOnly: true,
-      secure: false, // Only in production
-      sameSite: "lax",
-      path: "/",
-    };
-  }
-  
-  // Cross-origin support (default for CORS)
-  // secure: true is required when sameSite: "none"
-  // Modern browsers allow this even on localhost
+  // SECURE_COOKIES=true forces `secure: true` (required in production over HTTPS).
+  // Falls back to NODE_ENV so prod-deployed instances are safe by default.
+  const secure =
+    process.env.SECURE_COOKIES === "true" || process.env.NODE_ENV === "production";
+
+  // Cross-site (frontend on a different origin than the API) requires
+  // `sameSite: "none"`, which in turn requires `secure: true`.
+  const sameSite: "none" | "lax" = secure ? "none" : "lax";
+
   return {
-    httpOnly: true, // Prevent XSS attacks
-    secure: false, // Required when sameSite is "none" (works on localhost too)
-    sameSite: "lax", // Required for cross-origin requests with CORS
-    path: "/", // Available to all paths
-    // maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days (optional - session cookies by default)
+    httpOnly: true,
+    secure,
+    sameSite,
+    path: "/",
   };
 }
 

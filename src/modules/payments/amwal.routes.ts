@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { initiateAmwalSubscriptionPayment } from "./amwal.controller";
 import { amwalWebhook } from "./amwal.webhook";
-import { amwalReturnCallback, verifyAmwalPayment } from "./amwal.verify";
+import { verifyAmwalPayment } from "./amwal.verify";
+import { renderAmwalTestPage } from "./amwal.testpage";
 
 const router = Router();
 
@@ -9,18 +10,20 @@ const router = Router();
  * @swagger
  * /payments/amwal/initiate:
  *   post:
- *     summary: Initiate Amwal subscription payment
+ *     summary: Initiate Amwal SmartBox payment for a subscription
  *     tags: [Payments]
- *     description: Initiates a payment for a restaurant subscription using Amwal Pay. Returns a payment URL to complete the payment.
+ *     description: |
+ *       Creates a pending subscription row and returns a signed SmartBox config.
+ *       The frontend loads `scriptUrl`, then calls
+ *       `SmartBox.Checkout.configure({ ...response.smartbox, completeCallback, errorCallback, cancelCallback })`
+ *       followed by `SmartBox.Checkout.showSmartBox()`.
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - restaurantId
- *               - planId
+ *             required: [restaurantId, planId]
  *             properties:
  *               restaurantId:
  *                 type: string
@@ -30,22 +33,30 @@ const router = Router();
  *                 description: Subscription plan ID
  *     responses:
  *       200:
- *         description: Payment URL returned
+ *         description: Signed SmartBox config returned
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 success:
- *                   type: boolean
- *                 paymentUrl:
- *                   type: string
- *                 subscriptionId:
- *                   type: string
- *       400:
- *         description: Missing or invalid input
- *       500:
- *         description: Internal server error
+ *                 success: { type: boolean }
+ *                 subscriptionId: { type: string }
+ *                 scriptUrl: { type: string }
+ *                 smartbox:
+ *                   type: object
+ *                   properties:
+ *                     MID: { type: string }
+ *                     TID: { type: string }
+ *                     CurrencyId: { type: integer }
+ *                     AmountTrxn: { type: string }
+ *                     MerchantReference: { type: string }
+ *                     TrxDateTime: { type: string }
+ *                     PaymentViewType: { type: integer }
+ *                     LanguageId: { type: string }
+ *                     SecureHash: { type: string }
+ *       400: { description: Missing or invalid input }
+ *       404: { description: Restaurant or plan not found }
+ *       500: { description: Internal server error }
  */
 router.post("/payments/amwal/initiate", initiateAmwalSubscriptionPayment);
 
@@ -53,37 +64,13 @@ router.post("/payments/amwal/initiate", initiateAmwalSubscriptionPayment);
  * @swagger
  * /payments/amwal/webhook:
  *   post:
- *     summary: Amwal payment webhook (legacy)
+ *     summary: Amwal merchant cloud notification
  *     tags: [Payments]
- *     description: Receives payment notifications from Amwal Pay (legacy MID/TID flow). Updates subscription status based on payment result.
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - order_id
- *               - status
- *               - transaction_id
- *             properties:
- *               order_id:
- *                 type: string
- *                 description: Subscription/order ID
- *               status:
- *                 type: string
- *                 enum: [SUCCESS, FAILED]
- *                 description: Payment status
- *               transaction_id:
- *                 type: string
- *                 description: Amwal transaction ID
+ *     description: Webhook configured on the Amwal side. Updates subscription status when payment is confirmed.
  *     responses:
- *       200:
- *         description: Webhook processed
- *       400:
- *         description: Missing or invalid input
- *       500:
- *         description: Internal server error
+ *       200: { description: Webhook processed }
+ *       400: { description: Missing or invalid input }
+ *       500: { description: Internal server error }
  */
 router.post("/payments/amwal/webhook", amwalWebhook);
 
@@ -91,41 +78,21 @@ router.post("/payments/amwal/webhook", amwalWebhook);
  * @swagger
  * /payments/amwal/verify/{orderId}:
  *   get:
- *     summary: Verify Amwal payment status
+ *     summary: Poll subscription status after SmartBox completion
  *     tags: [Payments]
- *     description: Checks the current status of a subscription payment by order ID.
  *     parameters:
  *       - in: path
  *         name: orderId
  *         required: true
- *         schema:
- *           type: string
- *         description: Subscription/order ID
+ *         schema: { type: string }
  *     responses:
- *       200:
- *         description: Payment status returned
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                 paymentReference:
- *                   type: string
- *                 planId:
- *                   type: string
- *                 restaurantId:
- *                   type: string
- *                 expiresAt:
- *                   type: string
- *                   format: date-time
- *       404:
- *         description: Subscription not found
- *       500:
- *         description: Internal server error
+ *       200: { description: Status returned }
+ *       404: { description: Subscription not found }
  */
 router.get("/payments/amwal/verify/:orderId", verifyAmwalPayment);
-router.get("/payments/amwal/return", amwalReturnCallback);
+
+// Manual SmartBox test page — open in a browser to verify the full flow
+// without involving the production frontend.
+router.get("/payments/amwal/test-page", renderAmwalTestPage);
 
 export default router;

@@ -11,7 +11,9 @@ function toNumberValue(value: unknown): number {
   return Number(value);
 }
 
-// Initiate Amwal payment for restaurant subscription
+// Build a signed SmartBox checkout config for a restaurant subscription.
+// The frontend feeds the returned `smartbox` object directly to
+// `SmartBox.Checkout.configure({...})`.
 export const initiateAmwalSubscriptionPayment = async (req: Request, res: Response) => {
   try {
     const { restaurantId, planId } = req.body;
@@ -20,7 +22,6 @@ export const initiateAmwalSubscriptionPayment = async (req: Request, res: Respon
     }
     const restaurant = await prisma.restaurant.findUnique({
       where: { userId: restaurantId },
-      include: { user: { select: { email: true, name: true, firstName: true, lastName: true } } },
     });
     if (!restaurant) return res.status(404).json({ success: false, error: "Restaurant not found" });
     const plan = await prisma.subscriptionPlan.findUnique({ where: { id: planId } });
@@ -31,7 +32,6 @@ export const initiateAmwalSubscriptionPayment = async (req: Request, res: Respon
       return res.status(400).json({ success: false, error: "Invalid subscription plan amount" });
     }
 
-    // Create a pending subscription record
     const dbSub = await prisma.restaurantSubscription.create({
       data: {
         restaurantId,
@@ -41,28 +41,18 @@ export const initiateAmwalSubscriptionPayment = async (req: Request, res: Respon
       },
     });
 
-    const computedReturnUrl = `${req.protocol}://${req.get("host")}/api/payments/amwal/return`;
-    const returnUrl = process.env.AMWAL_RETURN_URL || computedReturnUrl;
-
-    // Build the signed hosted-payment-page redirect URL (no outbound API call needed)
     const amwal = new AmwalPayService();
-    const result = await amwal.createPaymentIntent({
+    const smartbox = amwal.buildSmartBoxConfig({
       amount,
-      currency: "SAR",
-      order_id: dbSub.id,
-      biller_ref_number: Date.now(),
-      description: `Subscription payment for plan ${plan.name}`,
-      payer_name: plan.name,
-      payer_email: restaurant.user?.email || undefined,
-      return_url: returnUrl,
+      currency: "OMR",
+      merchantReference: dbSub.id,
     });
-
-    const paymentUrl = result.data.paymentUrl;
 
     return res.json({
       success: true,
-      paymentUrl,
       subscriptionId: dbSub.id,
+      scriptUrl: AmwalPayService.scriptUrl,
+      smartbox,
     });
   } catch (err: any) {
     console.error("[Amwal] Payment initiation error", err);

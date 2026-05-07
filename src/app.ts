@@ -12,9 +12,19 @@ import { attachAuth } from "./middlewares/attach-auth.middleware";
 
 const app = express();
 
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: "http://203.161.60.191:5000",
+    origin: (origin, cb) => {
+      // No-origin requests (curl, server-to-server like Amwal webhook) are allowed.
+      if (!origin) return cb(null, true);
+      if (allowedOrigins.includes(origin)) return cb(null, true);
+      return cb(new Error(`CORS: origin ${origin} is not allowed`));
+    },
     credentials: true,
   })
 );

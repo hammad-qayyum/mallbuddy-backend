@@ -1,31 +1,47 @@
-import axios, { AxiosError, AxiosInstance, AxiosResponse } from 'axios';
 import dotenv from 'dotenv';
 import { generateAmwalHash } from './amwalhash';
 dotenv.config();
 
-type JsonRecord = Record<string, unknown>;
-
-// ISO 4217 numeric codes for common currencies used with Amwal
-const CURRENCY_IDS: Record<string, string> = {
-  SAR: '682',
-  AED: '784',
-  KWD: '414',
-  BHD: '048',
-  QAR: '634',
-  OMR: '512',
-  USD: '840',
+// ISO 4217 numeric currency codes used by Amwal Pay.
+// UAT for our merchant is OMR-only.
+const CURRENCY_IDS: Record<string, number> = {
+  OMR: 512,
+  SAR: 682,
+  AED: 784,
+  KWD: 414,
+  BHD: 48,
+  QAR: 634,
+  USD: 840,
 };
 
-export interface AmwalPaymentIntentInput {
+const SMARTBOX_SCRIPT_URLS = {
+  production: 'https://checkout.amwalpg.com/js/SmartBox.js?v=1.1',
+  uat: 'https://test.amwalpg.com:7443/js/SmartBox.js?v=1.1',
+  sit: 'https://test.amwalpg.com:19443/js/SmartBox.js?v=1.1',
+} as const;
+
+export interface SmartBoxConfigInput {
   amount: number;
   currency: string;
-  order_id: string;
-  biller_ref_number: number | undefined;
-  description?: string;
-  payer_name: string | undefined;
-  payer_email: string | undefined;
-  return_url: string;
-  metadata?: Record<string, unknown>;
+  merchantReference: string;
+  language?: 'en' | 'ar';
+  paymentViewType?: 1 | 2;
+}
+
+/**
+ * Signed config object the frontend hands directly to
+ * `SmartBox.Checkout.configure({ ...config, completeCallback, ... })`.
+ */
+export interface SmartBoxConfig {
+  MID: string;
+  TID: string;
+  CurrencyId: number;
+  AmountTrxn: string;
+  MerchantReference: string;
+  TrxDateTime: string;
+  PaymentViewType: 1 | 2;
+  LanguageId: 'en' | 'ar';
+  SecureHash: string;
 }
 
 function requiredEnv(key: string): string {
@@ -36,162 +52,82 @@ function requiredEnv(key: string): string {
   return value;
 }
 
-function normalizeBaseUrl(value: string): string {
-  return value.replace(/\/+$/, '');
-}
-
-function asErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  try {
-    return JSON.stringify(error);
-  } catch {
-    return String(error);
-  }
-}
-
-function extractProviderError(error: unknown): { status?: number; body?: unknown; message: string } {
-  const axiosError = error as AxiosError;
-  if (axiosError?.isAxiosError) {
-    const result: { status?: number; body?: unknown; message: string } = {
-      message: axiosError.message,
-    };
-    if (typeof axiosError.response?.status === 'number') {
-      result.status = axiosError.response.status;
-    }
-    if (axiosError.response?.data !== undefined) {
-      result.body = axiosError.response.data;
-    }
-    return result;
-  }
-  return { message: asErrorMessage(error) };
+function decimalsForCurrency(code: string): number {
+  // OMR / KWD / BHD use 3 decimal places ("fils"); most others use 2.
+  return ['OMR', 'KWD', 'BHD'].includes(code.toUpperCase()) ? 3 : 2;
 }
 
 export class AmwalPayService {
   private mid: string;
   private tid: string;
   private secureHash: string;
-  private baseUrl: string;
-  private paymentLinkApiUrl: string;
-  private client: AxiosInstance;
 
   constructor() {
     this.mid = requiredEnv('AMWAL_MID');
     this.tid = requiredEnv('AMWAL_TID');
     this.secureHash = requiredEnv('AMWAL_SECURE_HASH');
-    this.baseUrl = normalizeBaseUrl(requiredEnv('AMWAL_API_URL'));
-    this.paymentLinkApiUrl = normalizeBaseUrl(
-      process.env.AMWAL_PAYMENT_LINK_API_URL ||
-        (process.env.NODE_ENV === 'production'
-          ? 'https://webhook.amwalpg.com'
-          : 'https://test.amwalpg.com:14443')
-    );
-
-    this.client = axios.create({
-      timeout: Number(process.env.AMWAL_TIMEOUT_MS || 15000),
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json, text/plain, */*',
-      },
-    });
-  }
-
-  private buildSignedPayload(data: JsonRecord): JsonRecord {
-    const params: JsonRecord = { MID: this.mid, TID: this.tid, ...data };
-    const hash = generateAmwalHash(params, this.secureHash);
-    return { ...params, SecureHash: hash };
-  }
-
-  private async post(path: string, data: JsonRecord): Promise<AxiosResponse> {
-    const payload = this.buildSignedPayload(data);
-    return this.client.post(`${this.baseUrl}${path}`, payload);
-  }
-
-  async createCustomer(data: JsonRecord) {
-    try {
-      return await this.post('/customers', data);
-    } catch (error) {
-      const providerError = extractProviderError(error);
-      console.error('[AmwalPayService] createCustomer error:', providerError);
-      throw new Error(`Failed to create Amwal customer: ${providerError.message}`);
-    }
-  }
-
-  async createSubscription(data: JsonRecord) {
-    try {
-      return await this.post('/subscriptions', data);
-    } catch (error) {
-      const providerError = extractProviderError(error);
-      console.error('[AmwalPayService] createSubscription error:', providerError);
-      throw new Error(`Failed to create Amwal subscription: ${providerError.message}`);
-    }
   }
 
   /**
-   * Amwal Pay is a hosted-payment-page gateway (MID/TID flow).
-   * Instead of calling a REST API, we build a signed redirect URL
-   * that the client navigates to so the user can complete payment
-   * on Amwal's hosted page.
+   * Build the signed SmartBox config object the frontend assigns to
+   * `SmartBox.Checkout.configure`. No outbound HTTP — Amwal's server validates
+   * the hash when the customer triggers `showSmartBox()` from the browser.
    *
-   * Returns a synthetic response object whose `data.paymentUrl` contains
-   * the redirect URL, matching the shape the controller already expects.
+   * Note on field naming: the SDK renames inputs when building the iframe URL
+   * (`AmountTrxn` → `Amount`, `CurrencyId` → `Currency`, `LanguageId` →
+   * `Language`, `TrxDateTime` → `RequestDateTime`). Amwal's server hashes the
+   * URL params, so the SecureHash must be computed over the *URL* names, not
+   * the SDK input names.
    */
-  async createPaymentIntent(input: AmwalPaymentIntentInput): Promise<{ data: { paymentUrl: string } }> {
-    const currencyId = CURRENCY_IDS[input.currency.toUpperCase()] ?? '682';
-    const amountValue = input.amount.toFixed(2);
-
-    const requestBody: Record<string, unknown> = {
-      billerRefNumber: input.biller_ref_number ?? Date.now(),
-      payerName: input.payer_name || input.description || input.order_id,
-      amount: Number(amountValue),
-      currency: Number(currencyId),
-      paymentMethod: 1,
-      notificationMethod: 1,
-      emailNotificationValue: input.payer_email || '',
-      smsNotificationValue: '',
-      terminalId: Number(this.tid),
-      merchantId: Number(this.mid),
-      expireDateTime: '',
-      maxNumberOfPayment: 1,
-      paymentViewType: 2,
-      redirectUrl: input.return_url,
-    };
-
-    requestBody.secureHashValue = generateAmwalHash(requestBody, this.secureHash);
-
-    const requestUrl = `${this.paymentLinkApiUrl}/MerchantOrder/CreatePaymentLink`;
-    try {
-      const result = await this.client.post(requestUrl, requestBody);
-      const responseData = result.data as Record<string, unknown> | string;
-      let paymentUrl: string | null = null;
-
-      if (typeof responseData === 'string' && responseData.trim()) {
-        paymentUrl = responseData;
-      } else if (responseData && typeof responseData === 'object') {
-        const dataField = responseData.data;
-        if (typeof dataField === 'string' && dataField.trim()) {
-          paymentUrl = dataField;
-        } else {
-          const urlField = responseData.url;
-          if (typeof urlField === 'string' && urlField.trim()) {
-            paymentUrl = urlField;
-          }
-        }
-      }
-
-      if (!paymentUrl) {
-        throw new Error('Amwal payment link response did not include a payment URL');
-      }
-
-      console.log('[AmwalPayService] Payment link created for order', input.order_id);
-      return { data: { paymentUrl } };
-    } catch (error) {
-      const providerError = extractProviderError(error);
-      console.error('[AmwalPayService] createPaymentIntent error:', {
-        ...providerError,
-        requestBody,
-      });
-      const responseDetails = providerError.body ? ` | ${JSON.stringify(providerError.body)}` : '';
-      throw new Error(`Failed to create Amwal payment link: ${providerError.message}${responseDetails}`);
+  buildSmartBoxConfig(input: SmartBoxConfigInput): SmartBoxConfig {
+    const currencyCode = input.currency.toUpperCase();
+    const currencyId = CURRENCY_IDS[currencyCode];
+    if (!currencyId) {
+      throw new Error(`[AmwalPayService] Unsupported currency: ${input.currency}`);
     }
+
+    const amountStr = input.amount.toFixed(decimalsForCurrency(currencyCode));
+    const trxDateTime = new Date().toISOString();
+    const paymentViewType = input.paymentViewType ?? 1;
+    const languageId = input.language ?? 'en';
+
+    // Hash field set + names taken verbatim from the Amwal canonical example:
+    //   Amount=10&CurrencyId=512&MerchantId=48804&MerchantReference=
+    //     &RequestDateTime=...&SessionToken=&TerminalId=113176
+    // The SDK sends URL-shorthand keys (MID/TID/Currency) but the server
+    // remaps them to canonical names before verifying the hash.
+    const hashInput = {
+      Amount: amountStr,
+      CurrencyId: currencyId,
+      MerchantId: Number(this.mid),
+      MerchantReference: input.merchantReference,
+      RequestDateTime: trxDateTime,
+      SessionToken: '',
+      TerminalId: Number(this.tid),
+    };
+    const SecureHash = generateAmwalHash(hashInput, this.secureHash);
+
+    return {
+      MID: this.mid,
+      TID: this.tid,
+      CurrencyId: currencyId,
+      AmountTrxn: amountStr,
+      MerchantReference: input.merchantReference,
+      TrxDateTime: trxDateTime,
+      PaymentViewType: paymentViewType,
+      LanguageId: languageId,
+      SecureHash,
+    };
+  }
+
+  static get scriptUrl(): string {
+    if (process.env.AMWAL_SMARTBOX_SCRIPT_URL) return process.env.AMWAL_SMARTBOX_SCRIPT_URL;
+    // Pick the script URL based on the API host so UAT credentials never load the prod script.
+    const apiHost = (process.env.AMWAL_API_URL || '').toLowerCase();
+    if (apiHost.includes('test.amwalpg.com')) return SMARTBOX_SCRIPT_URLS.uat;
+    if (apiHost.includes('webhook.amwalpg.com') || apiHost.includes('checkout.amwalpg.com')) {
+      return SMARTBOX_SCRIPT_URLS.production;
+    }
+    return SMARTBOX_SCRIPT_URLS.uat;
   }
 }

@@ -20,10 +20,11 @@ export const subscribeRestaurant = async (req: Request, res: Response) => {
     const result = await createRestaurantSubscription(restaurantId, planId);
     res.status(201).json({
       success: true,
-      message: "Subscription created and payment successful",
+      message: "Pending subscription created. Complete payment via SmartBox.",
       data: {
         subscription: result.dbSub,
-        paymentUrl: result.paymentUrl, // For frontend to redirect if needed
+        scriptUrl: result.scriptUrl,
+        smartbox: result.smartbox,
       },
     });
   } catch (err: any) {
@@ -49,10 +50,11 @@ export const updateSubscription = async (req: Request, res: Response) => {
     const result = await updateRestaurantSubscription(subscriptionId, newPlanId);
     res.json({
       success: true,
-      message: "Subscription updated and payment successful",
+      message: "Pending plan change created. Complete payment via SmartBox.",
       data: {
         subscription: result.dbSub,
-        paymentUrl: result.paymentUrl,
+        scriptUrl: result.scriptUrl,
+        smartbox: result.smartbox,
       },
     });
   } catch (err: any) {

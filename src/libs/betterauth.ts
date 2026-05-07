@@ -1,6 +1,10 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import prisma from "../config/prisma";
+
+const secureCookies =
+  process.env.SECURE_COOKIES === "true" || process.env.NODE_ENV === "production";
+
 export const auth = betterAuth({
   basePath: "/api/auth/better-auth",
   database: prismaAdapter(prisma, {
@@ -20,8 +24,8 @@ export const auth = betterAuth({
       sessionToken: {
         attributes: {
           httpOnly: true,
-          secure: false,
-          sameSite: "lax",
+          secure: secureCookies,
+          sameSite: secureCookies ? "none" : "lax",
           path: "/",
         },
       },

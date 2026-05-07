@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 
-function stableStringify(value: unknown): string {
+function stringifyValue(value: unknown): string {
   if (value === null || value === undefined) return '';
   if (typeof value === 'string') return value;
   if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
@@ -9,25 +9,29 @@ function stableStringify(value: unknown): string {
   if (value instanceof Date) {
     return value.toISOString();
   }
-  if (Array.isArray(value)) {
-    return value.map(stableStringify).join(',');
-  }
-  if (typeof value === 'object') {
-    const obj = value as Record<string, unknown>;
-    const sortedKeys = Object.keys(obj).sort();
-    return sortedKeys.map((key) => `${key}:${stableStringify(obj[key])}`).join('|');
-  }
-  return String(value);
+  return JSON.stringify(value);
 }
 
+/**
+ * HMAC-SHA256 secure hash for Amwal Pay APIs (SmartBox, Acquiring Session Token,
+ * Pay-by-Token, etc.).
+ *
+ * Per Amwal docs:
+ *   1. Sort all keys alphabetically (case-sensitive ASCII).
+ *   2. Concatenate as `key=value&key=value` — empty values stay (rendered as `key=`).
+ *   3. Exclude the hash field itself (`SecureHash` / `secureHashValue`).
+ *   4. HMAC-SHA256 with the merchant secret as hex-decoded bytes.
+ *   5. Output uppercase hex.
+ */
 export function generateAmwalHash(params: Record<string, unknown>, secureHash: string): string {
   const canonicalString = Object.entries(params)
     .filter(([key]) => key !== 'SecureHash' && key !== 'secureHashValue')
-    .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
-    .map(([key, value]) => `${key}=${stableStringify(value)}`)
+    .sort(([leftKey], [rightKey]) => (leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0))
+    .map(([key, value]) => `${key}=${stringifyValue(value)}`)
     .join('&');
 
   const keyBuffer = Buffer.from(secureHash, 'hex');
+
   return crypto
     .createHmac('sha256', keyBuffer)
     .update(canonicalString, 'utf8')
