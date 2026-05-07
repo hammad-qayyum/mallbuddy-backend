@@ -42,7 +42,7 @@ const html = `<!doctype html>
   </fieldset>
 
   <fieldset>
-    <legend>3. SmartBox callback</legend>
+    <legend>3. SmartBox callbacks (in order)</legend>
     <pre id="resultOut">(no callback yet)</pre>
   </fieldset>
 
@@ -100,17 +100,25 @@ const html = `<!doctype html>
           throw new Error('SmartBox SDK did not load on window');
         }
 
+        const callbacks = [];
+        $('resultOut').textContent = '(waiting for callbacks...)';
+        const append = (kind, payload, cls) => {
+          callbacks.push({
+            t: new Date().toISOString().slice(11, 23),
+            kind,
+            payload: payload === undefined ? '(no payload)' : payload,
+          });
+          $('resultOut').textContent = callbacks
+            .map(c => '[' + c.t + '] ' + c.kind + '\\n' + (typeof c.payload === 'string' ? c.payload : JSON.stringify(c.payload, null, 2)))
+            .join('\\n\\n');
+          if (cls) $('resultOut').className = cls;
+        };
+
         SmartBox.Checkout.configure = {
           ...data.smartbox,
-          completeCallback: (resp) => {
-            setOut($('resultOut'), 'COMPLETE\\n' + JSON.stringify(resp, null, 2), 'ok');
-          },
-          errorCallback: (resp) => {
-            setOut($('resultOut'), 'ERROR\\n' + JSON.stringify(resp, null, 2), 'err');
-          },
-          cancelCallback: (resp) => {
-            setOut($('resultOut'), 'CANCEL\\n' + JSON.stringify(resp, null, 2));
-          },
+          completeCallback: (resp) => append('COMPLETE', resp, 'ok'),
+          errorCallback: (resp) => append('ERROR', resp, 'err'),
+          cancelCallback: (resp) => append('CANCEL', resp),
         };
 
         SmartBox.Checkout.showSmartBox();
