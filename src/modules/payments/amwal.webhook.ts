@@ -4,39 +4,36 @@ import dotenv from "dotenv";
 import { generateAmwalHash } from "../../libs/amwalhash";
 dotenv.config();
 
-// Cloud-notification payload Amwal POSTs to our webhook URL.
-// Per https://amwalpay.om/developers/merchant-cloud-notification/
-interface AmwalCloudNotification {
-  MerchantId: number;
-  TerminalId: number;
-  AuthorizationDateTime: string;
-  DateTimeLocalTrxn: string;
-  SecureHash: string;
-  Message: string;
-  TxnType: string;
-  PaidThrough?: string;
-  SystemReference: string;
-  Amount: number;
-  CurrencyId: number;
-  ResponseCode?: string;
-  MerchantReference?: string;
-  UDF?: string;
-  [key: string]: unknown;
-}
-
 const SUCCESS_RESPONSE_CODE = "00";
-
 const AMWAL_RESPONSE_BODY = { message: "success", success: true } as const;
 
-function verifySecureHash(body: AmwalCloudNotification): boolean {
+// Amwal's docs show the cloud notification in PascalCase, but their actual
+// payloads (and the SmartBox `completeCallback`) use camelCase. Read both.
+function pickField<T = unknown>(body: Record<string, unknown>, ...keys: string[]): T | undefined {
+  for (const key of keys) {
+    const value = body[key];
+    if (value !== undefined && value !== null) return value as T;
+  }
+  return undefined;
+}
+
+function verifySecureHash(body: Record<string, unknown>): boolean {
   const secret = process.env.AMWAL_SECURE_HASH;
   if (!secret) {
     throw new Error("Missing AMWAL_SECURE_HASH environment variable");
   }
-  const { SecureHash, ...rest } = body;
-  if (!SecureHash) return false;
-  const expected = generateAmwalHash(rest, secret);
-  return expected === String(SecureHash).toUpperCase();
+
+  const receivedHash = pickField<string>(body, "SecureHash", "secureHash", "secureHashValue");
+  if (!receivedHash) return false;
+
+  const HASH_KEYS = new Set(["SecureHash", "secureHash", "secureHashValue"]);
+  const fieldsForHash: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(body)) {
+    if (!HASH_KEYS.has(key)) fieldsForHash[key] = value;
+  }
+
+  const expected = generateAmwalHash(fieldsForHash, secret);
+  return expected === String(receivedHash).toUpperCase();
 }
 
 function computeEndDate(start: Date, interval: string): Date {
@@ -51,20 +48,21 @@ function computeEndDate(start: Date, interval: string): Date {
 
 export const amwalWebhook = async (req: Request, res: Response) => {
   try {
-    const body = req.body as AmwalCloudNotification;
+    const body = req.body as Record<string, unknown>;
     console.log("[Amwal Webhook] Received:", JSON.stringify(body));
 
+    const merchantReference = pickField<string>(body, "MerchantReference", "merchantReference");
+    const systemReference = pickField<string>(body, "SystemReference", "systemReference");
+    const responseCode = pickField<string>(body, "ResponseCode", "responseCode");
+    const message = pickField<string>(body, "Message", "message");
+
     if (!verifySecureHash(body)) {
-      console.error("[Amwal Webhook] Invalid SecureHash", {
-        merchantReference: body.MerchantReference,
-        systemReference: body.SystemReference,
-      });
+      console.error("[Amwal Webhook] Invalid SecureHash", { merchantReference, systemReference });
       return res.status(200).json({ message: "invalid hash", success: false });
     }
 
-    const merchantReference = body.MerchantReference;
     if (!merchantReference) {
-      console.error("[Amwal Webhook] Missing MerchantReference");
+      console.error("[Amwal Webhook] Missing merchantReference");
       return res.status(200).json(AMWAL_RESPONSE_BODY);
     }
 
@@ -77,7 +75,7 @@ export const amwalWebhook = async (req: Request, res: Response) => {
       return res.status(200).json(AMWAL_RESPONSE_BODY);
     }
 
-    const isSuccess = body.ResponseCode === SUCCESS_RESPONSE_CODE;
+    const isSuccess = responseCode === SUCCESS_RESPONSE_CODE;
 
     if (isSuccess) {
       const startDate = sub.startDate ?? new Date();
@@ -87,7 +85,7 @@ export const amwalWebhook = async (req: Request, res: Response) => {
         data: {
           status: "ACTIVE",
           endDate,
-          amwalSubscriptionId: body.SystemReference,
+          amwalSubscriptionId: systemReference ?? null,
         },
       });
       console.log("[Amwal Webhook] Activated subscription", { id: sub.id, endDate });
@@ -98,8 +96,8 @@ export const amwalWebhook = async (req: Request, res: Response) => {
       });
       console.log("[Amwal Webhook] Marked subscription INCOMPLETE", {
         id: sub.id,
-        responseCode: body.ResponseCode,
-        message: body.Message,
+        responseCode,
+        message,
       });
     }
 
