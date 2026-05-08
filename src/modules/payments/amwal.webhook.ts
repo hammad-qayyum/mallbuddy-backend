@@ -26,10 +26,17 @@ function verifySecureHash(body: Record<string, unknown>): boolean {
   const receivedHash = pickField<string>(body, "SecureHash", "secureHash", "secureHashValue");
   if (!receivedHash) return false;
 
-  const HASH_KEYS = new Set(["SecureHash", "secureHash", "secureHashValue"]);
+  // Fields excluded from the cloud-notification SecureHash:
+  //   - the SecureHash field itself (in any case style)
+  //   - AmountOMR — a display-only convenience field; the canonical signed
+  //     amount is `Amount` (in baisa for OMR)
+  const EXCLUDED_KEYS = new Set([
+    "SecureHash", "secureHash", "secureHashValue",
+    "AmountOMR", "amountOMR",
+  ]);
   const fieldsForHash: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(body)) {
-    if (!HASH_KEYS.has(key)) fieldsForHash[key] = value;
+    if (!EXCLUDED_KEYS.has(key)) fieldsForHash[key] = value;
   }
 
   const expected = generateAmwalHash(fieldsForHash, secret);

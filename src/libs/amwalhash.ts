@@ -25,7 +25,12 @@ function stringifyValue(value: unknown): string {
  */
 export function generateAmwalHash(params: Record<string, unknown>, secureHash: string): string {
   const canonicalString = Object.entries(params)
-    .filter(([key]) => key !== 'SecureHash' && key !== 'secureHashValue')
+    .filter(([key, value]) =>
+      key !== 'SecureHash' &&
+      key !== 'secureHashValue' &&
+      value !== null &&
+      value !== undefined
+    )
     .sort(([leftKey], [rightKey]) => (leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0))
     .map(([key, value]) => `${key}=${stringifyValue(value)}`)
     .join('&');
