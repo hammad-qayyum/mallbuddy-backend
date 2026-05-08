@@ -114,9 +114,27 @@ const html = `<!doctype html>
           if (cls) $('resultOut').className = cls;
         };
 
+        async function confirm(resp) {
+          try {
+            const r = await fetch('/api/payments/amwal/confirm', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ subscriptionId: data.subscriptionId, callback: resp }),
+            });
+            const j = await r.json();
+            append('CONFIRM /api/payments/amwal/confirm', j, j.success ? 'ok' : 'err');
+          } catch (e) {
+            append('CONFIRM ERROR', e.message, 'err');
+          }
+        }
+
         SmartBox.Checkout.configure = {
           ...data.smartbox,
-          completeCallback: (resp) => append('COMPLETE', resp, 'ok'),
+          completeCallback: (resp) => {
+            append('COMPLETE', resp, 'ok');
+            confirm(resp);
+          },
           errorCallback: (resp) => append('ERROR', resp, 'err'),
           cancelCallback: (resp) => append('CANCEL', resp),
         };

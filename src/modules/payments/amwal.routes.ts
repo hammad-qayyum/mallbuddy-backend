@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { initiateAmwalSubscriptionPayment } from "./amwal.controller";
+import { initiateAmwalSubscriptionPayment, confirmAmwalSmartBoxCallback } from "./amwal.controller";
 import { amwalWebhook } from "./amwal.webhook";
 import { verifyAmwalPayment } from "./amwal.verify";
 import { renderAmwalTestPage } from "./amwal.testpage";
@@ -59,6 +59,36 @@ const router = Router();
  *       500: { description: Internal server error }
  */
 router.post("/payments/amwal/initiate", initiateAmwalSubscriptionPayment);
+
+/**
+ * @swagger
+ * /payments/amwal/confirm:
+ *   post:
+ *     summary: Activate a subscription using the SmartBox completeCallback payload
+ *     tags: [Payments]
+ *     description: |
+ *       Frontend-driven activation. Pass the `completeCallback` data the SDK
+ *       fires after a successful card payment along with the subscription id.
+ *       Backend verifies merchantReference + responseCode and flips the
+ *       subscription to ACTIVE. Idempotent.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [subscriptionId, callback]
+ *             properties:
+ *               subscriptionId: { type: string }
+ *               callback:
+ *                 type: object
+ *                 description: The full object passed to SmartBox's completeCallback
+ *     responses:
+ *       200: { description: Subscription activated (or already active) }
+ *       400: { description: Invalid payload or unsuccessful callback }
+ *       404: { description: Subscription not found }
+ */
+router.post("/payments/amwal/confirm", confirmAmwalSmartBoxCallback);
 
 /**
  * @swagger

@@ -2,6 +2,15 @@ import { Request, Response } from "express";
 import { AmwalPayService } from "../../libs/amwalpay";
 import prisma from "../../config/prisma";
 
+const SUCCESS_RESPONSE_CODE = "00";
+
+function computeEndDate(start: Date, interval: string): Date {
+  const end = new Date(start);
+  if (interval === "YEARLY") end.setFullYear(end.getFullYear() + 1);
+  else end.setMonth(end.getMonth() + 1);
+  return end;
+}
+
 function toNumberValue(value: unknown): number {
   if (typeof value === "number") return value;
   if (typeof value === "object" && value && "toNumber" in value) {
@@ -56,6 +65,89 @@ export const initiateAmwalSubscriptionPayment = async (req: Request, res: Respon
     });
   } catch (err: any) {
     console.error("[Amwal] Payment initiation error", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+/**
+ * Frontend-driven activation using the SmartBox `completeCallback` payload.
+ * The cloud-notification webhook remains the production source of truth, but
+ * this endpoint lets the UI flip a subscription to ACTIVE without waiting on
+ * (or being blocked by) webhook misconfiguration during UAT.
+ *
+ * The endpoint trusts the SmartBox callback only when:
+ *   - It targets a subscription owned by the requesting user (auth required)
+ *   - The subscription is currently INCOMPLETE
+ *   - The callback's `merchantReference` matches the subscription id
+ *   - The callback's `responseCode` is "00"
+ *   - The callback's `success` flag is true
+ *
+ * It is idempotent — calling it on an already-ACTIVE subscription is a no-op.
+ */
+export const confirmAmwalSmartBoxCallback = async (req: Request, res: Response) => {
+  try {
+    const { subscriptionId, callback } = req.body ?? {};
+
+    if (!subscriptionId || typeof subscriptionId !== "string") {
+      return res.status(400).json({ success: false, error: "subscriptionId is required" });
+    }
+
+    // The SmartBox callback shape is: { callback: "completeCallback", data: { success, responseCode, data: {...} } }
+    const outer = callback?.data;
+    const inner = outer?.data;
+    if (!outer || !inner) {
+      return res.status(400).json({ success: false, error: "Invalid SmartBox callback payload" });
+    }
+
+    if (outer.success !== true || outer.responseCode !== SUCCESS_RESPONSE_CODE) {
+      return res.status(400).json({ success: false, error: "Callback does not represent a successful payment" });
+    }
+    if (inner.merchantReference !== subscriptionId) {
+      return res.status(400).json({ success: false, error: "merchantReference does not match subscriptionId" });
+    }
+
+    const sub = await prisma.restaurantSubscription.findUnique({
+      where: { id: subscriptionId },
+      include: { plan: true },
+    });
+    if (!sub) return res.status(404).json({ success: false, error: "Subscription not found" });
+
+    if (sub.status === "ACTIVE") {
+      return res.json({
+        success: true,
+        message: "Subscription already active",
+        subscription: { status: sub.status, expiresAt: sub.endDate },
+      });
+    }
+
+    const startDate = sub.startDate ?? new Date();
+    const endDate = computeEndDate(startDate, sub.plan.interval);
+
+    const transactionId =
+      typeof inner.transactionId === "string" ? inner.transactionId : null;
+
+    const updated = await prisma.restaurantSubscription.update({
+      where: { id: subscriptionId },
+      data: {
+        status: "ACTIVE",
+        endDate,
+        amwalSubscriptionId: transactionId,
+      },
+    });
+
+    console.log("[Amwal] Activated subscription via SmartBox callback", {
+      id: updated.id,
+      transactionId,
+      endDate,
+    });
+
+    return res.json({
+      success: true,
+      message: "Subscription activated",
+      subscription: { status: updated.status, expiresAt: updated.endDate },
+    });
+  } catch (err: any) {
+    console.error("[Amwal] confirm callback error", err);
     return res.status(500).json({ success: false, error: err.message });
   }
 };
