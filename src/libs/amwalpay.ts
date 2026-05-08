@@ -20,6 +20,32 @@ const SMARTBOX_SCRIPT_URLS = {
   sit: 'https://test.amwalpg.com:19443/js/SmartBox.js?v=1.1',
 } as const;
 
+export interface PayByTokenResponse {
+  success: boolean;
+  responseCode: string;
+  message: string;
+  data?: {
+    systemTraceNr?: string | null;
+    message?: string;
+    transactionId?: string;
+    isOtpRequired?: boolean;
+    hostResponseData?: {
+      TransactionId?: string;
+      Rrn?: string;
+      TrackId?: string;
+      PaymentId?: string;
+      Auth?: string;
+    };
+    terminalId?: number;
+    merchantId?: number;
+    amount?: number | string;
+    currencyId?: number;
+    customerId?: string | null;
+    customerTokenId?: string | null;
+  } | null;
+  errorList?: string[] | null;
+}
+
 export interface SmartBoxConfigInput {
   amount: number;
   currency: string;
@@ -138,6 +164,69 @@ export class AmwalPayService {
    *   POST {base}/Customer/GetSmartboxDirectCallSessionToken
    *   body: { customerId, merchantId, requestDateTime, secureHashValue }
    */
+  /**
+   * Server-to-server charge against a previously saved card.
+   *
+   * Endpoint: POST {base}/Execute/PayByToken
+   * Spec: "AMWAL Pay - Webhook – Pay by Token v1.0" PDF.
+   * Use this for recurring subscription renewals — no customer interaction.
+   */
+  async executePayByToken(input: {
+    amount: number;
+    currency: string;
+    customerId: string;
+    customerTokenId: string;
+    transactionId: string;
+    clientMail?: string;
+    merchantReference?: string;
+  }): Promise<PayByTokenResponse> {
+    if (!input.customerId || !input.customerTokenId) {
+      throw new Error('customerId and customerTokenId are required');
+    }
+    if (!input.transactionId) {
+      throw new Error('transactionId is required');
+    }
+
+    const currencyCode = CURRENCY_IDS[input.currency.toUpperCase()];
+    if (!currencyCode) {
+      throw new Error(`[AmwalPayService] Unsupported currency: ${input.currency}`);
+    }
+
+    const requestBody: Record<string, unknown> = {
+      amount: input.amount,
+      terminalId: Number(this.tid),
+      merchantId: Number(this.mid),
+      customerId: input.customerId,
+      customerTokenId: input.customerTokenId,
+      requestDateTime: new Date().toISOString(),
+      currencyCode: String(currencyCode),
+      transactionId: input.transactionId,
+    };
+    if (input.clientMail) requestBody.clientMail = input.clientMail;
+    if (input.merchantReference) requestBody.merchantReference = input.merchantReference;
+
+    requestBody.secureHashValue = generateAmwalHash(requestBody, this.secureHash);
+
+    const url = `${AmwalPayService.sessionTokenBaseUrl}/Execute/PayByToken`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody),
+    });
+
+    const text = await response.text();
+    let payload: any;
+    try { payload = JSON.parse(text); } catch { payload = { message: text }; }
+
+    if (!response.ok) {
+      throw new Error(
+        `Amwal PayByToken ${response.status}: ${typeof payload === 'string' ? payload : JSON.stringify(payload)}`
+      );
+    }
+
+    return payload as PayByTokenResponse;
+  }
+
   async acquireSessionToken(customerId: string): Promise<string> {
     if (!customerId || typeof customerId !== 'string') {
       throw new Error('customerId is required');

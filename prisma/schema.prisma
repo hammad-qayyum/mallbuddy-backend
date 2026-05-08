@@ -145,7 +145,8 @@ model UserStatusHistory {
 }
 
 model Restaurant {
-    amwalCustomerId String? @unique
+    amwalCustomerId      String? @unique
+    amwalCustomerTokenId String?
   userId                 String                    @id
   name                   String?
   mainCategory           String?

@@ -3,6 +3,7 @@ import {
   initiateAmwalSubscriptionPayment,
   confirmAmwalSmartBoxCallback,
   acquireAmwalSessionToken,
+  renewAmwalSubscription,
 } from "./amwal.controller";
 import { amwalWebhook } from "./amwal.webhook";
 import { verifyAmwalPayment } from "./amwal.verify";
@@ -130,6 +131,36 @@ router.post("/payments/amwal/confirm", confirmAmwalSmartBoxCallback);
  *       500: { description: Amwal rejected the request }
  */
 router.post("/payments/amwal/session-token", acquireAmwalSessionToken);
+
+/**
+ * @swagger
+ * /payments/amwal/renew:
+ *   post:
+ *     summary: Charge a restaurant's saved card for a subscription plan (recurring renewal)
+ *     tags: [Payments]
+ *     description: |
+ *       Server-to-server charge using the customer's saved `amwalCustomerId` /
+ *       `amwalCustomerTokenId` (populated by `/confirm` when the customer
+ *       ticked "save card" during their first SmartBox payment). Creates a
+ *       new subscription row and activates it on success.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [restaurantId, planId]
+ *             properties:
+ *               restaurantId: { type: string }
+ *               planId: { type: string }
+ *     responses:
+ *       200: { description: Subscription renewed }
+ *       400: { description: Missing IDs or no saved card }
+ *       402: { description: Amwal declined the charge }
+ *       404: { description: Restaurant or plan not found }
+ *       502: { description: Amwal upstream error }
+ */
+router.post("/payments/amwal/renew", renewAmwalSubscription);
 
 /**
  * @swagger

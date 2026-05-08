@@ -38,6 +38,7 @@ const html = `<!doctype html>
     <label>Restaurant ID <input id="restaurantId" value="3cGftA4U57LM7KcjUvisIsiwfZzZFV7l" /></label>
     <label>Plan ID <input id="planId" value="be8f1a43-c53a-49af-9f82-60423e26561b" /></label>
     <button id="payBtn" disabled>Pay with SmartBox</button>
+    <button id="renewBtn" disabled>Renew (Pay-by-Token)</button>
     <pre id="initOut">(not initiated)</pre>
   </fieldset>
 
@@ -74,8 +75,29 @@ const html = `<!doctype html>
         if (!r.ok) throw new Error(data.message || JSON.stringify(data));
         setOut($('loginOut'), 'Logged in: ' + (data.user?.email || 'ok'), 'ok');
         $('payBtn').disabled = false;
+        $('renewBtn').disabled = false;
       } catch (e) {
         setOut($('loginOut'), 'Login failed: ' + e.message, 'err');
+      }
+    };
+
+    $('renewBtn').onclick = async () => {
+      $('renewBtn').disabled = true;
+      setOut($('initOut'), 'Renewing via Pay-by-Token...');
+      $('resultOut').textContent = '(no callback for renewals — server-to-server)';
+      try {
+        const r = await fetch('/api/payments/amwal/renew', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ restaurantId: $('restaurantId').value, planId: $('planId').value }),
+        });
+        const data = await r.json();
+        setOut($('initOut'), JSON.stringify(data, null, 2), data.success ? 'ok' : 'err');
+      } catch (e) {
+        setOut($('initOut'), 'Renew failed: ' + e.message, 'err');
+      } finally {
+        $('renewBtn').disabled = false;
       }
     };
 
