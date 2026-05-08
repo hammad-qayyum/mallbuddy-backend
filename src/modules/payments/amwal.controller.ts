@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { AmwalPayService } from "../../libs/amwalpay";
 import prisma from "../../config/prisma";
+import { renewSubscriptionViaPayByToken } from "./amwal.renewal";
 
 const SUCCESS_RESPONSE_CODE = "00";
 
@@ -187,88 +188,30 @@ export const renewAmwalSubscription = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: "restaurantId and planId are required" });
     }
 
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { userId: restaurantId },
-      include: { user: { select: { email: true } } },
-    });
-    if (!restaurant) return res.status(404).json({ success: false, error: "Restaurant not found" });
+    const outcome = await renewSubscriptionViaPayByToken(restaurantId, planId);
 
-    const customerId = (restaurant as any).amwalCustomerId as string | null | undefined;
-    const customerTokenId = (restaurant as any).amwalCustomerTokenId as string | null | undefined;
-    if (!customerId || !customerTokenId) {
-      return res.status(400).json({
-        success: false,
-        error: "Restaurant has no saved card. Customer must complete a SmartBox payment with 'save card' ticked first.",
-      });
+    switch (outcome.status) {
+      case "renewed":
+        return res.json({
+          success: true,
+          message: "Subscription renewed",
+          subscriptionId: outcome.subscriptionId,
+          subscription: { status: "ACTIVE", expiresAt: outcome.expiresAt },
+          amwal: outcome.amwal,
+        });
+      case "declined":
+        return res.status(402).json({
+          success: false,
+          subscriptionId: outcome.subscriptionId,
+          message: outcome.message,
+          responseCode: outcome.responseCode,
+          errorList: outcome.errorList,
+        });
+      case "skipped":
+        return res.status(400).json({ success: false, error: outcome.reason });
+      case "error":
+        return res.status(502).json({ success: false, subscriptionId: outcome.subscriptionId, error: outcome.error });
     }
-
-    const plan = await prisma.subscriptionPlan.findUnique({ where: { id: planId } });
-    if (!plan) return res.status(404).json({ success: false, error: "Plan not found" });
-
-    const amount = toNumberValue(plan.price);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      return res.status(400).json({ success: false, error: "Invalid subscription plan amount" });
-    }
-
-    const dbSub = await prisma.restaurantSubscription.create({
-      data: { restaurantId, planId, status: "INCOMPLETE", startDate: new Date() },
-    });
-
-    const amwal = new AmwalPayService();
-    let result;
-    try {
-      result = await amwal.executePayByToken({
-        amount,
-        currency: "OMR",
-        customerId,
-        customerTokenId,
-        transactionId: dbSub.id,
-        merchantReference: dbSub.id,
-        ...(restaurant.user?.email ? { clientMail: restaurant.user.email } : {}),
-      });
-    } catch (err: any) {
-      console.error("[Amwal] PayByToken request failed", err);
-      return res.status(502).json({
-        success: false,
-        subscriptionId: dbSub.id,
-        error: err.message,
-      });
-    }
-
-    if (result.success && result.responseCode === SUCCESS_RESPONSE_CODE) {
-      const startDate = dbSub.startDate ?? new Date();
-      const endDate = computeEndDate(startDate, plan.interval);
-      const updated = await prisma.restaurantSubscription.update({
-        where: { id: dbSub.id },
-        data: {
-          status: "ACTIVE",
-          endDate,
-          amwalSubscriptionId: typeof result.data?.transactionId === "string" ? result.data.transactionId : null,
-        },
-      });
-      console.log("[Amwal] Renewal succeeded via Pay-by-Token", { id: updated.id, endDate });
-      return res.json({
-        success: true,
-        message: "Subscription renewed",
-        subscriptionId: updated.id,
-        subscription: { status: updated.status, expiresAt: updated.endDate },
-        amwal: result,
-      });
-    }
-
-    console.warn("[Amwal] PayByToken declined", {
-      id: dbSub.id,
-      responseCode: result.responseCode,
-      message: result.message,
-      errors: result.errorList,
-    });
-    return res.status(402).json({
-      success: false,
-      subscriptionId: dbSub.id,
-      message: result.message,
-      responseCode: result.responseCode,
-      errorList: result.errorList,
-    });
   } catch (err: any) {
     console.error("[Amwal] renew error", err);
     return res.status(500).json({ success: false, error: err.message });
