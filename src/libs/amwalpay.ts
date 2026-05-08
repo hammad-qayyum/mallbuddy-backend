@@ -26,6 +26,12 @@ export interface SmartBoxConfigInput {
   merchantReference: string;
   language?: 'en' | 'ar';
   paymentViewType?: 1 | 2;
+  /**
+   * Returned by `acquireSessionToken(customerId)` after the customer's first
+   * "save card" purchase. When set, SmartBox will show the customer's saved
+   * cards instead of an empty card form.
+   */
+  sessionToken?: string;
 }
 
 /**
@@ -41,6 +47,7 @@ export interface SmartBoxConfig {
   TrxDateTime: string;
   PaymentViewType: 1 | 2;
   LanguageId: 'en' | 'ar';
+  SessionToken: string;
   SecureHash: string;
 }
 
@@ -90,6 +97,7 @@ export class AmwalPayService {
     const trxDateTime = new Date().toISOString();
     const paymentViewType = input.paymentViewType ?? 1;
     const languageId = input.language ?? 'en';
+    const sessionToken = input.sessionToken ?? '';
 
     // Hash field set + names taken verbatim from the Amwal canonical example:
     //   Amount=10&CurrencyId=512&MerchantId=48804&MerchantReference=
@@ -102,7 +110,7 @@ export class AmwalPayService {
       MerchantId: Number(this.mid),
       MerchantReference: input.merchantReference,
       RequestDateTime: trxDateTime,
-      SessionToken: '',
+      SessionToken: sessionToken,
       TerminalId: Number(this.tid),
     };
     const SecureHash = generateAmwalHash(hashInput, this.secureHash);
@@ -116,8 +124,62 @@ export class AmwalPayService {
       TrxDateTime: trxDateTime,
       PaymentViewType: paymentViewType,
       LanguageId: languageId,
+      SessionToken: sessionToken,
       SecureHash,
     };
+  }
+
+  /**
+   * Exchange a customerId (returned by SmartBox `completeCallback` when the
+   * customer ticked "save card") for a session token that lets SmartBox show
+   * the customer's saved cards on subsequent payments.
+   *
+   * Per https://amwalpay.om/developers/smartbox/securehash-calculation/
+   *   POST {base}/Customer/GetSmartboxDirectCallSessionToken
+   *   body: { customerId, merchantId, requestDateTime, secureHashValue }
+   */
+  async acquireSessionToken(customerId: string): Promise<string> {
+    if (!customerId || typeof customerId !== 'string') {
+      throw new Error('customerId is required');
+    }
+
+    const requestBody: Record<string, unknown> = {
+      customerId,
+      merchantId: Number(this.mid),
+      requestDateTime: new Date().toISOString(),
+    };
+    requestBody.secureHashValue = generateAmwalHash(requestBody, this.secureHash);
+
+    const url = `${AmwalPayService.sessionTokenBaseUrl}/Customer/GetSmartboxDirectCallSessionToken`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody),
+    });
+
+    const text = await response.text();
+    let payload: any;
+    try { payload = JSON.parse(text); } catch { payload = text; }
+
+    if (!response.ok) {
+      throw new Error(`Amwal session-token API ${response.status}: ${typeof payload === 'string' ? payload : JSON.stringify(payload)}`);
+    }
+
+    if (!payload?.success || !payload?.data?.sessionToken) {
+      const reason = payload?.message ?? JSON.stringify(payload?.errorList ?? payload);
+      throw new Error(`Amwal session-token API rejected request: ${reason}`);
+    }
+
+    return payload.data.sessionToken as string;
+  }
+
+  private static get sessionTokenBaseUrl(): string {
+    const explicit = process.env.AMWAL_SESSION_TOKEN_API_URL ?? process.env.AMWAL_PAYMENT_LINK_API_URL;
+    if (explicit) return explicit.replace(/\/+$/, '');
+    const apiHost = (process.env.AMWAL_API_URL || '').toLowerCase();
+    return apiHost.includes('test.amwalpg.com')
+      ? 'https://test.amwalpg.com:14443'
+      : 'https://webhook.amwalpg.com';
   }
 
   static get scriptUrl(): string {

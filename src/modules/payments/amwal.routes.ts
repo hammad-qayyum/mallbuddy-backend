@@ -1,5 +1,9 @@
 import { Router } from "express";
-import { initiateAmwalSubscriptionPayment, confirmAmwalSmartBoxCallback } from "./amwal.controller";
+import {
+  initiateAmwalSubscriptionPayment,
+  confirmAmwalSmartBoxCallback,
+  acquireAmwalSessionToken,
+} from "./amwal.controller";
 import { amwalWebhook } from "./amwal.webhook";
 import { verifyAmwalPayment } from "./amwal.verify";
 import { renderAmwalTestPage } from "./amwal.testpage";
@@ -89,6 +93,43 @@ router.post("/payments/amwal/initiate", initiateAmwalSubscriptionPayment);
  *       404: { description: Subscription not found }
  */
 router.post("/payments/amwal/confirm", confirmAmwalSmartBoxCallback);
+
+/**
+ * @swagger
+ * /payments/amwal/session-token:
+ *   post:
+ *     summary: Exchange a stored customerId for a SmartBox session token
+ *     tags: [Payments]
+ *     description: |
+ *       Calls Amwal's `Customer/GetSmartboxDirectCallSessionToken` and returns
+ *       the resulting sessionToken. The frontend then passes that token into
+ *       `SmartBox.Checkout.configure({ ..., SessionToken })` so the customer's
+ *       saved cards appear on the SmartBox popup. The `customerId` itself is
+ *       what SmartBox returned in `completeCallback.data.data.customerId` on
+ *       the customer's first save-card payment.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [customerId]
+ *             properties:
+ *               customerId: { type: string, description: SmartBox customerId from a previous save-card transaction }
+ *     responses:
+ *       200:
+ *         description: Session token issued
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 sessionToken: { type: string }
+ *       400: { description: customerId missing }
+ *       500: { description: Amwal rejected the request }
+ */
+router.post("/payments/amwal/session-token", acquireAmwalSessionToken);
 
 /**
  * @swagger

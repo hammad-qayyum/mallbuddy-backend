@@ -22,10 +22,12 @@ function toNumberValue(value: unknown): number {
 
 // Build a signed SmartBox checkout config for a restaurant subscription.
 // The frontend feeds the returned `smartbox` object directly to
-// `SmartBox.Checkout.configure({...})`.
+// `SmartBox.Checkout.configure({...})`. If a `customerId` from a previous
+// save-card transaction is supplied, the backend exchanges it for a session
+// token so SmartBox shows the customer's saved cards.
 export const initiateAmwalSubscriptionPayment = async (req: Request, res: Response) => {
   try {
-    const { restaurantId, planId } = req.body;
+    const { restaurantId, planId, customerId } = req.body;
     if (!restaurantId || !planId) {
       return res.status(400).json({ success: false, error: "restaurantId and planId are required" });
     }
@@ -51,11 +53,17 @@ export const initiateAmwalSubscriptionPayment = async (req: Request, res: Respon
     });
 
     const amwal = new AmwalPayService();
-    const smartbox = amwal.buildSmartBoxConfig({
+
+    const smartboxInput: Parameters<AmwalPayService["buildSmartBoxConfig"]>[0] = {
       amount,
       currency: "OMR",
       merchantReference: dbSub.id,
-    });
+    };
+    if (typeof customerId === "string" && customerId.length > 0) {
+      smartboxInput.sessionToken = await amwal.acquireSessionToken(customerId);
+    }
+
+    const smartbox = amwal.buildSmartBoxConfig(smartboxInput);
 
     return res.json({
       success: true,
@@ -148,6 +156,29 @@ export const confirmAmwalSmartBoxCallback = async (req: Request, res: Response) 
     });
   } catch (err: any) {
     console.error("[Amwal] confirm callback error", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+/**
+ * Exchange a stored `customerId` (from the customer's first SmartBox payment
+ * when "save card" was ticked) for a SmartBox session token. The frontend
+ * then passes that token into `SmartBox.Checkout.configure` so the customer
+ * sees their saved cards on the next payment.
+ */
+export const acquireAmwalSessionToken = async (req: Request, res: Response) => {
+  try {
+    const { customerId } = req.body ?? {};
+    if (!customerId || typeof customerId !== "string") {
+      return res.status(400).json({ success: false, error: "customerId is required" });
+    }
+
+    const amwal = new AmwalPayService();
+    const sessionToken = await amwal.acquireSessionToken(customerId);
+
+    return res.json({ success: true, sessionToken });
+  } catch (err: any) {
+    console.error("[Amwal] session-token error", err);
     return res.status(500).json({ success: false, error: err.message });
   }
 };
