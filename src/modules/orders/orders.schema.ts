@@ -1,8 +1,11 @@
 import { z } from "zod";
 
+// IDOR fix: every endpoint that previously took `userId` from the body/query
+// now derives it from the authenticated session in the controller. Schemas
+// no longer accept `userId` from the client — passing it has no effect.
+
 // Schema for getting user's orders with filters
 export const getUserOrdersSchema = z.object({
-  userId: z.string().min(1, "User ID is required"),
   status: z
     .enum(["PENDING", "ACCEPTED", "PREPARING", "READY", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED"])
     .optional(),
@@ -12,14 +15,12 @@ export const getUserOrdersSchema = z.object({
 
 // Schema for getting active orders (excludes DELIVERED and CANCELLED)
 export const getActiveOrdersSchema = z.object({
-  userId: z.string().min(1, "User ID is required"),
   limit: z.number().int().positive().default(10),
   offset: z.number().int().nonnegative().default(0),
 });
 
 // Schema for getting past orders (DELIVERED or CANCELLED)
 export const getPastOrdersSchema = z.object({
-  userId: z.string().min(1, "User ID is required"),
   limit: z.number().int().positive().default(10),
   offset: z.number().int().nonnegative().default(0),
 });
@@ -27,20 +28,16 @@ export const getPastOrdersSchema = z.object({
 // Schema for cancelling an order with reason
 export const cancelOrderSchema = z.object({
   orderId: z.string().min(1, "Order ID is required").uuid("Invalid order ID"),
-  userId: z.string().min(1, "User ID is required"),
   reason: z.string().min(3, "Cancellation reason must be at least 3 characters").max(500, "Reason cannot exceed 500 characters"),
 });
 
 // Schema for reordering items from a past order
 export const reorderSchema = z.object({
   orderId: z.string().min(1, "Order ID is required").uuid("Invalid order ID"),
-  userId: z.string().min(1, "User ID is required"),
 });
 
 // Schema for order cancellation reasons lookup
-export const cancellationReasonsSchema = z.object({
-  userId: z.string().min(1, "User ID is required"),
-});
+export const cancellationReasonsSchema = z.object({});
 
 // Schema for getting order details
 export const getOrderDetailsSchema = z.object({

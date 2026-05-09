@@ -10,19 +10,31 @@ import {
   getOrderSummarySchema,
   getAcceptedOrdersSchema,
 } from "./orders.schema";
+import { getAuthUserId, getAuthRole } from "../common/utils";
+
+function requireAuthUserId(req: Request, res: Response): string | null {
+  const userId = getAuthUserId(req);
+  if (!userId) {
+    res.status(401).json({ message: "Unauthorized" });
+    return null;
+  }
+  return userId;
+}
 
 export const ordersController = {
   /**
-   * GET /orders/list - Get all orders for user with optional filtering
+   * GET /orders/list - Get all orders for the authenticated user
    */
   async getUserOrders(req: Request, res: Response) {
     try {
-      const userId = (req.query.userId ?? req.body?.userId) as string | undefined;
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
+
       const status = (req.query.status ?? req.body?.status) as string | undefined;
       const limit = Number.parseInt((req.query.limit ?? "10") as string);
       const offset = Number.parseInt((req.query.offset ?? "0") as string);
 
-      const parseResult = getUserOrdersSchema.safeParse({ userId, status, limit, offset });
+      const parseResult = getUserOrdersSchema.safeParse({ status, limit, offset });
       if (!parseResult.success) {
         return res.status(400).json({
           message: "Invalid request parameters",
@@ -30,7 +42,7 @@ export const ordersController = {
         });
       }
 
-      const orders = await ordersService.getUserOrders(parseResult.data.userId, status, limit, offset);
+      const orders = await ordersService.getUserOrders(userId, status, limit, offset);
 
       return res.json({
         message: "Orders retrieved successfully",
@@ -42,15 +54,17 @@ export const ordersController = {
   },
 
   /**
-   * GET /orders/active - Get active orders (in progress)
+   * GET /orders/active - Get active orders (in progress) for the authenticated user
    */
   async getActiveOrders(req: Request, res: Response) {
     try {
-      const userId = (req.query.userId ?? req.body?.userId) as string | undefined;
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
+
       const limit = Number.parseInt((req.query.limit ?? "10") as string);
       const offset = Number.parseInt((req.query.offset ?? "0") as string);
 
-      const parseResult = getActiveOrdersSchema.safeParse({ userId, limit, offset });
+      const parseResult = getActiveOrdersSchema.safeParse({ limit, offset });
       if (!parseResult.success) {
         return res.status(400).json({
           message: "Invalid request parameters",
@@ -58,7 +72,7 @@ export const ordersController = {
         });
       }
 
-      const orders = await ordersService.getActiveOrders(parseResult.data.userId, limit, offset);
+      const orders = await ordersService.getActiveOrders(userId, limit, offset);
 
       return res.json({
         message: "Active orders retrieved successfully",
@@ -70,15 +84,17 @@ export const ordersController = {
   },
 
   /**
-   * GET /orders/past - Get past orders (completed or cancelled)
+   * GET /orders/past - Get past orders (completed or cancelled) for the authenticated user
    */
   async getPastOrders(req: Request, res: Response) {
     try {
-      const userId = (req.query.userId ?? req.body?.userId) as string | undefined;
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
+
       const limit = Number.parseInt((req.query.limit ?? "10") as string);
       const offset = Number.parseInt((req.query.offset ?? "0") as string);
 
-      const parseResult = getPastOrdersSchema.safeParse({ userId, limit, offset });
+      const parseResult = getPastOrdersSchema.safeParse({ limit, offset });
       if (!parseResult.success) {
         return res.status(400).json({
           message: "Invalid request parameters",
@@ -86,7 +102,7 @@ export const ordersController = {
         });
       }
 
-      const orders = await ordersService.getPastOrders(parseResult.data.userId, limit, offset);
+      const orders = await ordersService.getPastOrders(userId, limit, offset);
 
       return res.json({
         message: "Past orders retrieved successfully",
@@ -98,10 +114,13 @@ export const ordersController = {
   },
 
   /**
-   * POST /orders/cancel - Cancel an order with reason
+   * POST /orders/cancel - Cancel an order with reason (authenticated user only)
    */
   async cancelOrder(req: Request, res: Response) {
     try {
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
+
       const parseResult = cancelOrderSchema.safeParse(req.body);
       if (!parseResult.success) {
         return res.status(400).json({
@@ -110,7 +129,7 @@ export const ordersController = {
         });
       }
 
-      const result = await ordersService.cancelOrder(parseResult.data);
+      const result = await ordersService.cancelOrder(parseResult.data, userId);
 
       return res.json({
         message: result.message,
@@ -128,10 +147,13 @@ export const ordersController = {
   },
 
   /**
-   * POST /orders/reorder - Reorder items from a past order
+   * POST /orders/reorder - Reorder items from a past order (authenticated user only)
    */
   async reorder(req: Request, res: Response) {
     try {
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
+
       const parseResult = reorderSchema.safeParse(req.body);
       if (!parseResult.success) {
         return res.status(400).json({
@@ -140,7 +162,7 @@ export const ordersController = {
         });
       }
 
-      const result = await ordersService.reorderFromPastOrder(parseResult.data);
+      const result = await ordersService.reorderFromPastOrder(parseResult.data, userId);
 
       return res.status(201).json({
         message: "Items added to cart successfully",
@@ -178,11 +200,12 @@ export const ordersController = {
    */
   async getOrderForReorder(req: Request, res: Response) {
     try {
-      const { orderId } = req.params;
-      const userId = (req.query.userId ?? req.body?.userId) as string | undefined;
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
 
-      if (!userId || !orderId) {
-        return res.status(400).json({ message: "User ID and Order ID are required" });
+      const { orderId } = req.params;
+      if (!orderId) {
+        return res.status(400).json({ message: "Order ID is required" });
       }
 
       const order = await ordersService.getOrderForReorder(orderId, userId);
@@ -204,9 +227,14 @@ export const ordersController = {
 
   /**
    * GET /orders/:orderId - Get detailed order information
+   * Allowed: order owner (USER), receiving restaurant (RESTAURANT), or ADMIN.
    */
   async getOrderDetails(req: Request, res: Response) {
     try {
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
+      const role = getAuthRole(req) ?? "";
+
       const { orderId } = req.params;
 
       const parseResult = getOrderDetailsSchema.safeParse({ orderId });
@@ -217,7 +245,7 @@ export const ordersController = {
         });
       }
 
-      const orderDetails = await ordersService.getOrderDetails(parseResult.data.orderId);
+      const orderDetails = await ordersService.getOrderDetails(parseResult.data.orderId, { id: userId, role });
       return res.json(orderDetails);
     } catch (error: any) {
       if (error.message.includes("not found")) {
@@ -229,9 +257,14 @@ export const ordersController = {
 
   /**
    * GET /orders/:orderId/summary - Get quick order summary
+   * Same access rule as getOrderDetails.
    */
   async getOrderSummary(req: Request, res: Response) {
     try {
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
+      const role = getAuthRole(req) ?? "";
+
       const { orderId } = req.params;
 
       const parseResult = getOrderSummarySchema.safeParse({ orderId });
@@ -242,7 +275,7 @@ export const ordersController = {
         });
       }
 
-      const summary = await ordersService.getOrderSummary(parseResult.data.orderId);
+      const summary = await ordersService.getOrderSummary(parseResult.data.orderId, { id: userId, role });
       return res.json(summary);
     } catch (error: any) {
       if (error.message.includes("not found")) {
@@ -254,12 +287,22 @@ export const ordersController = {
 
   /**
    * GET /orders/restaurant/:restaurantId/accepted - Get accepted orders (order queue)
+   * Restricted to the owning restaurant or ADMIN.
    */
   async getAcceptedOrders(req: Request, res: Response) {
     try {
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
+      const role = getAuthRole(req) ?? "";
+
       const { restaurantId } = req.params;
       const limit = Number.parseInt((req.query.limit ?? "50") as string);
       const offset = Number.parseInt((req.query.offset ?? "0") as string);
+
+      // Only the restaurant itself or an ADMIN can see its order queue
+      if (role !== "ADMIN" && userId !== restaurantId) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
 
       const parseResult = getAcceptedOrdersSchema.safeParse({
         restaurantId,

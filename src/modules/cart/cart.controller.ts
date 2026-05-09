@@ -3,18 +3,24 @@ import { cartService } from "./cart.service";
 import {
   addToCartSchema,
   updateCartItemSchema,
-  removeFromCartSchema,
 } from "./cart.schema";
+import { getAuthUserId } from "../common/utils";
+
+function requireAuthUserId(req: Request, res: Response): string | null {
+  const userId = getAuthUserId(req);
+  if (!userId) {
+    res.status(401).json({ message: "Unauthorized" });
+    return null;
+  }
+  return userId;
+}
 
 export const cartController = {
-  // GET /cart - Get user's cart
+  // GET /cart - Get the authenticated user's cart
   async getCart(req: Request, res: Response) {
     try {
-      const userId = (req.query.userId ?? req.body?.userId) as string | undefined;
-
-      if (!userId) {
-        return res.status(400).json({ message: "User ID is required" });
-      }
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
 
       const cart = await cartService.getCart(userId);
       return res.json(cart);
@@ -23,16 +29,13 @@ export const cartController = {
     }
   },
 
-  // POST /cart/add - Add item to cart
+  // POST /cart/add - Add item to cart (always to the authenticated user's cart)
   async addToCart(req: Request, res: Response) {
     try {
-      // Merge userId from query into body if not present in body
-      const requestBody = {
-        ...req.body,
-        userId: req.body.userId || req.query.userId,
-      };
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
 
-      const parseResult = addToCartSchema.safeParse(requestBody);
+      const parseResult = addToCartSchema.safeParse(req.body);
       if (!parseResult.success) {
         return res.status(400).json({
           message: "Invalid request body",
@@ -40,8 +43,7 @@ export const cartController = {
         });
       }
 
-      const { userId, ...cartData } = parseResult.data;
-      const cartItem = await cartService.addToCart(userId, cartData);
+      const cartItem = await cartService.addToCart(userId, parseResult.data);
       return res.status(201).json(cartItem);
     } catch (error: any) {
       if (error.message.includes("not found")) {
@@ -54,13 +56,10 @@ export const cartController = {
   // PUT /cart/items/:cartItemId - Update cart item
   async updateCartItem(req: Request, res: Response) {
     try {
-      const userId = (req.query.userId ?? req.body?.userId) as string | undefined;
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
+
       const { cartItemId } = req.params;
-
-      if (!userId) {
-        return res.status(400).json({ message: "User ID is required" });
-      }
-
       if (!cartItemId) {
         return res.status(400).json({ message: "Cart item ID is required" });
       }
@@ -90,13 +89,10 @@ export const cartController = {
   // DELETE /cart/items/:cartItemId - Remove item from cart
   async removeFromCart(req: Request, res: Response) {
     try {
-      const userId = (req.query.userId ?? req.body?.userId) as string | undefined;
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
+
       const { cartItemId } = req.params;
-
-      if (!userId) {
-        return res.status(400).json({ message: "User ID is required" });
-      }
-
       if (!cartItemId) {
         return res.status(400).json({ message: "Cart item ID is required" });
       }
@@ -114,11 +110,8 @@ export const cartController = {
   // DELETE /cart - Clear entire cart
   async clearCart(req: Request, res: Response) {
     try {
-      const userId = (req.query.userId ?? req.body?.userId) as string | undefined;
-
-      if (!userId) {
-        return res.status(400).json({ message: "User ID is required" });
-      }
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
 
       const result = await cartService.clearCart(userId);
       return res.json(result);
@@ -130,14 +123,11 @@ export const cartController = {
     }
   },
 
-  // GET /cart/summary - Get cart summary (total price, items by restaurant)
+  // GET /cart/summary - Get cart summary
   async getCartSummary(req: Request, res: Response) {
     try {
-      const userId = (req.query.userId ?? req.body?.userId) as string | undefined;
-
-      if (!userId) {
-        return res.status(400).json({ message: "User ID is required" });
-      }
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
 
       const summary = await cartService.getCartSummary(userId);
       return res.json(summary);

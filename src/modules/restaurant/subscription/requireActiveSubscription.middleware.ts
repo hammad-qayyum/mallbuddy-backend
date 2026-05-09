@@ -1,31 +1,36 @@
 import { Request, Response, NextFunction } from "express";
 import { isSubscriptionActive } from "./subscription.service";
-
-// Extend Express Request type for user property if needed
-interface AuthRequest extends Request {
-  user?: { id?: string };
-}
+import { getAuthUserId, getAuthRole } from "../../common/utils";
 
 /**
- * Middleware to enforce that a restaurant has an active, paid subscription.
- * Blocks access if the subscription is not active or expired.
- * Assumes req.user.id is the restaurant's userId (adjust as needed for your auth system).
+ * Enforce that the requesting restaurant has an active, paid subscription.
+ *
+ * Reads `restaurantId` from the authenticated session (which is the User.id —
+ * for users with role RESTAURANT, that's also their restaurant id). ADMINs
+ * bypass the gate so they can fix or operate on inactive restaurants.
+ *
+ * Returns 402 (Payment Required) when the subscription is missing or expired.
  */
-export async function requireActiveSubscription(req: AuthRequest, res: Response, next: NextFunction) {
+export async function requireActiveSubscription(req: Request, res: Response, next: NextFunction) {
   try {
-    // You may need to adjust this depending on your auth implementation
-    const restaurantId = req.user?.id || req.body.restaurantId || req.params.restaurantId;
+    const role = getAuthRole(req);
+
+    // Admins are unaffected — they need to be able to fix things.
+    if (role === "ADMIN") return next();
+
+    const restaurantId = getAuthUserId(req);
     if (!restaurantId) {
       return res.status(401).json({
         success: false,
-        error: "Restaurant ID not found in request."
+        error: "Unauthorized",
       });
     }
+
     const active = await isSubscriptionActive(restaurantId);
     if (!active) {
       return res.status(402).json({
         success: false,
-        error: "Subscription inactive or payment required. Please renew your subscription."
+        error: "Subscription inactive or payment required. Please renew your subscription.",
       });
     }
     next();
@@ -33,7 +38,7 @@ export async function requireActiveSubscription(req: AuthRequest, res: Response,
     console.error("[Subscription Middleware] Error:", err);
     res.status(500).json({
       success: false,
-      error: err.message || "Failed to verify subscription status."
+      error: "Failed to verify subscription status.",
     });
   }
 }

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { menuCategoryController } from "./menu.controller";
 import { uploadMenuItemImage } from "../../config/upload";
 import { requireAuth, requireRestaurantRole } from "../../middlewares/role.middleware";
+import { requireActiveSubscription } from "../restaurant/subscription/requireActiveSubscription.middleware";
 
 const router = Router();
 
@@ -63,7 +64,7 @@ const router = Router();
  *               $ref: '#/components/schemas/ValidationError'
  */
 // Menu management routes - require restaurant role (GET routes are public)
-router.post("/menu/create-category", requireAuth, requireRestaurantRole, menuCategoryController.createCategory);
+router.post("/menu/create-category", requireAuth, requireRestaurantRole, requireActiveSubscription, menuCategoryController.createCategory);
 
 /**
  * @swagger
@@ -187,7 +188,7 @@ router.get("/menu/get-all/:restaurantId", menuCategoryController.getCategoriesBy
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.patch("/menu/update-category/:id", requireAuth, requireRestaurantRole, menuCategoryController.updateCategory);
+router.patch("/menu/update-category/:id", requireAuth, requireRestaurantRole, requireActiveSubscription, menuCategoryController.updateCategory);
 
 /**
  * @swagger
@@ -222,7 +223,7 @@ router.patch("/menu/update-category/:id", requireAuth, requireRestaurantRole, me
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.delete("/menu/delete-category/:id", requireAuth, requireRestaurantRole, menuCategoryController.deleteCategory);
+router.delete("/menu/delete-category/:id", requireAuth, requireRestaurantRole, requireActiveSubscription, menuCategoryController.deleteCategory);
 
 /**
  * @swagger
@@ -331,7 +332,7 @@ router.delete("/menu/delete-category/:id", requireAuth, requireRestaurantRole, m
  *             schema:
  *               $ref: '#/components/schemas/ValidationError'
  */
-router.post("/menu/create-item", requireAuth, requireRestaurantRole, uploadMenuItemImage.single("image"), menuCategoryController.createItem);
+router.post("/menu/create-item", requireAuth, requireRestaurantRole, requireActiveSubscription, uploadMenuItemImage.single("image"), menuCategoryController.createItem);
 
 /**
  * @swagger
@@ -499,7 +500,7 @@ router.get("/menu/get-item/:id", menuCategoryController.getItemById);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.patch("/menu/update-item/:id", requireAuth, requireRestaurantRole, uploadMenuItemImage.single("image"), menuCategoryController.updateItem);
+router.patch("/menu/update-item/:id", requireAuth, requireRestaurantRole, requireActiveSubscription, uploadMenuItemImage.single("image"), menuCategoryController.updateItem);
 
 /**
  * @swagger
@@ -534,6 +535,6 @@ router.patch("/menu/update-item/:id", requireAuth, requireRestaurantRole, upload
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.delete("/menu/delete-item/:id", requireAuth, requireRestaurantRole, menuCategoryController.deleteItem);
+router.delete("/menu/delete-item/:id", requireAuth, requireRestaurantRole, requireActiveSubscription, menuCategoryController.deleteItem);
 
 export default router;

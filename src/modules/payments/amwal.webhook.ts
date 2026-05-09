@@ -53,6 +53,25 @@ function computeEndDate(start: Date, interval: string): Date {
   return end;
 }
 
+function decimalToNumber(value: unknown): number {
+  if (typeof value === "number") return value;
+  if (typeof value === "object" && value && "toNumber" in value) {
+    return (value as { toNumber: () => number }).toNumber();
+  }
+  return Number(value);
+}
+
+// Amwal sends `Amount` in baisa (1 OMR = 1000 baisa). Plan price in DB is in
+// OMR (Decimal). Compare expected baisa to received baisa with a tiny
+// tolerance for floating-point rounding.
+function amountMatchesPlan(receivedAmount: unknown, planPriceOMR: unknown, currencyId: unknown): boolean {
+  const received = Number(receivedAmount);
+  const expectedBaisa = Math.round(decimalToNumber(planPriceOMR) * 1000);
+  if (!Number.isFinite(received)) return false;
+  if (Number(currencyId) !== 512) return false; // only OMR plans for now
+  return Math.abs(received - expectedBaisa) < 0.01;
+}
+
 export const amwalWebhook = async (req: Request, res: Response) => {
   try {
     const body = req.body as Record<string, unknown>;
@@ -85,6 +104,20 @@ export const amwalWebhook = async (req: Request, res: Response) => {
     const isSuccess = responseCode === SUCCESS_RESPONSE_CODE;
 
     if (isSuccess) {
+      // C10 — verify the amount matches the plan price before activating.
+      // Defends against misrouted notifications / future Amwal misconfig.
+      const receivedAmount = pickField(body, "Amount", "amount");
+      const receivedCurrency = pickField(body, "CurrencyId", "currencyId");
+      if (!amountMatchesPlan(receivedAmount, sub.plan.price, receivedCurrency)) {
+        console.error("[Amwal Webhook] Amount mismatch — refusing to activate", {
+          id: sub.id,
+          received: receivedAmount,
+          receivedCurrency,
+          expectedOMR: sub.plan.price,
+        });
+        return res.status(200).json({ message: "amount mismatch", success: false });
+      }
+
       const startDate = sub.startDate ?? new Date();
       const endDate = computeEndDate(startDate, sub.plan.interval);
       await prisma.restaurantSubscription.update({
@@ -97,15 +130,25 @@ export const amwalWebhook = async (req: Request, res: Response) => {
       });
       console.log("[Amwal Webhook] Activated subscription", { id: sub.id, endDate });
     } else {
-      await prisma.restaurantSubscription.update({
-        where: { id: sub.id },
-        data: { status: "INCOMPLETE" },
-      });
-      console.log("[Amwal Webhook] Marked subscription INCOMPLETE", {
-        id: sub.id,
-        responseCode,
-        message,
-      });
+      // C9 — never downgrade an ACTIVE subscription. A duplicate/late failure
+      // notification for an earlier attempt should not revoke a paying customer.
+      if (sub.status === "ACTIVE") {
+        console.warn("[Amwal Webhook] Ignoring failure notification for ACTIVE subscription", {
+          id: sub.id,
+          responseCode,
+          message,
+        });
+      } else {
+        await prisma.restaurantSubscription.update({
+          where: { id: sub.id },
+          data: { status: "INCOMPLETE" },
+        });
+        console.log("[Amwal Webhook] Marked subscription INCOMPLETE", {
+          id: sub.id,
+          responseCode,
+          message,
+        });
+      }
     }
 
     return res.status(200).json(AMWAL_RESPONSE_BODY);

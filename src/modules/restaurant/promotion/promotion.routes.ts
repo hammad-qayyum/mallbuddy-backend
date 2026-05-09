@@ -2,6 +2,7 @@ import { Router } from "express";
 import { promotionController } from "./promotion.controller";
 import { uploadPromotionBanner } from "../../../config/upload";
 import { requireAuth, requireRestaurantRole, requireRestaurantOwnership } from "../../../middlewares/role.middleware";
+import { requireActiveSubscription } from "../subscription/requireActiveSubscription.middleware";
 
 const router = Router();
 
@@ -116,6 +117,7 @@ router.post(
   requireAuth,
   requireRestaurantRole,
   requireRestaurantOwnership,
+  requireActiveSubscription,
   uploadPromotionBanner.single("banner"),
   promotionController.createPromotion
 );
@@ -349,6 +351,7 @@ router.put(
   "/promotions/:id",
   requireAuth,
   requireRestaurantRole,
+  requireActiveSubscription,
   uploadPromotionBanner.single("banner"),
   promotionController.updatePromotion
 );
@@ -380,7 +383,7 @@ router.put(
  *       500:
  *         description: Internal server error
  */
-router.delete("/promotions/:id", requireAuth, requireRestaurantRole, promotionController.deletePromotion);
+router.delete("/promotions/:id", requireAuth, requireRestaurantRole, requireActiveSubscription, promotionController.deletePromotion);
 
 export default router;
 

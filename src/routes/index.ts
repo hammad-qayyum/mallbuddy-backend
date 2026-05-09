@@ -66,11 +66,13 @@ router.use((req, res, next) => {
     originalUrl.includes("/auth/restaurant/signup") ||
     originalUrl.includes("/auth/better-auth");
 
-  // Keep Amwal payment endpoints publicly reachable for gateway callbacks and
-  // backend-only payment testing (initiate/return/verify/webhook).
+  // Only the cloud-notification webhook is server-to-server (Amwal's backend
+  // posts here, hash-verified). Every other Amwal endpoint is user-driven
+  // (initiate/confirm/renew/session-token/verify) or dev-only (test-page) —
+  // those go through requireAuth.
   const isPublicAmwalRoute =
-    path.startsWith("/payments/amwal") ||
-    originalUrl.includes("/payments/amwal");
+    path === "/payments/amwal/webhook" ||
+    originalUrl.endsWith("/payments/amwal/webhook");
   
   if (isAuthRoute || isPublicAmwalRoute) {
     return next();

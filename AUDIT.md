@@ -322,16 +322,16 @@ Fine technically. Consider switching to `Asia/Muscat` so logs read naturally and
 
 | # | Severity | Module | Title | File | Status |
 |---|---|---|---|---|---|
-| C1 | 🔴 Critical | orders, cart, checkout, delivery-address | Pervasive IDOR — client-supplied userId | multiple | Pending |
-| C2 | 🔴 Critical | menu | No ownership check on category/item CRUD | [menu.controller.ts](src/modules/menu/menu.controller.ts) | Pending |
-| C3 | 🔴 Critical | auth | OTP brute-force possible (no rate limit + Math.random) | [auth.routes.ts](src/modules/auth/auth.routes.ts) [otp.service.ts](src/modules/auth/otp.service.ts) | Pending |
-| C4 | 🔴 Critical | subscription | `requireActiveSubscription` middleware never applied | [requireActiveSubscription.middleware.ts](src/modules/restaurant/subscription/requireActiveSubscription.middleware.ts) | Pending |
-| C5 | 🔴 Critical | auth | Login has no rate limit | [auth.routes.ts:708](src/modules/auth/auth.routes.ts#L708) | Pending |
-| C6 | 🔴 Critical | notifications | `register-token` reads `req.user` instead of `req.auth.user` (broken) | [notification.controller.ts:32](src/modules/notifications/notification.controller.ts#L32) | Pending |
-| C7 | 🔴 Critical | payments | Every Amwal endpoint unauthenticated | [routes/index.ts:69](src/routes/index.ts#L69) | Pending |
-| C8 | 🔴 Critical | payments | Test page public in production with creds | [amwal.testpage.ts](src/modules/payments/amwal.testpage.ts) | Pending |
-| C9 | 🔴 Critical | payments | Webhook downgrades ACTIVE→INCOMPLETE | [amwal.webhook.ts:99](src/modules/payments/amwal.webhook.ts#L99) | Pending |
-| C10 | 🔴 Critical | payments | Webhook doesn't validate amount | [amwal.webhook.ts:85](src/modules/payments/amwal.webhook.ts#L85) | Pending |
+| C1 | 🔴 Critical | orders, cart, checkout, delivery-address | Pervasive IDOR — client-supplied userId | multiple | ✅ **Done** |
+| C2 | 🔴 Critical | menu | No ownership check on category/item CRUD | [menu.controller.ts](src/modules/menu/menu.controller.ts) | ✅ **Done** |
+| C3 | 🔴 Critical | auth | OTP brute-force possible (no rate limit + Math.random) | [auth.routes.ts](src/modules/auth/auth.routes.ts) [otp.service.ts](src/modules/auth/otp.service.ts) | ✅ **Done** |
+| C4 | 🔴 Critical | subscription | `requireActiveSubscription` middleware never applied | [requireActiveSubscription.middleware.ts](src/modules/restaurant/subscription/requireActiveSubscription.middleware.ts) | ✅ **Done** |
+| C5 | 🔴 Critical | auth | Login has no rate limit | [auth.routes.ts:708](src/modules/auth/auth.routes.ts#L708) | ✅ **Done** |
+| C6 | 🔴 Critical | notifications | `register-token` reads `req.user` instead of `req.auth.user` (broken) | [notification.controller.ts:32](src/modules/notifications/notification.controller.ts#L32) | ✅ **Done** |
+| C7 | 🔴 Critical | payments | Every Amwal endpoint unauthenticated | [routes/index.ts:69](src/routes/index.ts#L69) | ✅ **Done** |
+| C8 | 🔴 Critical | payments | Test page public in production with creds | [amwal.testpage.ts](src/modules/payments/amwal.testpage.ts) | ✅ **Done** |
+| C9 | 🔴 Critical | payments | Webhook downgrades ACTIVE→INCOMPLETE | [amwal.webhook.ts:99](src/modules/payments/amwal.webhook.ts#L99) | ✅ **Done** |
+| C10 | 🔴 Critical | payments | Webhook doesn't validate amount | [amwal.webhook.ts:85](src/modules/payments/amwal.webhook.ts#L85) | ✅ **Done** |
 | I1 | 🟠 Important | subscription | Duplicate Amwal webhook handler (dead/dangerous) | [subscriptionWebhook.ts](src/modules/restaurant/subscription/subscriptionWebhook.ts) | Pending |
 | I2 | 🟠 Important | uploads | File filter only checks MIME type, not content | [config/upload.ts:40](src/config/upload.ts#L40) | Pending |
 | I3 | 🟠 Important | auth | OTP value logged in plaintext | [otp-communication.service.ts:25](src/modules/auth/otp-communication.service.ts#L25) | Pending |
@@ -339,7 +339,7 @@ Fine technically. Consider switching to `Asia/Muscat` so logs read naturally and
 | I5 | 🟠 Important | payments | No timeout on Amwal HTTP calls | [amwalpay.ts:211,243](src/libs/amwalpay.ts#L211) | Pending |
 | I6 | 🟠 Important | payments | Webhook returns 200 on hash failure | [amwal.webhook.ts:67](src/modules/payments/amwal.webhook.ts#L67) | Pending |
 | I7 | 🟠 Important | payments | Failed renewal creates orphan rows | [amwal.renewal.ts:60](src/modules/payments/amwal.renewal.ts#L60) | Pending |
-| I8 | 🟠 Important | orders | `cancelOrder` ownership check uses client `userId` | [orders.service.ts:237](src/modules/orders/orders.service.ts#L237) | Pending |
+| I8 | 🟠 Important | orders | `cancelOrder` ownership check uses client `userId` | [orders.service.ts:237](src/modules/orders/orders.service.ts#L237) | ✅ **Done** (covered by C1) |
 | I9 | 🟠 Important | payments | Webhook + `/confirm` race on `amwalSubscriptionId` | [amwal.controller.ts:147](src/modules/payments/amwal.controller.ts#L147) | Pending |
 | I10 | 🟠 Important | schema | `commissionRate` is Float | [schema.prisma:168](prisma/schema.prisma#L168) | Pending |
 | I11 | 🟠 Important | global | List endpoints have no max-limit clamp | [orders.controller.ts:22](src/modules/orders/orders.controller.ts#L22) | Pending |
@@ -358,7 +358,7 @@ Fine technically. Consider switching to `Asia/Muscat` so logs read naturally and
 | N11 | 🟡 Notable | schema | Possible case-insensitive email lookup not indexed | [schema.prisma:14](prisma/schema.prisma#L14) | Pending |
 | N12 | 🟡 Notable | payments | Renewal cron timezone defaults to UTC | [amwal.cron.ts](src/modules/payments/amwal.cron.ts) | Pending |
 | N13 | 🟡 Notable | auth | `requireRole` debug logging exposes user object | [role.middleware.ts:51](src/middlewares/role.middleware.ts#L51) | Pending |
-| N14 | 🟡 Notable | notifications | `register-token` log leaks userId | [notification.controller.ts:57](src/modules/notifications/notification.controller.ts#L57) | Pending |
+| N14 | 🟡 Notable | notifications | `register-token` log leaks userId | [notification.controller.ts:57](src/modules/notifications/notification.controller.ts#L57) | ✅ **Done** (cleaned during C6) |
 | N15 | 🟡 Notable | infra | No dedicated health/ready endpoint | [routes/index.ts](src/routes/index.ts) | Pending |
 
 ---
@@ -373,3 +373,77 @@ If I were tackling these, I'd batch them like this for sane PRs:
 4. **PR 4 — Payment hardening (C8–C10, I1, I3, I5–I7, I9, I12)**: removes the test page in prod, fixes the webhook bugs, deletes the duplicate webhook, cleans up orphan rows.
 5. **PR 5 — Hygiene (I2, I4, I10, I11, I13, N3, N6, N15)**: file-content validation, structured errors, list clamps, real logger, health endpoint.
 6. **PR 6 — Schema cleanup (N5, N7, N8)**: proper migrations, rename column, add lifecycle states. Needs a careful production migration plan.
+
+---
+
+# Resolution log — C1 through C10
+
+All ten Critical findings (and the linked I8 + N14) were fixed in one sweep on **2026-05-09**. Type-check passes; smoke-tests run against the local server confirmed each fix behaves as expected.
+
+### C6 — register-token uses `req.auth.user.id`
+- File: [src/modules/notifications/notification.controller.ts:32](src/modules/notifications/notification.controller.ts#L32)
+- Changed `(req as any).user?.id` → `(req as any).auth?.user?.id`. Also removed the userId from the success log (covers N14).
+- **Smoke test**: authed `POST /api/notifications/register-token` now returns 200; previously always returned 401.
+
+### C5 — Login + register + reset rate limits
+- File: [src/modules/auth/auth.routes.ts](src/modules/auth/auth.routes.ts)
+- Added `loginRateLimiter` (20/15min), `registerRateLimiter` (10/hr), `passwordResetRateLimiter` (5/15min), and `otpVerifyRateLimiter` (10/15min). Applied to `/login`, `/register`, `/password/reset`, all three `/verify-otp` routes.
+- **Smoke test**: 25 wrong-password POSTs to `/login` → returned 400 then 429 starting at attempt 20. ✅
+
+### C8 — Test page hard-blocked in production
+- File: [src/modules/payments/amwal.testpage.ts](src/modules/payments/amwal.testpage.ts)
+- Returns 404 when `NODE_ENV === 'production'` unless `AMWAL_TEST_PAGE_ENABLED=true` (operator escape hatch). Defense-in-depth: C7 also blocks unauthenticated access at the route level.
+- **Smoke test**: in NODE_ENV=production, unauthenticated request → 401 (from C7 auth gate); even with auth, the handler returns 404. Fully blocked.
+
+### C9 — Webhook never downgrades an ACTIVE subscription
+- File: [src/modules/payments/amwal.webhook.ts:99](src/modules/payments/amwal.webhook.ts#L99)
+- Added `if (sub.status === "ACTIVE")` short-circuit before writing `INCOMPLETE`. A late/duplicate failure notification can no longer revoke a paying customer.
+- **Smoke test**: synthetic failure-code webhook against a real ACTIVE subscription → handler logged "Ignoring failure notification for ACTIVE subscription"; DB status unchanged. ✅
+
+### C10 — Webhook validates amount before activating
+- Files: [src/modules/payments/amwal.webhook.ts:46-72](src/modules/payments/amwal.webhook.ts#L46), [:85-102](src/modules/payments/amwal.webhook.ts#L85)
+- Added `amountMatchesPlan(...)`: compares `body.Amount` (in baisa) against plan price × 1000 with tolerance, also enforces `CurrencyId === 512`. Refuses to activate (returns 200 `success:false`) on mismatch.
+- **Smoke test**: synthetic webhook with `Amount: 999999` against a 5 OMR plan → returned `{"message":"amount mismatch","success":false}`; subscription status untouched. ✅
+
+### C7 — Auth-gate every Amwal endpoint except `/webhook`
+- Files: [src/routes/index.ts:69-74](src/routes/index.ts#L69), [src/modules/payments/amwal.controller.ts](src/modules/payments/amwal.controller.ts), [src/modules/payments/amwal.verify.ts](src/modules/payments/amwal.verify.ts)
+- Narrowed the public exclusion to *exactly* `/payments/amwal/webhook`. Every other endpoint runs through `requireAuth`. Added a per-endpoint `ensureRestaurantAccess()` so a logged-in restaurant can only act on its **own** restaurantId — initiate, confirm, renew, session-token, verify all enforce ownership (admins bypass).
+- **Smoke tests**:
+  - Unauthenticated `POST /payments/amwal/initiate` → 401 ✅
+  - Unauthenticated `GET /payments/amwal/verify/...` → 401 ✅
+  - Unauthenticated `POST /payments/amwal/webhook` with `{}` → 200 (correctly public) ✅
+  - Authed restaurant calling `/initiate` with someone else's `restaurantId` → 403 "Forbidden: you can only act on your own restaurant" ✅
+
+### C1 + I8 — IDOR sweep (drop client-supplied userId)
+- New helper: [src/modules/common/utils.ts](src/modules/common/utils.ts) — `getAuthUserId(req)` and `getAuthRole(req)` — single source of truth.
+- Schemas stripped of `userId`: [orders.schema.ts](src/modules/orders/orders.schema.ts), [cart.schema.ts](src/modules/cart/cart.schema.ts), [checkout.schema.ts](src/modules/checkout/checkout.schema.ts).
+- Controllers rewritten to read userId from auth and pass it explicitly to services: [orders.controller.ts](src/modules/orders/orders.controller.ts), [cart.controller.ts](src/modules/cart/cart.controller.ts), [checkout.controller.ts](src/modules/checkout/checkout.controller.ts), [delivery-address.controller.ts](src/modules/delivery-address/delivery-address.controller.ts).
+- Services with userId-based authz updated: [orders.service.ts](src/modules/orders/orders.service.ts) — `cancelOrder` and `reorderFromPastOrder` now take `authUserId` as a separate, trusted argument; `getOrderDetails` and `getOrderSummary` enforce ownership via a `requester: { id, role }` parameter (returns 404 to non-owners — doesn't disclose existence).
+- **Verification**: type-check clean. The 18 IDOR sites identified in the audit are all gone; `grep -nE "(req\.query\.userId|req\.body\??\.userId)" src/modules/{orders,cart,checkout,delivery-address}/` returns zero hits.
+
+### C2 — Menu ownership checks
+- File: [src/modules/menu/menu.controller.ts](src/modules/menu/menu.controller.ts)
+- Added `getCategoryRestaurantId`, `getItemRestaurantId`, `denyIfNotOwnerOrAdmin` helpers. Every mutation (`createCategory`, `updateCategory`, `deleteCategory`, `createItem`, `updateItem`, `deleteItem`) now resolves the resource's owning restaurantId, compares to the auth principal, and returns 404 to non-owners (avoids enumeration). `createCategory` additionally rejects body `restaurantId` mismatches.
+
+### C3 — OTP hardening (CSPRNG + attempt cap)
+- File: [src/modules/auth/otp.service.ts](src/modules/auth/otp.service.ts)
+- `Math.random()` → `crypto.randomInt(100000, 1_000_000)`. Verification token now uses `crypto.randomBytes`.
+- Added `attempts` column to [Verification model](prisma/schema.prisma) (synced via `prisma db push`).
+- `verifyEmailOTP` now: looks up by identifier only (so wrong guesses are counted), uses `crypto.timingSafeEqual` for the comparison, increments `attempts` on each wrong guess, deletes the row at `OTP_MAX_ATTEMPTS=5` (forcing a fresh OTP request).
+- Combined with the `otpVerifyRateLimiter` from C5 (10/15min/IP) and the per-OTP attempt cap, brute-forcing 6-digit codes is no longer feasible.
+
+### C4 — `requireActiveSubscription` actually applied
+- Middleware rewritten: [src/modules/restaurant/subscription/requireActiveSubscription.middleware.ts](src/modules/restaurant/subscription/requireActiveSubscription.middleware.ts) now reads `req.auth.user.id` (was the same `req.user` bug as C6) and bypasses for ADMINs.
+- Applied to every restaurant **action** route:
+  - Menu: create/update/delete category + item ([menu.routes.ts](src/modules/menu/menu.routes.ts))
+  - Restaurant info + business hours ([restaurant-info.routes.ts](src/modules/restaurant/restaurant-info/restaurant-info.routes.ts))
+  - Gallery: upload + delete ([gallery.routes.ts](src/modules/gallery/gallery.routes.ts))
+  - Promotions: create/update/delete ([promotion.routes.ts](src/modules/restaurant/promotion/promotion.routes.ts))
+  - Restaurant order management: accept / decline / status update ([restaurant.routes.ts](src/modules/restaurant/restaurant.routes.ts))
+- **Net effect**: a restaurant whose subscription is `INCOMPLETE` or expired returns `402 Payment Required` on every action route, while public reads (menu browse, restaurant browse) still work.
+
+---
+
+## Outstanding
+
+13 Important and 14 Notable findings remain — see the table above. Recommended next batches per the **PR plan**: PR 4 (payment hardening — I1, I3, I5, I6, I7, I9, I12), PR 5 (hygiene), PR 6 (schema cleanup).

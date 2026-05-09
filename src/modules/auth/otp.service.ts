@@ -2,8 +2,11 @@ import prisma from "../../config/prisma";
 import { normalizePhoneNumber } from "../common/utils";
 import { sendOTPEmail, sendOTPSMS } from "./otp-communication.service";
 import twilio from "twilio";
+import crypto from "crypto";
 
 const OTP_EXPIRY_MINUTES = parseInt(process.env.OTP_EXPIRY_MINUTES || "10", 10);
+// Hard cap on failed verify attempts before the OTP is invalidated.
+const MAX_OTP_ATTEMPTS = parseInt(process.env.OTP_MAX_ATTEMPTS || "5", 10);
 
 const twilioClient =
   process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
@@ -13,17 +16,18 @@ const twilioClient =
 
 
 /**
- * Generate a random 6-digit OTP (Email only)
+ * Generate a cryptographically-secure random 6-digit OTP (Email only).
+ * Math.random() is forbidden here — its predictability speeds up brute-force.
  */
 function generateOTP(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return crypto.randomInt(100000, 1_000_000).toString();
 }
 
 /**
- * Generate verification token
+ * Generate verification token using a CSPRNG.
  */
 function generateVerificationToken(): string {
-  return `vrf_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+  return `vrf_${Date.now()}_${crypto.randomBytes(12).toString("hex")}`;
 }
 
 /**
@@ -94,17 +98,18 @@ async function storeEmailOTP(identifier: string, otp: string, signupType: "user"
 }
 
 /**
- * Verify email OTP from DB
+ * Verify email OTP from DB. Tracks failed attempts on the verification row
+ * and deletes it once the attempt cap is hit, forcing a fresh OTP request.
+ * Combined with the rate limiter on /verify-otp, this defeats brute-force
+ * of the 6-digit code.
  */
 async function verifyEmailOTP(identifier: string, otp: string, signupType: "user" | "restaurant") {
-
   const identifierWithType = `${signupType}:${identifier}`;
 
+  // Find the most recent OTP for this identifier, regardless of value, so we
+  // can increment the attempt counter on a wrong guess.
   const verification = await prisma.verification.findFirst({
-    where: {
-      identifier: identifierWithType,
-      value: otp,
-    },
+    where: { identifier: identifierWithType },
     orderBy: { createdAt: "desc" },
   });
 
@@ -115,9 +120,29 @@ async function verifyEmailOTP(identifier: string, otp: string, signupType: "user
     return { valid: false, expired: true };
   }
 
-  await prisma.verification.delete({ where: { id: verification.id } });
+  // Use timing-safe comparison to avoid leaking the OTP through response time.
+  const submitted = Buffer.from(otp);
+  const expected = Buffer.from(verification.value);
+  const matches =
+    submitted.length === expected.length && crypto.timingSafeEqual(submitted, expected);
 
-  return { valid: true };
+  if (matches) {
+    await prisma.verification.delete({ where: { id: verification.id } });
+    return { valid: true };
+  }
+
+  // Wrong guess — bump attempts; nuke the row if cap is hit so the attacker
+  // can't keep trying without first re-passing the OTP-request rate limit.
+  const newAttempts = (verification.attempts ?? 0) + 1;
+  if (newAttempts >= MAX_OTP_ATTEMPTS) {
+    await prisma.verification.delete({ where: { id: verification.id } });
+    return { valid: false, exhausted: true };
+  }
+  await prisma.verification.update({
+    where: { id: verification.id },
+    data: { attempts: newAttempts },
+  });
+  return { valid: false };
 }
 
 export const otpService = {
@@ -187,6 +212,7 @@ export const otpService = {
       const result = await verifyEmailOTP(identifier, otp, signupType);
       if (!result.valid) {
         if (result.expired) throw new Error("OTP expired");
+        if ((result as any).exhausted) throw new Error("Too many invalid attempts. Please request a new OTP.");
         throw new Error("Invalid OTP");
       }
     } else if (phoneNumber) {

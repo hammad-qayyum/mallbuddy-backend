@@ -1,6 +1,26 @@
 import { Request } from "express";
 
 /**
+ * Returns the authenticated user id from the request, or undefined.
+ * Always derived from the verified session (req.auth) — never from
+ * req.body / req.query / req.params, which are attacker-controlled.
+ *
+ * Use this in every controller that scopes data by user — passing a
+ * client-supplied userId is an IDOR.
+ */
+export function getAuthUserId(req: Request): string | undefined {
+  return (req as any).auth?.user?.id;
+}
+
+/**
+ * Returns the authenticated user's role (uppercase) or undefined.
+ */
+export function getAuthRole(req: Request): string | undefined {
+  const role = (req as any).auth?.user?.role;
+  return role ? String(role).toUpperCase() : undefined;
+}
+
+/**
  * Converts Express request headers to Fetch API Headers object
  * This is needed because Better Auth uses the Fetch API standard
  */

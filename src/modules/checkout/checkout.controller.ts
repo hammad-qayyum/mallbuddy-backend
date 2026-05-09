@@ -2,15 +2,25 @@ import { Request, Response } from "express";
 import { checkoutService } from "./checkout.service";
 import {
   checkoutSchema,
-  updateOrderStatusSchema,
-  getOrderSchema,
-  getUserOrdersSchema,
 } from "./checkout.schema";
+import { getAuthUserId } from "../common/utils";
+
+function requireAuthUserId(req: Request, res: Response): string | null {
+  const userId = getAuthUserId(req);
+  if (!userId) {
+    res.status(401).json({ message: "Unauthorized" });
+    return null;
+  }
+  return userId;
+}
 
 export const checkoutController = {
-  // POST /checkout/create-order - Create order from cart
+  // POST /checkout/create-order - Create order from the authenticated user's cart
   async createOrder(req: Request, res: Response) {
     try {
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
+
       const parseResult = checkoutSchema.safeParse(req.body);
       if (!parseResult.success) {
         return res.status(400).json({
@@ -19,7 +29,7 @@ export const checkoutController = {
         });
       }
 
-      const order = await checkoutService.createOrder(parseResult.data);
+      const order = await checkoutService.createOrder(parseResult.data, userId);
       return res.status(201).json({
         message: "Order created successfully",
         data: order,
@@ -35,14 +45,11 @@ export const checkoutController = {
     }
   },
 
-  // GET /checkout/summary - Get checkout summary
+  // GET /checkout/summary - Get checkout summary for the authenticated user
   async getCheckoutSummary(req: Request, res: Response) {
     try {
-      const userId = (req.query.userId ?? req.body?.userId) as string | undefined;
-
-      if (!userId) {
-        return res.status(400).json({ message: "User ID is required" });
-      }
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
 
       const summary = await checkoutService.getCheckoutSummary(userId);
       return res.json(summary);
@@ -54,14 +61,11 @@ export const checkoutController = {
     }
   },
 
-  // GET /checkout/addresses - Get user's delivery addresses
+  // GET /checkout/addresses - Get the authenticated user's delivery addresses
   async getUserDeliveryAddresses(req: Request, res: Response) {
     try {
-      const userId = (req.query.userId ?? req.body?.userId) as string | undefined;
-
-      if (!userId) {
-        return res.status(400).json({ message: "User ID is required" });
-      }
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
 
       const addresses = await checkoutService.getUserDeliveryAddresses(userId);
       return res.json(addresses);
@@ -70,14 +74,11 @@ export const checkoutController = {
     }
   },
 
-  // POST /checkout/address - Add delivery address
+  // POST /checkout/address - Add a delivery address for the authenticated user
   async addDeliveryAddress(req: Request, res: Response) {
     try {
-      const userId = (req.query.userId ?? req.body?.userId) as string | undefined;
-
-      if (!userId) {
-        return res.status(400).json({ message: "User ID is required" });
-      }
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
 
       const { label, address, city, postalCode, isDefault } = req.body;
 

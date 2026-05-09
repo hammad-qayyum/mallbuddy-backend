@@ -13,6 +13,42 @@ const otpRateLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Rate limiter for OTP verification (defends against brute-force of the 6-digit code)
+const otpVerifyRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: "Too many verification attempts. Please request a new OTP.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Rate limiter for login (defends against password brute-force)
+const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: "Too many login attempts. Please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Rate limiter for registration (mild — prevents spam signups from one IP)
+const registerRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  message: "Too many registration attempts from this IP. Please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Rate limiter for password reset (final step) — defends against reset-token reuse / brute
+const passwordResetRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: "Too many password reset attempts. Please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Custom auth routes using Better Auth API
 
 /**
@@ -167,7 +203,7 @@ router.post("/user/signup/resend-otp", otpRateLimiter, authController.resendUser
  *       400:
  *         description: Invalid or expired OTP
  */
-router.post("/user/signup/verify-otp", authController.verifyUserSignupOTP);
+router.post("/user/signup/verify-otp", otpVerifyRateLimiter, authController.verifyUserSignupOTP);
 
 /**
  * @swagger
@@ -434,7 +470,7 @@ router.post("/restaurant/signup/resend-otp", otpRateLimiter, authController.rese
  *       400:
  *         description: Invalid or expired OTP
  */
-router.post("/restaurant/signup/verify-otp", authController.verifyRestaurantSignupOTP);
+router.post("/restaurant/signup/verify-otp", otpVerifyRateLimiter, authController.verifyRestaurantSignupOTP);
 
 /**
  * @swagger
@@ -632,7 +668,7 @@ router.post("/restaurant/signup/complete-profile", authController.completeRestau
  *             schema:
  *               $ref: '#/components/schemas/ValidationError'
  */
-router.post("/register", authController.register);
+router.post("/register", registerRateLimiter, authController.register);
 
 /**
  * @swagger
@@ -705,7 +741,7 @@ router.post("/register", authController.register);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post("/login", authController.login);
+router.post("/login", loginRateLimiter, authController.login);
 
 /**
  * @swagger
@@ -1042,7 +1078,7 @@ router.post("/password/reset/request-otp", otpRateLimiter, authController.reques
  *       400:
  *         description: Invalid or expired OTP
  */
-router.post("/password/reset/verify-otp", authController.verifyPasswordResetOTP);
+router.post("/password/reset/verify-otp", otpVerifyRateLimiter, authController.verifyPasswordResetOTP);
 
 /**
  * @swagger
@@ -1073,7 +1109,7 @@ router.post("/password/reset/verify-otp", authController.verifyPasswordResetOTP)
  *       404:
  *         description: User not found
  */
-router.post("/password/reset", authController.resetPassword);
+router.post("/password/reset", passwordResetRateLimiter, authController.resetPassword);
 
 
 

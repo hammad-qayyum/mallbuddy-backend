@@ -2,6 +2,7 @@ import { Router } from "express";
 import { restaurantController } from "./restaurant.controller";
 import { uploadRestaurantBanner } from "../../config/upload";
 import { requireAuth, requireAdminRole, requireRestaurantRole, requireRestaurantOwnership, requireRole } from "../../middlewares/role.middleware";
+import { requireActiveSubscription } from "./subscription/requireActiveSubscription.middleware";
 
 const router = Router();
 
@@ -1085,7 +1086,7 @@ router.get("/restaurants/:restaurantId/orders/:orderId", requireAuth, requireRes
  *       404:
  *         description: Order not found
  */
-router.post("/restaurants/:restaurantId/orders/:orderId/accept", requireAuth, requireRestaurantRole, requireRestaurantOwnership, restaurantController.acceptOrder);
+router.post("/restaurants/:restaurantId/orders/:orderId/accept", requireAuth, requireRestaurantRole, requireRestaurantOwnership, requireActiveSubscription, restaurantController.acceptOrder);
 
 /**
  * @swagger
@@ -1149,7 +1150,7 @@ router.post("/restaurants/:restaurantId/orders/:orderId/accept", requireAuth, re
  *       404:
  *         description: Order not found
  */
-router.post("/restaurants/:restaurantId/orders/:orderId/decline", requireAuth, requireRestaurantRole, requireRestaurantOwnership, restaurantController.declineOrder);
+router.post("/restaurants/:restaurantId/orders/:orderId/decline", requireAuth, requireRestaurantRole, requireRestaurantOwnership, requireActiveSubscription, restaurantController.declineOrder);
 
 /**
  * @swagger
@@ -1257,7 +1258,7 @@ router.post("/restaurants/:restaurantId/orders/:orderId/decline", requireAuth, r
  *       500:
  *         description: Internal server error
  */
-router.patch("/restaurants/:restaurantId/orders/:orderId/status", requireAuth, requireRestaurantRole, requireRestaurantOwnership, restaurantController.updateOrderStatus);
+router.patch("/restaurants/:restaurantId/orders/:orderId/status", requireAuth, requireRestaurantRole, requireRestaurantOwnership, requireActiveSubscription, restaurantController.updateOrderStatus);
 
 /**
  * @swagger

@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-// Schema to add/create item in cart
+// Schema to add/create item in cart. `userId` is taken from the authenticated
+// session in the controller, never from the request body.
 export const addToCartSchema = z.object({
-  userId: z.string().min(1),
   menuItemId: z.string().min(1),
   restaurantId: z.string().min(1, "Invalid restaurant ID"),
   quantity: z.number().int().min(1).positive("Quantity must be at least 1").default(1),
@@ -40,6 +40,6 @@ export const removeFromCartSchema = z.object({
 
 // TypeScript types inferred from schemas
 export type AddToCartInput = z.infer<typeof addToCartSchema>;
-export type AddToCartServiceInput = Omit<AddToCartInput, "userId">;
+export type AddToCartServiceInput = AddToCartInput;
 export type UpdateCartItemInput = z.infer<typeof updateCartItemSchema>;
 export type RemoveFromCartInput = z.infer<typeof removeFromCartSchema>;

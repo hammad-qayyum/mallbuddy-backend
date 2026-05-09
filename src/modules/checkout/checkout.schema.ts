@@ -1,9 +1,8 @@
 import { z } from "zod";
 
-// Schema for checkout request
+// Schema for checkout request. `userId` is taken from the authenticated
+// session in the controller — never from the request body.
 export const checkoutSchema = z.object({
-  // Accept non-UUID user IDs (BetterAuth style)
-  userId: z.string().min(1, "User ID is required"),
   deliveryAddressId: z.string().min(1, "Delivery address ID is required").uuid("Invalid address ID"),
   paymentMethod: z.enum(["CASH", "CARD", "WALLET", "ONLINE"], {
     message: "Invalid payment method",
@@ -27,10 +26,8 @@ export const getOrderSchema = z.object({
   orderId: z.string().min(1, "Order ID is required").uuid("Invalid order ID"),
 });
 
-// Schema for getting user orders
+// Schema for getting user orders. `userId` is taken from the authenticated session.
 export const getUserOrdersSchema = z.object({
-  // Accept non-UUID user IDs (BetterAuth style)
-  userId: z.string().min(1, "User ID is required"),
   status: z.enum(["PENDING", "ACCEPTED", "PREPARING", "READY", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED"]).optional(),
   limit: z.number().int().positive().default(10),
   offset: z.number().int().nonnegative().default(0),

@@ -29,12 +29,12 @@ import { Request, Response } from "express";
  */
 export const registerExpoToken = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = (req as any).user?.id;
-    
+    const userId = (req as any).auth?.user?.id;
+
     if (!userId) {
-      res.status(401).json({ 
+      res.status(401).json({
         success: false,
-        message: "Unauthorized: User not authenticated" 
+        message: "Unauthorized: User not authenticated"
       });
       return;
     }
@@ -42,9 +42,9 @@ export const registerExpoToken = async (req: Request, res: Response): Promise<vo
     const { expoPushToken } = req.body;
 
     if (!expoPushToken) {
-      res.status(400).json({ 
+      res.status(400).json({
         success: false,
-        message: "expoPushToken is required" 
+        message: "expoPushToken is required"
       });
       return;
     }
@@ -54,7 +54,7 @@ export const registerExpoToken = async (req: Request, res: Response): Promise<vo
       data: { expoPushToken },
     });
 
-    console.log(`[Notification] Registered push token for user ${userId}`);
+    console.log(`[Notification] Registered push token`);
     
     res.json({ 
       success: true,

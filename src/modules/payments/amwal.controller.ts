@@ -5,6 +5,28 @@ import { renewSubscriptionViaPayByToken } from "./amwal.renewal";
 
 const SUCCESS_RESPONSE_CODE = "00";
 
+/**
+ * Returns the authenticated user's id (and role) or null if unauthenticated.
+ * Restaurants are stored with `userId @id`, so `auth.user.id === restaurant.userId`.
+ */
+function getAuth(req: Request): { id: string; role?: string } | null {
+  const user = (req as any).auth?.user;
+  if (!user?.id) return null;
+  return { id: user.id, role: user.role };
+}
+
+/** Reject if the caller is neither the restaurant owner nor an ADMIN. */
+function ensureRestaurantAccess(req: Request, restaurantId: string): { ok: true } | { ok: false; status: number; error: string } {
+  const auth = getAuth(req);
+  if (!auth) return { ok: false, status: 401, error: "Unauthorized" };
+  const role = String(auth.role || "").toUpperCase();
+  if (role === "ADMIN") return { ok: true };
+  if (auth.id !== restaurantId) {
+    return { ok: false, status: 403, error: "Forbidden: you can only act on your own restaurant" };
+  }
+  return { ok: true };
+}
+
 function computeEndDate(start: Date, interval: string): Date {
   const end = new Date(start);
   if (interval === "YEARLY") end.setFullYear(end.getFullYear() + 1);
@@ -32,6 +54,10 @@ export const initiateAmwalSubscriptionPayment = async (req: Request, res: Respon
     if (!restaurantId || !planId) {
       return res.status(400).json({ success: false, error: "restaurantId and planId are required" });
     }
+
+    const access = ensureRestaurantAccess(req, restaurantId);
+    if (!access.ok) return res.status(access.status).json({ success: false, error: access.error });
+
     const restaurant = await prisma.restaurant.findUnique({
       where: { userId: restaurantId },
     });
@@ -121,6 +147,9 @@ export const confirmAmwalSmartBoxCallback = async (req: Request, res: Response) 
     });
     if (!sub) return res.status(404).json({ success: false, error: "Subscription not found" });
 
+    const access = ensureRestaurantAccess(req, sub.restaurantId);
+    if (!access.ok) return res.status(access.status).json({ success: false, error: access.error });
+
     if (sub.status === "ACTIVE") {
       return res.json({
         success: true,
@@ -188,6 +217,9 @@ export const renewAmwalSubscription = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: "restaurantId and planId are required" });
     }
 
+    const access = ensureRestaurantAccess(req, restaurantId);
+    if (!access.ok) return res.status(access.status).json({ success: false, error: access.error });
+
     const outcome = await renewSubscriptionViaPayByToken(restaurantId, planId);
 
     switch (outcome.status) {
@@ -226,9 +258,26 @@ export const renewAmwalSubscription = async (req: Request, res: Response) => {
  */
 export const acquireAmwalSessionToken = async (req: Request, res: Response) => {
   try {
+    const auth = getAuth(req);
+    if (!auth) return res.status(401).json({ success: false, error: "Unauthorized" });
+
     const { customerId } = req.body ?? {};
     if (!customerId || typeof customerId !== "string") {
       return res.status(400).json({ success: false, error: "customerId is required" });
+    }
+
+    // Only allow callers to request a session token for a customerId that
+    // belongs to a restaurant they own (or admins). Prevents leaking
+    // session tokens for other restaurants' saved cards.
+    const role = String(auth.role || "").toUpperCase();
+    if (role !== "ADMIN") {
+      const owningRestaurant = await prisma.restaurant.findUnique({
+        where: { userId: auth.id },
+        select: { amwalCustomerId: true },
+      });
+      if (!owningRestaurant || owningRestaurant.amwalCustomerId !== customerId) {
+        return res.status(403).json({ success: false, error: "Forbidden: customerId does not belong to you" });
+      }
     }
 
     const amwal = new AmwalPayService();

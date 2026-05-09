@@ -173,5 +173,10 @@ const html = `<!doctype html>
 </html>`;
 
 export const renderAmwalTestPage = (_req: Request, res: Response) => {
-  res.type("html").send(html);
+  // Hard-block in production. Override only with an explicit opt-in env var so
+  // an operator can temporarily expose the page for live debugging.
+  if (process.env.NODE_ENV === "production" && process.env.AMWAL_TEST_PAGE_ENABLED !== "true") {
+    return res.status(404).send("Not found");
+  }
+  return res.type("html").send(html);
 };

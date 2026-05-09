@@ -3,9 +3,10 @@ import { notifyRestaurantAndAdminNewOrder } from "../notifications/notification.
 import { CheckoutInput, UpdateOrderStatusInput } from "./checkout.schema";
 
 export const checkoutService = {
-  // Create order from cart
-  async createOrder(checkoutData: CheckoutInput) {
-    const { userId, deliveryAddressId, paymentMethod, specialInstructions, promoCodeId, deliveryFee, tax } =
+  // Create order from cart. userId comes from the authenticated session,
+  // not the request body — controller passes it explicitly.
+  async createOrder(checkoutData: CheckoutInput, userId: string) {
+    const { deliveryAddressId, paymentMethod, specialInstructions, promoCodeId, deliveryFee, tax } =
       checkoutData;
 
     // Get user's cart with items

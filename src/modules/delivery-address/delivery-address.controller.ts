@@ -4,16 +4,23 @@ import {
   createDeliveryAddressSchema,
   updateDeliveryAddressSchema,
 } from "./delivery-address.schema";
+import { getAuthUserId } from "../common/utils";
+
+function requireAuthUserId(req: Request, res: Response): string | null {
+  const userId = getAuthUserId(req);
+  if (!userId) {
+    res.status(401).json({ message: "Unauthorized" });
+    return null;
+  }
+  return userId;
+}
 
 export const deliveryAddressController = {
-  // POST /delivery-addresses - Create a new delivery address
+  // POST /delivery-addresses - Create a new delivery address for the authenticated user
   async createDeliveryAddress(req: Request, res: Response) {
     try {
-      const userId = (req.query.userId ?? req.body?.userId) as string | undefined;
-
-      if (!userId) {
-        return res.status(400).json({ message: "User ID is required" });
-      }
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
 
       const parseResult = createDeliveryAddressSchema.safeParse(req.body);
       if (!parseResult.success) {
@@ -36,14 +43,11 @@ export const deliveryAddressController = {
     }
   },
 
-  // GET /delivery-addresses - Get all delivery addresses for user
+  // GET /delivery-addresses - Get all delivery addresses for the authenticated user
   async getDeliveryAddresses(req: Request, res: Response) {
     try {
-      const userId = (req.query.userId ?? req.body?.userId) as string | undefined;
-
-      if (!userId) {
-        return res.status(400).json({ message: "User ID is required" });
-      }
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
 
       const addresses = await deliveryAddressService.getDeliveryAddresses(userId);
       return res.json(addresses);
@@ -55,13 +59,10 @@ export const deliveryAddressController = {
   // GET /delivery-addresses/:addressId - Get a single delivery address
   async getDeliveryAddress(req: Request, res: Response) {
     try {
-      const userId = (req.query.userId ?? req.body?.userId) as string | undefined;
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
+
       const { addressId } = req.params;
-
-      if (!userId) {
-        return res.status(400).json({ message: "User ID is required" });
-      }
-
       if (!addressId) {
         return res.status(400).json({ message: "Address ID is required" });
       }
@@ -82,13 +83,10 @@ export const deliveryAddressController = {
   // PUT /delivery-addresses/:addressId - Update a delivery address
   async updateDeliveryAddress(req: Request, res: Response) {
     try {
-      const userId = (req.query.userId ?? req.body?.userId) as string | undefined;
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
+
       const { addressId } = req.params;
-
-      if (!userId) {
-        return res.status(400).json({ message: "User ID is required" });
-      }
-
       if (!addressId) {
         return res.status(400).json({ message: "Address ID is required" });
       }
@@ -118,13 +116,10 @@ export const deliveryAddressController = {
   // DELETE /delivery-addresses/:addressId - Delete a delivery address
   async deleteDeliveryAddress(req: Request, res: Response) {
     try {
-      const userId = (req.query.userId ?? req.body?.userId) as string | undefined;
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
+
       const { addressId } = req.params;
-
-      if (!userId) {
-        return res.status(400).json({ message: "User ID is required" });
-      }
-
       if (!addressId) {
         return res.status(400).json({ message: "Address ID is required" });
       }
@@ -145,13 +140,10 @@ export const deliveryAddressController = {
   // PUT /delivery-addresses/:addressId/set-default - Set an address as default
   async setDefaultAddress(req: Request, res: Response) {
     try {
-      const userId = (req.query.userId ?? req.body?.userId) as string | undefined;
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
+
       const { addressId } = req.params;
-
-      if (!userId) {
-        return res.status(400).json({ message: "User ID is required" });
-      }
-
       if (!addressId) {
         return res.status(400).json({ message: "Address ID is required" });
       }
@@ -166,4 +158,3 @@ export const deliveryAddressController = {
     }
   },
 };
-

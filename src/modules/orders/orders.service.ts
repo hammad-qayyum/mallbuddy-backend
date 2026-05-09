@@ -221,7 +221,7 @@ export const ordersService = {
   /**
    * Cancel an order with reason
    */
-  async cancelOrder(input: CancelOrderInput) {
+  async cancelOrder(input: CancelOrderInput, authUserId: string) {
     const order = await prisma.order.findUnique({
       where: { id: input.orderId },
       include: {
@@ -233,8 +233,8 @@ export const ordersService = {
       throw new Error("Order not found");
     }
 
-    // Verify order belongs to the user
-    if (order.userId !== input.userId) {
+    // Verify order belongs to the authenticated user (not the request body)
+    if (order.userId !== authUserId) {
       throw new Error("Unauthorized: This order does not belong to you");
     }
 
@@ -299,7 +299,7 @@ export const ordersService = {
   /**
    * Reorder items from a past order - adds items to user's cart
    */
-  async reorderFromPastOrder(input: ReorderInput) {
+  async reorderFromPastOrder(input: ReorderInput, authUserId: string) {
     const order = await prisma.order.findUnique({
       where: { id: input.orderId },
       include: {
@@ -316,8 +316,8 @@ export const ordersService = {
       throw new Error("Order not found");
     }
 
-    // Verify order belongs to the user
-    if (order.userId !== input.userId) {
+    // Verify order belongs to the authenticated user (not the request body)
+    if (order.userId !== authUserId) {
       throw new Error("Unauthorized: This order does not belong to you");
     }
 
@@ -328,12 +328,12 @@ export const ordersService = {
 
     // Check if user has a cart
     let cart = await prisma.cart.findUnique({
-      where: { userId: input.userId },
+      where: { userId: authUserId },
     });
 
     if (!cart) {
       cart = await prisma.cart.create({
-        data: { userId: input.userId },
+        data: { userId: authUserId },
       });
     }
 
@@ -448,9 +448,11 @@ export const ordersService = {
   },
 
   /**
-   * Get detailed information about a specific order
+   * Get detailed information about a specific order.
+   * `requester` is the authenticated principal — restricts the row by either
+   * matching userId (USER role) or restaurantId (RESTAURANT role). ADMIN sees all.
    */
-  async getOrderDetails(orderId: string) {
+  async getOrderDetails(orderId: string, requester?: { id: string; role: string }) {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -485,6 +487,17 @@ export const ordersService = {
 
     if (!order) {
       throw new Error("Order not found");
+    }
+
+    // Authorization: only the order owner, the receiving restaurant, or an admin
+    if (requester) {
+      const role = String(requester.role).toUpperCase();
+      const isAdmin = role === "ADMIN";
+      const isOwner = role === "USER" && order.userId === requester.id;
+      const isRestaurant = role === "RESTAURANT" && order.restaurantId === requester.id;
+      if (!isAdmin && !isOwner && !isRestaurant) {
+        throw new Error("Order not found");
+      }
     }
 
     // Format the response for the frontend
@@ -542,11 +555,13 @@ export const ordersService = {
   // /**
   //  * Get order summary information (quick view)
   //  */
-  async getOrderSummary(orderId: string) {
+  async getOrderSummary(orderId: string, requester?: { id: string; role: string }) {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       select: {
         id: true,
+        userId: true,
+        restaurantId: true,
         orderNumber: true,
         status: true,
         total: true,
@@ -579,6 +594,16 @@ export const ordersService = {
 
     if (!order) {
       throw new Error("Order not found");
+    }
+
+    if (requester) {
+      const role = String(requester.role).toUpperCase();
+      const isAdmin = role === "ADMIN";
+      const isOwner = role === "USER" && order.userId === requester.id;
+      const isRestaurant = role === "RESTAURANT" && order.restaurantId === requester.id;
+      if (!isAdmin && !isOwner && !isRestaurant) {
+        throw new Error("Order not found");
+      }
     }
 
     return {

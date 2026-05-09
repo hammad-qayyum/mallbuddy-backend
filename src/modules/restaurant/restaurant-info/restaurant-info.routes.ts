@@ -1,6 +1,7 @@
 import { Router } from "express";
 import restaurantInfoController from "./restaurant-info.controller";
 import { requireAuth, requireRestaurantRole, requireRestaurantOwnership } from "../../../middlewares/role.middleware";
+import { requireActiveSubscription } from "../subscription/requireActiveSubscription.middleware";
 
 const router = Router();
 
@@ -85,7 +86,7 @@ router.get("/restaurant/:restaurantId/info", restaurantInfoController.getInfo);
  *       - cookieAuth: []
  */
 // Restaurant management routes - require restaurant role and ownership
-router.patch("/restaurant/:restaurantId/info", requireAuth, requireRestaurantRole, requireRestaurantOwnership, restaurantInfoController.updateInfo);
+router.patch("/restaurant/:restaurantId/info", requireAuth, requireRestaurantRole, requireRestaurantOwnership, requireActiveSubscription, restaurantInfoController.updateInfo);
 
 /**
  * @swagger
@@ -226,7 +227,7 @@ router.get("/restaurant/:restaurantId/business-hours", restaurantInfoController.
  *     security:
  *       - cookieAuth: []
  */
-router.post("/restaurant/:restaurantId/business-hours", requireAuth, requireRestaurantRole, requireRestaurantOwnership, restaurantInfoController.createBusinessHours);
+router.post("/restaurant/:restaurantId/business-hours", requireAuth, requireRestaurantRole, requireRestaurantOwnership, requireActiveSubscription, restaurantInfoController.createBusinessHours);
 
 /**
  * @swagger
@@ -297,7 +298,7 @@ router.post("/restaurant/:restaurantId/business-hours", requireAuth, requireRest
  *     security:
  *       - cookieAuth: []
  */
-router.patch("/restaurant/:restaurantId/business-hours/:dayOfWeek", requireAuth, requireRestaurantRole, requireRestaurantOwnership, restaurantInfoController.updateBusinessHoursForDay);
+router.patch("/restaurant/:restaurantId/business-hours/:dayOfWeek", requireAuth, requireRestaurantRole, requireRestaurantOwnership, requireActiveSubscription, restaurantInfoController.updateBusinessHoursForDay);
 
 /**
  * @swagger
@@ -328,7 +329,7 @@ router.patch("/restaurant/:restaurantId/business-hours/:dayOfWeek", requireAuth,
  *     security:
  *       - cookieAuth: []
  */
-router.delete("/restaurant/:restaurantId/business-hours/:dayOfWeek", requireAuth, requireRestaurantRole, requireRestaurantOwnership, restaurantInfoController.deleteBusinessHoursForDay);
+router.delete("/restaurant/:restaurantId/business-hours/:dayOfWeek", requireAuth, requireRestaurantRole, requireRestaurantOwnership, requireActiveSubscription, restaurantInfoController.deleteBusinessHoursForDay);
 
 /**
  * @swagger
@@ -351,6 +352,6 @@ router.delete("/restaurant/:restaurantId/business-hours/:dayOfWeek", requireAuth
  *     security:
  *       - cookieAuth: []
  */
-router.delete("/restaurant/:restaurantId/business-hours", requireAuth, requireRestaurantRole, requireRestaurantOwnership, restaurantInfoController.deleteAllBusinessHours);
+router.delete("/restaurant/:restaurantId/business-hours", requireAuth, requireRestaurantRole, requireRestaurantOwnership, requireActiveSubscription, restaurantInfoController.deleteAllBusinessHours);
 
 export default router;
