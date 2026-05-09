@@ -1,96 +1,17 @@
 import { Request, Response } from "express";
 import {
-  createRestaurantSubscription,
-  updateRestaurantSubscription,
   cancelRestaurantSubscription,
   listRestaurantSubscriptions,
-  isSubscriptionActive,
 } from "./subscription.service";
 import { logger } from "../../../libs/logger";
-
-// N1 — `/subscriptions/subscribe` and `/subscriptions/update` are deprecated;
-// the canonical endpoints are now `/api/payments/amwal/initiate` (with the
-// `customerId` body field used to switch between first-payment and saved-card
-// flows). These wrappers still work so old clients don't break, but log a
-// deprecation warning so we know when frontend has migrated and the routes
-// can be deleted.
-function logDeprecatedSubscriptionRoute(req: Request, replacement: string) {
-  logger.warn("deprecated subscription route used", {
-    path: req.originalUrl,
-    method: req.method,
-    replacement,
-  });
-}
-
-// Subscribe — DEPRECATED, use POST /api/payments/amwal/initiate
-export const subscribeRestaurant = async (req: Request, res: Response) => {
-  logDeprecatedSubscriptionRoute(req, "POST /api/payments/amwal/initiate");
-  const { restaurantId, planId } = req.body;
-  if (!restaurantId || !planId) {
-    return res.status(400).json({
-      success: false,
-      error: "restaurantId and planId are required"
-    });
-  }
-  try {
-    const result = await createRestaurantSubscription(restaurantId, planId);
-    res.status(201).json({
-      success: true,
-      message: "Pending subscription created. Complete payment via SmartBox.",
-      data: {
-        subscription: result.dbSub,
-        scriptUrl: result.scriptUrl,
-        smartbox: result.smartbox,
-      },
-    });
-  } catch (err: any) {
-    logger.error("subscribeRestaurant error", { error: err.message });
-    const statusCode = err.message.includes("not found") ? 404 : 500;
-    res.status(statusCode).json({
-      success: false,
-      error: statusCode === 500 ? "Internal server error" : (err.message || "Failed to create subscription")
-    });
-  }
-};
-
-// Update subscription plan — DEPRECATED, use POST /api/payments/amwal/initiate
-export const updateSubscription = async (req: Request, res: Response) => {
-  logDeprecatedSubscriptionRoute(req, "POST /api/payments/amwal/initiate");
-  const { subscriptionId, newPlanId } = req.body;
-  if (!subscriptionId || !newPlanId) {
-    return res.status(400).json({
-      success: false,
-      error: "subscriptionId and newPlanId are required"
-    });
-  }
-  try {
-    const result = await updateRestaurantSubscription(subscriptionId, newPlanId);
-    res.json({
-      success: true,
-      message: "Pending plan change created. Complete payment via SmartBox.",
-      data: {
-        subscription: result.dbSub,
-        scriptUrl: result.scriptUrl,
-        smartbox: result.smartbox,
-      },
-    });
-  } catch (err: any) {
-    logger.error("updateSubscription error", { error: err.message });
-    const statusCode = err.message.includes("not found") ? 404 : 500;
-    res.status(statusCode).json({
-      success: false,
-      error: statusCode === 500 ? "Internal server error" : (err.message || "Failed to update subscription")
-    });
-  }
-};
 
 // Cancel subscription
 export const cancelSubscription = async (req: Request, res: Response) => {
   const { subscriptionId } = req.body;
   if (!subscriptionId) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       success: false,
-      error: "subscriptionId is required" 
+      error: "subscriptionId is required",
     });
   }
   try {
@@ -101,11 +22,11 @@ export const cancelSubscription = async (req: Request, res: Response) => {
       data: result.dbSub,
     });
   } catch (err: any) {
-    console.error("[Subscription Controller] Error:", err);
+    logger.error("cancelSubscription error", { error: err.message });
     const statusCode = err.message.includes("not found") ? 404 : 500;
-    res.status(statusCode).json({ 
+    res.status(statusCode).json({
       success: false,
-      error: err.message || "Failed to cancel subscription" 
+      error: statusCode === 500 ? "Internal server error" : err.message,
     });
   }
 };
@@ -114,7 +35,7 @@ export const cancelSubscription = async (req: Request, res: Response) => {
 export const getRestaurantSubscriptions = async (req: Request, res: Response) => {
   const { restaurantId } = req.params;
   if (!restaurantId) {
-    return res.status(400).json({ error: "Restaurant ID is required" });
+    return res.status(400).json({ success: false, error: "Restaurant ID is required" });
   }
   try {
     const subscriptions = await listRestaurantSubscriptions(restaurantId);
@@ -124,18 +45,7 @@ export const getRestaurantSubscriptions = async (req: Request, res: Response) =>
       data: subscriptions,
     });
   } catch (err: any) {
-    console.error("[Subscription Controller] Error:", err);
-    res.status(500).json({ 
-      success: false,
-      error: err.message || "Failed to retrieve subscriptions" 
-    });
+    logger.error("getRestaurantSubscriptions error", { error: err.message });
+    res.status(500).json({ success: false, error: "Internal server error" });
   }
-};
-
-// Attach payment method to subscription (not needed for Amwal Pay, so just respond)
-export const attachPaymentMethod = async (req: Request, res: Response) => {
-  res.status(501).json({
-    success: false,
-    error: "Not implemented: Amwal Pay does not require attaching payment methods via API."
-  });
 };

@@ -1,135 +1,48 @@
-import { AmwalPayService } from "../../../libs/amwalpay";
 import prisma from "../../../config/prisma";
-import dotenv from "dotenv";
-dotenv.config();
 
-function toNumberValue(value: unknown): number {
-	if (typeof value === "number") return value;
-	if (typeof value === "object" && value && "toNumber" in value) {
-		const maybeDecimal = value as { toNumber: () => number };
-		return maybeDecimal.toNumber();
-	}
-	return Number(value);
-}
+// Subscription create/update/renewal flows live in `src/modules/payments/`
+// (see amwal.controller.ts and amwal.renewal.ts). This file holds only
+// the cancel + list + active-check helpers.
 
 /**
- * Start a SmartBox checkout for a restaurant's first subscription on a plan.
- * Creates an INCOMPLETE row; the webhook flips it to ACTIVE and sets endDate
- * once Amwal confirms the payment.
- */
-export async function createRestaurantSubscription(restaurantId: string, planId: string) {
-	const restaurant = await prisma.restaurant.findUnique({
-		where: { userId: restaurantId },
-	});
-	if (!restaurant) throw new Error("Restaurant not found");
-
-	const plan = await prisma.subscriptionPlan.findUnique({ where: { id: planId } });
-	if (!plan) throw new Error("Plan not found");
-
-	const amount = toNumberValue(plan.price);
-	if (!Number.isFinite(amount) || amount <= 0) {
-		throw new Error("Invalid subscription plan amount");
-	}
-
-	const dbSub = await prisma.restaurantSubscription.create({
-		data: {
-			restaurantId,
-			planId,
-			status: "INCOMPLETE",
-			startDate: new Date(),
-		},
-	});
-
-	const amwal = new AmwalPayService();
-	const smartbox = amwal.buildSmartBoxConfig({
-		amount,
-		currency: "OMR",
-		merchantReference: dbSub.id,
-	});
-
-	return {
-		dbSub,
-		scriptUrl: AmwalPayService.scriptUrl,
-		smartbox,
-	};
-}
-
-/**
- * Start a SmartBox checkout to switch an existing subscription to a new plan.
- * The plan change is not applied until the webhook confirms payment.
- */
-export async function updateRestaurantSubscription(subscriptionId: string, newPlanId: string) {
-	const sub = await prisma.restaurantSubscription.findUnique({ where: { id: subscriptionId } });
-	if (!sub) throw new Error("Subscription not found");
-
-	const plan = await prisma.subscriptionPlan.findUnique({ where: { id: newPlanId } });
-	if (!plan) throw new Error("New plan not found");
-
-	const amount = toNumberValue(plan.price);
-	if (!Number.isFinite(amount) || amount <= 0) {
-		throw new Error("Invalid subscription plan amount");
-	}
-
-	const pendingSub = await prisma.restaurantSubscription.create({
-		data: {
-			restaurantId: sub.restaurantId,
-			planId: newPlanId,
-			status: "INCOMPLETE",
-			startDate: new Date(),
-		},
-	});
-
-	const amwal = new AmwalPayService();
-	const smartbox = amwal.buildSmartBoxConfig({
-		amount,
-		currency: "OMR",
-		merchantReference: pendingSub.id,
-	});
-
-	return {
-		dbSub: pendingSub,
-		scriptUrl: AmwalPayService.scriptUrl,
-		smartbox,
-	};
-}
-
-/**
- * Cancel subscription
+ * Cancel an active subscription. Marks status=CANCELLED and sets endDate=now
+ * so any subscription-gated route immediately returns 402.
  */
 export async function cancelRestaurantSubscription(subscriptionId: string) {
-	const sub = await prisma.restaurantSubscription.findUnique({ where: { id: subscriptionId } });
-	if (!sub) throw new Error("Subscription not found");
+  const sub = await prisma.restaurantSubscription.findUnique({ where: { id: subscriptionId } });
+  if (!sub) throw new Error("Subscription not found");
 
-	const dbSub = await prisma.restaurantSubscription.update({
-		where: { id: subscriptionId },
-		data: { status: "CANCELLED", endDate: new Date() },
-	});
+  const dbSub = await prisma.restaurantSubscription.update({
+    where: { id: subscriptionId },
+    data: { status: "CANCELLED", endDate: new Date() },
+  });
 
-	return { dbSub };
+  return { dbSub };
 }
 
 /**
- * List subscriptions
+ * List subscriptions (active, expired, cancelled, past-due) for a restaurant.
  */
 export async function listRestaurantSubscriptions(restaurantId: string) {
-	return await prisma.restaurantSubscription.findMany({
-		where: { restaurantId },
-		include: { plan: true },
-	});
+  return await prisma.restaurantSubscription.findMany({
+    where: { restaurantId },
+    include: { plan: true },
+  });
 }
 
 /**
- * Check if a restaurant's subscription is active and payment is up-to-date
+ * Check if a restaurant has a currently-active, paid subscription.
+ * Used by `requireActiveSubscription` middleware.
  */
 export async function isSubscriptionActive(restaurantId: string) {
-	const now = new Date();
-	const sub = await prisma.restaurantSubscription.findFirst({
-		where: {
-			restaurantId,
-			status: "ACTIVE",
-			endDate: { gte: now },
-		},
-		orderBy: { endDate: "desc" },
-	});
-	return !!sub;
+  const now = new Date();
+  const sub = await prisma.restaurantSubscription.findFirst({
+    where: {
+      restaurantId,
+      status: "ACTIVE",
+      endDate: { gte: now },
+    },
+    orderBy: { endDate: "desc" },
+  });
+  return !!sub;
 }

@@ -19,7 +19,7 @@ This document lists every frontend-visible change from the backend security fix 
 > 9. **List endpoints silently clamp `limit` to 100** — passing `limit=999999` no longer returns the whole table.
 > 10. **Image uploads are validated by file content, not just MIME type** — spoofed `.html`/`.svg`/etc disguised as `.jpg` are now rejected with 400.
 > 11. **Send `X-Requested-With: fetch` (or any value) on every state-changing request** — without it the backend returns 403 "Missing X-Requested-With header" (CSRF defense).
-> 12. **`/api/subscriptions/subscribe` and `/api/subscriptions/update` are deprecated** — migrate to `POST /api/payments/amwal/initiate`. Old routes still work but log a warning.
+> 12. **`/api/subscriptions/subscribe`, `/api/subscriptions/update`, and `/api/subscriptions/attach-payment-method` are GONE** — use `POST /api/payments/amwal/initiate` instead. Calling the old URLs now returns 404.
 > 13. **`SubscriptionPlan` now has a `currency` field** — surface it in the UI when displaying prices (e.g. "5.000 OMR" not just "5.000").
 > 14. **`/api/health` and `/api/ready` are public** — for ops/monitoring only; not for the frontend.
 
@@ -502,21 +502,42 @@ If your existing code already uses Axios's defaults or has a single `apiClient.t
 
 ---
 
-## Change 15 — Subscription endpoints deprecated; switch to `/payments/amwal/initiate`
+## Change 15 — Subscription endpoints removed; use `/payments/amwal/initiate`
 **Audit ID:** N1
-**Why:** there were two parallel ways to start a subscription — `POST /api/subscriptions/subscribe` and `POST /api/payments/amwal/initiate` — doing exactly the same thing. The payments-module endpoint is canonical; the subscription-module wrappers are deprecated.
+**Why:** there were two parallel ways to start a subscription — `POST /api/subscriptions/subscribe` and `POST /api/payments/amwal/initiate` — doing exactly the same thing. The payments-module endpoint is canonical. Since the app isn't live yet, the duplicates were deleted outright.
 
-### What changed
+### What changed (these endpoints are now 404)
 
-- `POST /api/subscriptions/subscribe` → still works, but now emits a deprecation warning to the server logs.
-- `POST /api/subscriptions/update` → same.
-- The new canonical endpoint is `POST /api/payments/amwal/initiate` (already documented in Change 1 from Batch 1).
+- `POST /api/subscriptions/subscribe` → **deleted**, use `POST /api/payments/amwal/initiate`
+- `PUT  /api/subscriptions/update` → **deleted**, use `POST /api/payments/amwal/initiate`
+- `POST /api/subscriptions/attach-payment-method` → **deleted** (was a 501 stub anyway; Amwal doesn't need it)
+
+### Still available
+
+- `POST /api/subscriptions/cancel` — unchanged
+- `GET /api/subscriptions/list/:restaurantId` — unchanged
 
 ### Action
 
-If the frontend currently calls `POST /api/subscriptions/subscribe`, switch to `POST /api/payments/amwal/initiate`. Body fields are the same: `{ restaurantId, planId }` (and optional `customerId` for a saved-card flow). Response shape is the same: `{ success, subscriptionId, scriptUrl, smartbox }`.
+Migrate any frontend code that calls the deleted endpoints to `POST /api/payments/amwal/initiate`. Body fields and response shape are identical to the old `/subscribe`:
 
-The deprecated routes will be deleted in a future release once the warning logs go quiet.
+```ts
+// Before
+fetch("/api/subscriptions/subscribe", {
+  method: "POST",
+  // ...
+  body: JSON.stringify({ restaurantId, planId }),
+});
+
+// After
+fetch("/api/payments/amwal/initiate", {
+  method: "POST",
+  credentials: "include",
+  headers: { "Content-Type": "application/json", "X-Requested-With": "fetch" },
+  body: JSON.stringify({ restaurantId, planId }),
+});
+// Response: { success, subscriptionId, scriptUrl, smartbox }
+```
 
 ---
 
@@ -592,7 +613,7 @@ Two new unauthenticated endpoints:
 
 ### Batch 3 (N1–N15)
 - [ ] **`X-Requested-With` header set as a default on every state-changing API call** (Change 14) — this is the highest-priority Batch-3 item; without it most write requests will start returning 403
-- [ ] Migrated any `POST /api/subscriptions/subscribe` callers to `POST /api/payments/amwal/initiate` (Change 15)
+- [ ] Migrated any `POST /api/subscriptions/subscribe`, `PUT /api/subscriptions/update`, or `POST /api/subscriptions/attach-payment-method` callers to `POST /api/payments/amwal/initiate` (Change 15) — these endpoints now return 404
 - [ ] Plan price UI shows `currency` next to price (Change 16)
 
 ---

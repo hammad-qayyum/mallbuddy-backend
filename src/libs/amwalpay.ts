@@ -283,13 +283,10 @@ export class AmwalPayService {
   }
 
   private static get sessionTokenBaseUrl(): string {
-    // N2 — `AMWAL_API_BASE_URL` is the canonical name. Fall back to the
-    // legacy names so existing deploys don't break before .env is updated.
-    const explicit =
-      process.env.AMWAL_API_BASE_URL ??
-      process.env.AMWAL_SESSION_TOKEN_API_URL ??
-      process.env.AMWAL_PAYMENT_LINK_API_URL;
+    const explicit = process.env.AMWAL_API_BASE_URL;
     if (explicit) return explicit.replace(/\/+$/, '');
+    // No explicit override — derive from AMWAL_API_URL host so UAT and
+    // prod each resolve to the right Amwal backend port.
     const apiHost = (process.env.AMWAL_API_URL || '').toLowerCase();
     return apiHost.includes('test.amwalpg.com')
       ? 'https://test.amwalpg.com:14443'

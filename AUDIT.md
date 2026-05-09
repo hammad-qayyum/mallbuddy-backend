@@ -345,7 +345,7 @@ Fine technically. Consider switching to `Asia/Muscat` so logs read naturally and
 | I11 | 🟠 Important | global | List endpoints have no max-limit clamp | [orders.controller.ts:22](src/modules/orders/orders.controller.ts#L22) | ✅ **Done** |
 | I12 | 🟠 Important | payments | No cleanup job for orphan INCOMPLETE rows | [amwal.cron.ts](src/modules/payments/amwal.cron.ts) | ✅ **Done** |
 | I13 | 🟠 Important | global | No explicit body-size limit on JSON parser | [app.ts](src/app.ts) | ✅ **Done** |
-| N1 | 🟡 Notable | subscription | Two parallel subscription-create flows | [subscription.service.ts:20](src/modules/restaurant/subscription/subscription.service.ts#L20) | ✅ **Done** (deprecated) |
+| N1 | 🟡 Notable | subscription | Two parallel subscription-create flows | [subscription.service.ts:20](src/modules/restaurant/subscription/subscription.service.ts#L20) | ✅ **Done** (deleted) |
 | N2 | 🟡 Notable | env | Dead/misnamed env vars (AMWAL_RETURN_URL, AMWAL_PAYMENT_LINK_API_URL) | .env | ✅ **Done** |
 | N3 | 🟡 Notable | payments | Currency hardcoded to OMR | [amwal.controller.ts:60](src/modules/payments/amwal.controller.ts#L60) | ✅ **Done** |
 | N4 | 🟡 Notable | global | No CSRF protection (with `sameSite: none` cookies) | [app.ts](src/app.ts) | ✅ **Done** |
@@ -544,9 +544,11 @@ All 15 Notable findings closed in one sweep on **2026-05-09**. Type-check passes
   - [subscription.controller.ts](src/modules/restaurant/subscription/subscription.controller.ts) — deprecated route logging
 - Other modules retain `console.log` for now; gradual adoption is fine since Winston transports the same stdout.
 
-### N1 — Duplicate subscription-create flow deprecated
-- **Files:** [subscription.controller.ts](src/modules/restaurant/subscription/subscription.controller.ts) `subscribeRestaurant` + `updateSubscription` now log a `deprecated subscription route used` warning that points the caller at `POST /api/payments/amwal/initiate`.
-- Routes still functional (no breaking change for any existing frontend) but tagged for removal. Once frontend migration is verified via the warning logs, the routes can be deleted.
+### N1 — Duplicate subscription-create flow removed
+- **Routes deleted:** `POST /api/subscriptions/subscribe`, `PUT /api/subscriptions/update`, and `POST /api/subscriptions/attach-payment-method` (the latter returned 501 anyway).
+- **Code deleted:** `subscribeRestaurant`, `updateSubscription`, `attachPaymentMethod` in [subscription.controller.ts](src/modules/restaurant/subscription/subscription.controller.ts); `createRestaurantSubscription`, `updateRestaurantSubscription` in [subscription.service.ts](src/modules/restaurant/subscription/subscription.service.ts).
+- The single canonical entry point is `POST /api/payments/amwal/initiate` (returns SmartBox config, accepts optional `customerId` for saved-card flow).
+- Safe because the app isn't live yet — no backward-compat needed.
 
 ### N4 — CSRF defense via custom-header check
 - **New file:** [src/middlewares/csrf.middleware.ts](src/middlewares/csrf.middleware.ts) — `csrfHeaderGuard`.
@@ -603,5 +605,4 @@ All 15 Notable findings closed in one sweep on **2026-05-09**. Type-check passes
 What remains is operational follow-up:
 1. **Deploy** these changes to the VPS (`git pull && npm install && npm run build && pm2 restart 1`).
 2. On the VPS, run **once**: `npx prisma migrate resolve --applied 20260509000000_baseline_after_drift` to bring the production DB's `_prisma_migrations` table in sync.
-3. Hand [FRONTEND_CHANGES.md](FRONTEND_CHANGES.md) to the frontend developer — Batch 3 is appended there.
-4. Watch the production logs for `deprecated subscription route used` warnings; once you don't see them for a week, delete `/api/subscriptions/subscribe` and `/api/subscriptions/update` (N1's last step).
+3. Hand [FRONTEND_CHANGES.md](FRONTEND_CHANGES.md) to the frontend developer — Batches 1, 2, and 3 are documented there.
