@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { galleryController } from "./gallery.controller";
-import { uploadRestaurantGallery } from "../../config/upload";
+import { uploadRestaurantGallery, verifyUploadedImagesAreReal } from "../../config/upload";
 import { requireAuth, requireRestaurantRole, requireRestaurantOwnership } from "../../middlewares/role.middleware";
 import { requireActiveSubscription } from "../restaurant/subscription/requireActiveSubscription.middleware";
 
@@ -93,6 +93,9 @@ router.post(
       return next(err);
     }
   },
+  // I2 — magic-byte validation. Multer wrote the files to disk; reject any
+  // that don't actually have image bytes.
+  verifyUploadedImagesAreReal,
   (req, res, next) => {
     // delegate to controller method
     try {

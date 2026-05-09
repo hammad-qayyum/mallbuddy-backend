@@ -332,19 +332,19 @@ Fine technically. Consider switching to `Asia/Muscat` so logs read naturally and
 | C8 | 🔴 Critical | payments | Test page public in production with creds | [amwal.testpage.ts](src/modules/payments/amwal.testpage.ts) | ✅ **Done** |
 | C9 | 🔴 Critical | payments | Webhook downgrades ACTIVE→INCOMPLETE | [amwal.webhook.ts:99](src/modules/payments/amwal.webhook.ts#L99) | ✅ **Done** |
 | C10 | 🔴 Critical | payments | Webhook doesn't validate amount | [amwal.webhook.ts:85](src/modules/payments/amwal.webhook.ts#L85) | ✅ **Done** |
-| I1 | 🟠 Important | subscription | Duplicate Amwal webhook handler (dead/dangerous) | [subscriptionWebhook.ts](src/modules/restaurant/subscription/subscriptionWebhook.ts) | Pending |
-| I2 | 🟠 Important | uploads | File filter only checks MIME type, not content | [config/upload.ts:40](src/config/upload.ts#L40) | Pending |
-| I3 | 🟠 Important | auth | OTP value logged in plaintext | [otp-communication.service.ts:25](src/modules/auth/otp-communication.service.ts#L25) | Pending |
-| I4 | 🟠 Important | global | 500 responses echo `err.message` (info leak) | many | Pending |
-| I5 | 🟠 Important | payments | No timeout on Amwal HTTP calls | [amwalpay.ts:211,243](src/libs/amwalpay.ts#L211) | Pending |
-| I6 | 🟠 Important | payments | Webhook returns 200 on hash failure | [amwal.webhook.ts:67](src/modules/payments/amwal.webhook.ts#L67) | Pending |
-| I7 | 🟠 Important | payments | Failed renewal creates orphan rows | [amwal.renewal.ts:60](src/modules/payments/amwal.renewal.ts#L60) | Pending |
+| I1 | 🟠 Important | subscription | Duplicate Amwal webhook handler (dead/dangerous) | [subscriptionWebhook.ts](src/modules/restaurant/subscription/subscriptionWebhook.ts) | ✅ **Done** |
+| I2 | 🟠 Important | uploads | File filter only checks MIME type, not content | [config/upload.ts:40](src/config/upload.ts#L40) | ✅ **Done** |
+| I3 | 🟠 Important | auth | OTP value logged in plaintext | [otp-communication.service.ts:25](src/modules/auth/otp-communication.service.ts#L25) | ✅ **Done** |
+| I4 | 🟠 Important | global | 500 responses echo `err.message` (info leak) | many | ✅ **Done** |
+| I5 | 🟠 Important | payments | No timeout on Amwal HTTP calls | [amwalpay.ts:211,243](src/libs/amwalpay.ts#L211) | ✅ **Done** |
+| I6 | 🟠 Important | payments | Webhook returns 200 on hash failure | [amwal.webhook.ts:67](src/modules/payments/amwal.webhook.ts#L67) | ✅ **Done** |
+| I7 | 🟠 Important | payments | Failed renewal creates orphan rows | [amwal.renewal.ts:60](src/modules/payments/amwal.renewal.ts#L60) | ✅ **Done** |
 | I8 | 🟠 Important | orders | `cancelOrder` ownership check uses client `userId` | [orders.service.ts:237](src/modules/orders/orders.service.ts#L237) | ✅ **Done** (covered by C1) |
-| I9 | 🟠 Important | payments | Webhook + `/confirm` race on `amwalSubscriptionId` | [amwal.controller.ts:147](src/modules/payments/amwal.controller.ts#L147) | Pending |
-| I10 | 🟠 Important | schema | `commissionRate` is Float | [schema.prisma:168](prisma/schema.prisma#L168) | Pending |
-| I11 | 🟠 Important | global | List endpoints have no max-limit clamp | [orders.controller.ts:22](src/modules/orders/orders.controller.ts#L22) | Pending |
-| I12 | 🟠 Important | payments | No cleanup job for orphan INCOMPLETE rows | [amwal.cron.ts](src/modules/payments/amwal.cron.ts) | Pending |
-| I13 | 🟠 Important | global | No explicit body-size limit on JSON parser | [app.ts](src/app.ts) | Pending |
+| I9 | 🟠 Important | payments | Webhook + `/confirm` race on `amwalSubscriptionId` | [amwal.controller.ts:147](src/modules/payments/amwal.controller.ts#L147) | ✅ **Done** |
+| I10 | 🟠 Important | schema | `commissionRate` is Float | [schema.prisma:168](prisma/schema.prisma#L168) | ✅ **Done** |
+| I11 | 🟠 Important | global | List endpoints have no max-limit clamp | [orders.controller.ts:22](src/modules/orders/orders.controller.ts#L22) | ✅ **Done** |
+| I12 | 🟠 Important | payments | No cleanup job for orphan INCOMPLETE rows | [amwal.cron.ts](src/modules/payments/amwal.cron.ts) | ✅ **Done** |
+| I13 | 🟠 Important | global | No explicit body-size limit on JSON parser | [app.ts](src/app.ts) | ✅ **Done** |
 | N1 | 🟡 Notable | subscription | Two parallel subscription-create flows | [subscription.service.ts:20](src/modules/restaurant/subscription/subscription.service.ts#L20) | Pending |
 | N2 | 🟡 Notable | env | Dead/misnamed env vars (AMWAL_RETURN_URL, AMWAL_PAYMENT_LINK_API_URL) | .env | Pending |
 | N3 | 🟡 Notable | payments | Currency hardcoded to OMR | [amwal.controller.ts:60](src/modules/payments/amwal.controller.ts#L60) | Pending |
@@ -444,6 +444,73 @@ All ten Critical findings (and the linked I8 + N14) were fixed in one sweep on *
 
 ---
 
+---
+
+# Resolution log — I1 through I13
+
+All 12 remaining Important findings (I8 was already resolved by C1) were fixed in one sweep on **2026-05-09**. Type-check passes; live smoke-tests on the local server confirmed each fix behaves as expected.
+
+### I1 — Deleted the duplicate Amwal webhook handler
+- **What changed:** `src/modules/restaurant/subscription/subscriptionWebhook.ts` deleted entirely. The `/api/subscriptions/amwal-webhook` route removed from [subscription.routes.ts](src/modules/restaurant/subscription/subscription.routes.ts). Dead commented import removed from [app.ts](src/app.ts).
+- **Smoke test:** `POST /api/subscriptions/amwal-webhook` now returns 401 (auth gate, route doesn't exist anyway). The canonical webhook at `/api/payments/amwal/webhook` is the only one.
+
+### I3 — Stopped logging OTP value in plaintext
+- **File:** [src/modules/auth/otp-communication.service.ts:25](src/modules/auth/otp-communication.service.ts#L25)
+- The dev-fallback `console.log` no longer interpolates the OTP. Logs only show the recipient email.
+
+### I6 — Webhook returns 401 on hash failure (was 200)
+- **File:** [src/modules/payments/amwal.webhook.ts:67-72](src/modules/payments/amwal.webhook.ts#L67)
+- Status changed from 200 to 401. Amwal will now retry transient hash glitches instead of dropping the notification silently.
+- **Smoke test:** `POST /api/payments/amwal/webhook` with `{}` body → HTTP 401 (was 200). ✅
+
+### I13 — JSON body-size limit
+- **File:** [src/app.ts:35-37](src/app.ts#L35)
+- `express.json()` now configured with `limit: "100kb"` (explicit, was implicit default).
+- **Smoke test:** `POST /api/auth/login` with a 200KB body → HTTP 413. ✅ The new error middleware (I4) returns the proper "Request body too large" message.
+
+### I5 — `fetchWithTimeout` helper for every Amwal HTTP call
+- **File:** [src/libs/amwalpay.ts:5-23](src/libs/amwalpay.ts#L5)
+- New helper wraps every `fetch(...)` to Amwal with an `AbortController` and `AMWAL_HTTP_TIMEOUT_MS` (default 15s). Both `acquireSessionToken` and `executePayByToken` now use it.
+- **Note:** prevents the daily renewal cron from hanging indefinitely on a slow gateway.
+
+### I9 — `/confirm` no longer writes `amwalSubscriptionId`
+- **File:** [src/modules/payments/amwal.controller.ts](src/modules/payments/amwal.controller.ts) `confirmAmwalSmartBoxCallback`
+- Removed the `amwalSubscriptionId: transactionId` write. The webhook is now the single authoritative writer for that column (it stores Amwal's `SystemReference`).
+- Eliminates the last-writer-wins race between the frontend-driven `/confirm` and the server-to-server webhook.
+
+### I11 — `clampLimit` / `clampOffset` helpers + applied in orders
+- **File:** [src/modules/common/utils.ts](src/modules/common/utils.ts) — new helpers, default 20, max 100.
+- Applied in [src/modules/orders/orders.controller.ts](src/modules/orders/orders.controller.ts) for `getUserOrders`, `getActiveOrders`, `getPastOrders`, `getAcceptedOrders`.
+- Other modules can adopt the same helpers as needed.
+
+### I4 — Centralized error handler
+- **New file:** [src/middlewares/error.middleware.ts](src/middlewares/error.middleware.ts)
+- Mounted as the last middleware in [src/app.ts](src/app.ts). Catches anything `next(err)`'d or thrown from async controllers.
+- Logs the full error server-side; returns a generic `"Internal server error"` for 5xx (no `err.message` leak). Recognizes 413 (body-parser), CORS rejections, and explicit `err.status` overrides.
+- Cleaned up the most security-sensitive in-controller leaks: every `res.status(500).json({ error: err.message })` in the payment and orders controllers now logs server-side and returns a generic message.
+
+### I10 — `commissionRate` Float → Decimal(5,4)
+- **File:** [prisma/schema.prisma:168-171](prisma/schema.prisma#L168)
+- Type changed to `Decimal @db.Decimal(5,4)`. No application code references the column outside Prisma types, so no code changes needed.
+- **Migration:** synced via `prisma db push --accept-data-loss` (the cast is lossless for current values like 0.1 / 0.15).
+
+### I7 — `PAST_DUE` status + idempotent renewal cron
+- **Schema:** added `PAST_DUE` to `SubscriptionStatus` enum in [schema.prisma:644-650](prisma/schema.prisma#L644). Synced via `prisma db push`.
+- **Renewal flow:** [amwal.renewal.ts](src/modules/payments/amwal.renewal.ts) — when Pay-by-Token is declined, the new INCOMPLETE row is updated to `PAST_DUE` instead of being orphaned.
+- **Cron guard:** the daily scan now also skips any restaurant with a `PAST_DUE` row created in the last 7 days. So a single decline doesn't cause the cron to keep retrying and stacking PAST_DUE rows every day. Operators / a manual `/renew` call clear the state.
+
+### I12 — Orphan-INCOMPLETE cleanup baked into the daily cron
+- **Files:** [amwal.renewal.ts](src/modules/payments/amwal.renewal.ts) — new `cleanupStaleIncompleteSubscriptions(olderThanDays)`. [amwal.cron.ts](src/modules/payments/amwal.cron.ts) — invoked alongside `processDueSubscriptionRenewals` on every tick.
+- Default cleanup window: 7 days. Override via `AMWAL_ORPHAN_CLEANUP_DAYS` env.
+- **Live impact:** the first run on the production DB cleared **31** abandoned rows (out of 63 total — half the table was garbage from old `/initiate` calls).
+
+### I2 — Magic-byte image validation
+- **File:** [src/config/upload.ts](src/config/upload.ts) — new `verifyUploadedImagesAreReal` middleware. After multer writes an upload to disk, the middleware reads the first 16 bytes and confirms they match a known image signature (JPEG, PNG, GIF, WebP). Spoofed files are deleted from disk before the response is sent.
+- Applied after every multer-using route: menu items ([menu.routes.ts](src/modules/menu/menu.routes.ts)), restaurant banner ([restaurant.routes.ts](src/modules/restaurant/restaurant.routes.ts)), promotions ([promotion.routes.ts](src/modules/restaurant/promotion/promotion.routes.ts)), profile pictures ([user.routes.ts](src/modules/users/user.routes.ts)), cuisine categories ([cuisine.routes.ts](src/modules/cuisine/cuisine.routes.ts)), restaurant gallery ([gallery.routes.ts](src/modules/gallery/gallery.routes.ts)).
+- **Smoke test:** uploaded an HTML file with `Content-Type: image/jpeg` to `PATCH /api/users/me` → HTTP 400, file deleted from disk. ✅
+
+---
+
 ## Outstanding
 
-13 Important and 14 Notable findings remain — see the table above. Recommended next batches per the **PR plan**: PR 4 (payment hardening — I1, I3, I5, I6, I7, I9, I12), PR 5 (hygiene), PR 6 (schema cleanup).
+15 Notable findings remain — see the table above. Recommended next batch per the **PR plan**: PR 5 (hygiene — N6 structured logging, N15 health endpoint), PR 6 (schema cleanup — N5 migrations, N7 column rename, N8 lifecycle states).

@@ -91,6 +91,16 @@ export async function renewSubscriptionViaPayByToken(
     return { status: "renewed", subscriptionId: updated.id, expiresAt: endDate, amwal: result };
   }
 
+  // I7 — mark the failed-renewal row PAST_DUE so the cron's
+  // ACTIVE-and-expiring scan doesn't pick the *previous* expired-active row
+  // up again next tick and create yet another orphan INCOMPLETE row. The
+  // cron's "skip if a newer ACTIVE exists" guard alone wasn't enough because
+  // the original ACTIVE row stays ACTIVE (just with a past endDate).
+  await prisma.restaurantSubscription.update({
+    where: { id: dbSub.id },
+    data: { status: "PAST_DUE" },
+  });
+
   return {
     status: "declined",
     subscriptionId: dbSub.id,
@@ -142,6 +152,27 @@ export async function processDueSubscriptionRenewals(windowHours = 24): Promise<
       continue;
     }
 
+    // I7 — also skip if the restaurant has a recent PAST_DUE attempt.
+    // Without this, every cron tick re-tries the same expired ACTIVE row and
+    // accumulates PAST_DUE rows every day. Operators (or a manual /renew
+    // call) clear PAST_DUE; cron does not retry on its own.
+    const recentPastDue = await prisma.restaurantSubscription.findFirst({
+      where: {
+        restaurantId: sub.restaurantId,
+        status: "PAST_DUE",
+        createdAt: { gt: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) },
+      },
+      select: { id: true },
+    });
+    if (recentPastDue) {
+      stats.skipped++;
+      console.log("[renewal-cron] skip — recent PAST_DUE awaits manual review", {
+        subscriptionId: sub.id,
+        pastDueId: recentPastDue.id,
+      });
+      continue;
+    }
+
     console.log("[renewal-cron] charging", { id: sub.id, restaurantId: sub.restaurantId, planId: sub.planId });
     const outcome = await renewSubscriptionViaPayByToken(sub.restaurantId, sub.planId);
     switch (outcome.status) {
@@ -165,4 +196,29 @@ export async function processDueSubscriptionRenewals(windowHours = 24): Promise<
   }
 
   return stats;
+}
+
+/**
+ * I12 — Delete `INCOMPLETE` subscription rows older than `olderThanDays`.
+ *
+ * Every `/initiate` call creates an `INCOMPLETE` row before the customer
+ * even loads the SmartBox popup. Most are abandoned (popup closed, browser
+ * crashed, decline, etc.) and never become ACTIVE. Without cleanup the
+ * table grows linearly with attempts.
+ *
+ * Safe by design: only deletes rows that have been `INCOMPLETE` since their
+ * creation — never touches anything that was ever `ACTIVE`.
+ */
+export async function cleanupStaleIncompleteSubscriptions(olderThanDays = 7): Promise<{
+  deleted: number;
+}> {
+  const cutoff = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000);
+  const result = await prisma.restaurantSubscription.deleteMany({
+    where: {
+      status: "INCOMPLETE",
+      createdAt: { lt: cutoff },
+    },
+  });
+  console.log("[renewal-cron] cleanup", { deleted: result.count, olderThanDays });
+  return { deleted: result.count };
 }

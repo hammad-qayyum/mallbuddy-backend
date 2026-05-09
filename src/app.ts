@@ -6,9 +6,7 @@ import path from "path";
 import {swaggerSpec} from "./config/swagger";
 import router from "./routes";
 import { attachAuth } from "./middlewares/attach-auth.middleware";
-
-// import { subscriptionWebhookHandler } from "./modules/restaurant/subscription/subscriptionWebhook";
-
+import { errorHandler } from "./middlewares/error.middleware";
 
 const app = express();
 
@@ -35,7 +33,9 @@ app.use(
 // Stripe webhooks must be before attachAuth (uses raw body)
 
 
-app.use(express.json());
+// I13 — explicit body-size limit. Default is 100KB; we tighten to 100KB
+// here to keep it deliberate. Multer routes have their own per-file limit.
+app.use(express.json({ limit: "100kb" }));
 app.use(cookieParser());
 
 // Apply general rate limiting to all routes
@@ -109,7 +109,7 @@ listRoutes();
 // );
 
 
-// Global error handler
-
+// Global error handler — must be last so it catches anything else.
+app.use(errorHandler);
 
 export default app;

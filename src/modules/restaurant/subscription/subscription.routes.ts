@@ -1,4 +1,4 @@
-import express, { Router } from "express";
+import { Router } from "express";
 import {
   subscribeRestaurant,
   updateSubscription,
@@ -6,14 +6,14 @@ import {
   getRestaurantSubscriptions,
   attachPaymentMethod,
 } from "./subscription.controller";
-import { amwalWebhookHandler } from "./subscriptionWebhook";
-import { requireAuth, requireRestaurantRole } from "../../../middlewares/role.middleware";
+import { requireRestaurantRole } from "../../../middlewares/role.middleware";
 
 const router = Router();
 
-
-// Amwal MCN webhook route (no auth)
-router.post("/amwal-webhook", express.json(), amwalWebhookHandler);
+// I1 — the legacy `/subscriptions/amwal-webhook` handler used the wrong
+// payload shape (`paymentId, eventType, ...`) and would silently drop every
+// real Amwal notification. The canonical webhook is at
+// `/api/payments/amwal/webhook` (see `modules/payments/amwal.webhook.ts`).
 
 // Apply restaurant role to all subscription routes (requireAuth is applied globally)
 router.use(requireRestaurantRole);

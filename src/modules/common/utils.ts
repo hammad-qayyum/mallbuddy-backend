@@ -1,6 +1,28 @@
 import { Request } from "express";
 
 /**
+ * I11 — Clamp a client-supplied `limit` query param to a sane maximum.
+ * Without this, `?limit=1000000` dumps the table.
+ *
+ *   const limit = clampLimit(req.query.limit);          // default 20, max 100
+ *   const limit = clampLimit(req.query.limit, 50, 200); // default 50, max 200
+ */
+export function clampLimit(raw: unknown, defaultLimit = 20, maxLimit = 100): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return defaultLimit;
+  return Math.min(Math.floor(n), maxLimit);
+}
+
+/**
+ * Clamp a client-supplied `offset`. Negative or non-numeric → 0.
+ */
+export function clampOffset(raw: unknown): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.floor(n);
+}
+
+/**
  * Returns the authenticated user id from the request, or undefined.
  * Always derived from the verified session (req.auth) — never from
  * req.body / req.query / req.params, which are attacker-controlled.

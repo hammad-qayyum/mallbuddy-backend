@@ -21,8 +21,9 @@ export async function sendOTPEmail(
   signupType: "user" | "restaurant"
 ): Promise<void> {
   if (!process.env.RESEND_API_KEY) {
-    console.warn("[OTP Email] RESEND_API_KEY not configured. Skipping email send.");
-    console.log(`[OTP Email] Would send OTP ${otp} to ${email} for ${signupType} signup`);
+    // I3 — never log the OTP value at any level. Logs may be retained,
+    // shipped to ops, or leaked. The OTP is short-lived but still secret.
+    console.warn(`[OTP Email] RESEND_API_KEY not configured. Would send to ${email} for ${signupType} signup.`);
     return;
   }
 

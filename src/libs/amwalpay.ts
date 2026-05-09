@@ -2,6 +2,26 @@ import dotenv from 'dotenv';
 import { generateAmwalHash } from './amwalhash';
 dotenv.config();
 
+// I5 — bound every external Amwal HTTP call with a hard timeout so a hung
+// gateway can't block our renewal cron loop or hold a request open forever.
+const AMWAL_HTTP_TIMEOUT_MS = parseInt(process.env.AMWAL_HTTP_TIMEOUT_MS || '15000', 10);
+
+async function fetchWithTimeout(url: string, init: RequestInit & { timeoutMs?: number } = {}): Promise<Response> {
+  const { timeoutMs = AMWAL_HTTP_TIMEOUT_MS, ...rest } = init;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...rest, signal: controller.signal });
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      throw new Error(`Amwal request timed out after ${timeoutMs}ms (${url})`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ISO 4217 numeric currency codes used by Amwal Pay.
 // UAT for our merchant is OMR-only.
 const CURRENCY_IDS: Record<string, number> = {
@@ -208,7 +228,7 @@ export class AmwalPayService {
     requestBody.secureHashValue = generateAmwalHash(requestBody, this.secureHash);
 
     const url = `${AmwalPayService.sessionTokenBaseUrl}/Execute/PayByToken`;
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody),
@@ -240,7 +260,7 @@ export class AmwalPayService {
     requestBody.secureHashValue = generateAmwalHash(requestBody, this.secureHash);
 
     const url = `${AmwalPayService.sessionTokenBaseUrl}/Customer/GetSmartboxDirectCallSessionToken`;
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody),

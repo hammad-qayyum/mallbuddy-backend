@@ -100,7 +100,8 @@ export const initiateAmwalSubscriptionPayment = async (req: Request, res: Respon
     });
   } catch (err: any) {
     console.error("[Amwal] Payment initiation error", err);
-    return res.status(500).json({ success: false, error: err.message });
+    // I4 — log full error server-side; return generic message to client.
+    return res.status(500).json({ success: false, error: "Internal server error" });
   }
 };
 
@@ -161,19 +162,21 @@ export const confirmAmwalSmartBoxCallback = async (req: Request, res: Response) 
     const startDate = sub.startDate ?? new Date();
     const endDate = computeEndDate(startDate, sub.plan.interval);
 
-    const transactionId =
-      typeof inner.transactionId === "string" ? inner.transactionId : null;
     const customerId =
       typeof inner.customerId === "string" && inner.customerId.length > 0 ? inner.customerId : null;
     const customerTokenId =
       typeof inner.customerTokenId === "string" && inner.customerTokenId.length > 0 ? inner.customerTokenId : null;
 
+    // I9 — the webhook is the authoritative writer for `amwalSubscriptionId`
+    // (it stores Amwal's `SystemReference`). `/confirm` is the frontend-driven
+    // optimistic UI path; it activates the subscription but leaves the gateway
+    // reference for the webhook. If the webhook has already arrived, its value
+    // is preserved.
     const updated = await prisma.restaurantSubscription.update({
       where: { id: subscriptionId },
       data: {
         status: "ACTIVE",
         endDate,
-        amwalSubscriptionId: transactionId,
       },
     });
 
@@ -188,7 +191,6 @@ export const confirmAmwalSmartBoxCallback = async (req: Request, res: Response) 
 
     console.log("[Amwal] Activated subscription via SmartBox callback", {
       id: updated.id,
-      transactionId,
       tokenSaved: Boolean(customerId && customerTokenId),
       endDate,
     });
@@ -200,7 +202,8 @@ export const confirmAmwalSmartBoxCallback = async (req: Request, res: Response) 
     });
   } catch (err: any) {
     console.error("[Amwal] confirm callback error", err);
-    return res.status(500).json({ success: false, error: err.message });
+    // I4 — log full error server-side; return generic message to client.
+    return res.status(500).json({ success: false, error: "Internal server error" });
   }
 };
 
@@ -242,11 +245,14 @@ export const renewAmwalSubscription = async (req: Request, res: Response) => {
       case "skipped":
         return res.status(400).json({ success: false, error: outcome.reason });
       case "error":
-        return res.status(502).json({ success: false, subscriptionId: outcome.subscriptionId, error: outcome.error });
+        // I4 — log the upstream error server-side, return generic to client.
+        console.error("[Amwal] renew upstream error", { subscriptionId: outcome.subscriptionId, error: outcome.error });
+        return res.status(502).json({ success: false, subscriptionId: outcome.subscriptionId, error: "Upstream payment error" });
     }
   } catch (err: any) {
     console.error("[Amwal] renew error", err);
-    return res.status(500).json({ success: false, error: err.message });
+    // I4 — log full error server-side; return generic message to client.
+    return res.status(500).json({ success: false, error: "Internal server error" });
   }
 };
 
@@ -286,6 +292,7 @@ export const acquireAmwalSessionToken = async (req: Request, res: Response) => {
     return res.json({ success: true, sessionToken });
   } catch (err: any) {
     console.error("[Amwal] session-token error", err);
-    return res.status(500).json({ success: false, error: err.message });
+    // I4 — log full error server-side; return generic message to client.
+    return res.status(500).json({ success: false, error: "Internal server error" });
   }
 };

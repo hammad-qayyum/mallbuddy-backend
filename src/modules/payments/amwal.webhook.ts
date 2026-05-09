@@ -84,7 +84,9 @@ export const amwalWebhook = async (req: Request, res: Response) => {
 
     if (!verifySecureHash(body)) {
       console.error("[Amwal Webhook] Invalid SecureHash", { merchantReference, systemReference });
-      return res.status(200).json({ message: "invalid hash", success: false });
+      // I6 — return 401 (not 200) so Amwal retries on transient hash glitches
+      // instead of silently dropping the notification.
+      return res.status(401).json({ message: "invalid hash", success: false });
     }
 
     if (!merchantReference) {
@@ -154,6 +156,6 @@ export const amwalWebhook = async (req: Request, res: Response) => {
     return res.status(200).json(AMWAL_RESPONSE_BODY);
   } catch (err: any) {
     console.error("[Amwal Webhook] Error", err);
-    return res.status(500).json({ message: err.message, success: false });
+    return res.status(500).json({ message: "Internal server error", success: false });
   }
 };

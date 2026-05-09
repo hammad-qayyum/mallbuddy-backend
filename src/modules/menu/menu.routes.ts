@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { menuCategoryController } from "./menu.controller";
-import { uploadMenuItemImage } from "../../config/upload";
+import { uploadMenuItemImage, verifyUploadedImagesAreReal } from "../../config/upload";
 import { requireAuth, requireRestaurantRole } from "../../middlewares/role.middleware";
 import { requireActiveSubscription } from "../restaurant/subscription/requireActiveSubscription.middleware";
 
@@ -332,7 +332,7 @@ router.delete("/menu/delete-category/:id", requireAuth, requireRestaurantRole, r
  *             schema:
  *               $ref: '#/components/schemas/ValidationError'
  */
-router.post("/menu/create-item", requireAuth, requireRestaurantRole, requireActiveSubscription, uploadMenuItemImage.single("image"), menuCategoryController.createItem);
+router.post("/menu/create-item", requireAuth, requireRestaurantRole, requireActiveSubscription, uploadMenuItemImage.single("image"), verifyUploadedImagesAreReal, menuCategoryController.createItem);
 
 /**
  * @swagger
@@ -500,7 +500,7 @@ router.get("/menu/get-item/:id", menuCategoryController.getItemById);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.patch("/menu/update-item/:id", requireAuth, requireRestaurantRole, requireActiveSubscription, uploadMenuItemImage.single("image"), menuCategoryController.updateItem);
+router.patch("/menu/update-item/:id", requireAuth, requireRestaurantRole, requireActiveSubscription, uploadMenuItemImage.single("image"), verifyUploadedImagesAreReal, menuCategoryController.updateItem);
 
 /**
  * @swagger

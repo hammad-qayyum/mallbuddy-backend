@@ -1,5 +1,5 @@
 import cron, { ScheduledTask } from "node-cron";
-import { processDueSubscriptionRenewals } from "./amwal.renewal";
+import { processDueSubscriptionRenewals, cleanupStaleIncompleteSubscriptions } from "./amwal.renewal";
 
 /**
  * Cron expression and timezone for the daily renewal job. Override in env
@@ -11,6 +11,8 @@ import { processDueSubscriptionRenewals } from "./amwal.renewal";
 const DEFAULT_CRON = "0 2 * * *";
 const DEFAULT_TZ = "Etc/UTC";
 const RENEWAL_WINDOW_HOURS = 24;
+// I12 — delete INCOMPLETE rows that have been abandoned for this long.
+const ORPHAN_CLEANUP_DAYS = parseInt(process.env.AMWAL_ORPHAN_CLEANUP_DAYS || "7", 10);
 
 let scheduledTask: ScheduledTask | null = null;
 
@@ -34,9 +36,12 @@ export function startAmwalRenewalCron(): void {
       const startedAt = new Date();
       console.log("[renewal-cron] tick — scanning for due subscriptions", { startedAt });
       try {
-        const stats = await processDueSubscriptionRenewals(RENEWAL_WINDOW_HOURS);
+        const renewalStats = await processDueSubscriptionRenewals(RENEWAL_WINDOW_HOURS);
+        // I12 — also sweep abandoned INCOMPLETE rows so the table doesn't
+        // grow forever from /initiate calls that never completed payment.
+        const cleanupStats = await cleanupStaleIncompleteSubscriptions(ORPHAN_CLEANUP_DAYS);
         const tookMs = Date.now() - startedAt.getTime();
-        console.log("[renewal-cron] done", { ...stats, tookMs });
+        console.log("[renewal-cron] done", { ...renewalStats, cleanupDeleted: cleanupStats.deleted, tookMs });
       } catch (err: any) {
         console.error("[renewal-cron] crashed", { error: err?.message ?? err });
       }

@@ -1,7 +1,7 @@
 import {Router} from "express";
 import {userController} from "./user.controller";
 import {requireAuth, requireUserRole} from "../../middlewares/role.middleware";
-import { uploadProfilePicture } from "../../config/upload";
+import { uploadProfilePicture, verifyUploadedImagesAreReal } from "../../config/upload";
 
 const router = Router();
 
@@ -219,7 +219,7 @@ router.get("/me", userController.getMyProfile);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.patch("/me", uploadProfilePicture.single("image"), userController.updateProfile);
+router.patch("/me", uploadProfilePicture.single("image"), verifyUploadedImagesAreReal, userController.updateProfile);
 
 /**
  * @swagger
@@ -371,7 +371,7 @@ router.delete("/me", userController.deleteMyProfile);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post("/me/profile-picture", uploadProfilePicture.single("profilePicture"), userController.uploadProfilePicture);
+router.post("/me/profile-picture", uploadProfilePicture.single("profilePicture"), verifyUploadedImagesAreReal, userController.uploadProfilePicture);
 
 /**
  * @swagger

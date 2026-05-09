@@ -33,6 +33,6 @@ export const verifyAmwalPayment = async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error("[Amwal] Verify payment error", err);
-    return res.status(500).json({ status: "ERROR", error: err.message });
+    return res.status(500).json({ status: "ERROR", error: "Internal server error" });
   }
 };

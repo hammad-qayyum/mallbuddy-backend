@@ -168,7 +168,9 @@ model Restaurant {
   onboardingCompleted    Boolean                   @default(false)
   onboardingCompletedAt  DateTime?
   bankAccountAdded       Boolean                   @default(false)
-  commissionRate         Float                     @default(0.1)
+  // I10 — Decimal (not Float) so commission math doesn't accumulate
+  // floating-point drift across orders.
+  commissionRate         Decimal                   @default(0.1) @db.Decimal(5, 4)
 
   RestaurantStatus       RestaurantStatus          @default(ACTIVE)
   approvalStatus         RestaurantApprovalStatus  @default(PENDING)
@@ -643,6 +645,10 @@ enum SubscriptionStatus {
   EXPIRED
   CANCELLED
   INCOMPLETE
+  // I7 — set when an automatic renewal charge fails. Distinguishes
+  // "couldn't charge" from "customer cancelled" (CANCELLED) and from
+  // "never paid in the first place" (INCOMPLETE).
+  PAST_DUE
 }
 
 enum PaymentStatus {

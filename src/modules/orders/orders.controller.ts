@@ -10,7 +10,7 @@ import {
   getOrderSummarySchema,
   getAcceptedOrdersSchema,
 } from "./orders.schema";
-import { getAuthUserId, getAuthRole } from "../common/utils";
+import { getAuthUserId, getAuthRole, clampLimit, clampOffset } from "../common/utils";
 
 function requireAuthUserId(req: Request, res: Response): string | null {
   const userId = getAuthUserId(req);
@@ -31,8 +31,8 @@ export const ordersController = {
       if (!userId) return;
 
       const status = (req.query.status ?? req.body?.status) as string | undefined;
-      const limit = Number.parseInt((req.query.limit ?? "10") as string);
-      const offset = Number.parseInt((req.query.offset ?? "0") as string);
+      const limit = clampLimit(req.query.limit, 10);
+      const offset = clampOffset(req.query.offset);
 
       const parseResult = getUserOrdersSchema.safeParse({ status, limit, offset });
       if (!parseResult.success) {
@@ -49,7 +49,8 @@ export const ordersController = {
         data: orders,
       });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      console.error("[orders]", error);
+      return res.status(500).json({ message: "Internal server error" });
     }
   },
 
@@ -61,8 +62,8 @@ export const ordersController = {
       const userId = requireAuthUserId(req, res);
       if (!userId) return;
 
-      const limit = Number.parseInt((req.query.limit ?? "10") as string);
-      const offset = Number.parseInt((req.query.offset ?? "0") as string);
+      const limit = clampLimit(req.query.limit, 10);
+      const offset = clampOffset(req.query.offset);
 
       const parseResult = getActiveOrdersSchema.safeParse({ limit, offset });
       if (!parseResult.success) {
@@ -79,7 +80,8 @@ export const ordersController = {
         data: orders,
       });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      console.error("[orders]", error);
+      return res.status(500).json({ message: "Internal server error" });
     }
   },
 
@@ -91,8 +93,8 @@ export const ordersController = {
       const userId = requireAuthUserId(req, res);
       if (!userId) return;
 
-      const limit = Number.parseInt((req.query.limit ?? "10") as string);
-      const offset = Number.parseInt((req.query.offset ?? "0") as string);
+      const limit = clampLimit(req.query.limit, 10);
+      const offset = clampOffset(req.query.offset);
 
       const parseResult = getPastOrdersSchema.safeParse({ limit, offset });
       if (!parseResult.success) {
@@ -109,7 +111,8 @@ export const ordersController = {
         data: orders,
       });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      console.error("[orders]", error);
+      return res.status(500).json({ message: "Internal server error" });
     }
   },
 
@@ -142,7 +145,8 @@ export const ordersController = {
       if (error.message.includes("Unauthorized") || error.message.includes("cannot be cancelled")) {
         return res.status(400).json({ message: error.message });
       }
-      return res.status(500).json({ message: error.message });
+      console.error("[orders]", error);
+      return res.status(500).json({ message: "Internal server error" });
     }
   },
 
@@ -175,7 +179,8 @@ export const ordersController = {
       if (error.message.includes("Unauthorized") || error.message.includes("can only reorder")) {
         return res.status(400).json({ message: error.message });
       }
-      return res.status(500).json({ message: error.message });
+      console.error("[orders]", error);
+      return res.status(500).json({ message: "Internal server error" });
     }
   },
 
@@ -191,7 +196,8 @@ export const ordersController = {
         data: reasons,
       });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      console.error("[orders]", error);
+      return res.status(500).json({ message: "Internal server error" });
     }
   },
 
@@ -221,7 +227,8 @@ export const ordersController = {
       if (error.message.includes("Unauthorized")) {
         return res.status(403).json({ message: error.message });
       }
-      return res.status(500).json({ message: error.message });
+      console.error("[orders]", error);
+      return res.status(500).json({ message: "Internal server error" });
     }
   },
 
@@ -251,7 +258,8 @@ export const ordersController = {
       if (error.message.includes("not found")) {
         return res.status(404).json({ message: error.message });
       }
-      return res.status(500).json({ message: error.message });
+      console.error("[orders]", error);
+      return res.status(500).json({ message: "Internal server error" });
     }
   },
 
@@ -281,7 +289,8 @@ export const ordersController = {
       if (error.message.includes("not found")) {
         return res.status(404).json({ message: error.message });
       }
-      return res.status(500).json({ message: error.message });
+      console.error("[orders]", error);
+      return res.status(500).json({ message: "Internal server error" });
     }
   },
 
@@ -296,8 +305,8 @@ export const ordersController = {
       const role = getAuthRole(req) ?? "";
 
       const { restaurantId } = req.params;
-      const limit = Number.parseInt((req.query.limit ?? "50") as string);
-      const offset = Number.parseInt((req.query.offset ?? "0") as string);
+      const limit = clampLimit(req.query.limit, 50);
+      const offset = clampOffset(req.query.offset);
 
       // Only the restaurant itself or an ADMIN can see its order queue
       if (role !== "ADMIN" && userId !== restaurantId) {
@@ -327,7 +336,8 @@ export const ordersController = {
       if (error.message.includes("not found")) {
         return res.status(404).json({ message: error.message });
       }
-      return res.status(500).json({ message: error.message });
+      console.error("[orders]", error);
+      return res.status(500).json({ message: "Internal server error" });
     }
   },
 };

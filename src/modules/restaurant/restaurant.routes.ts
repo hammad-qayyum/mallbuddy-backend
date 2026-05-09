@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { restaurantController } from "./restaurant.controller";
-import { uploadRestaurantBanner } from "../../config/upload";
+import { uploadRestaurantBanner, verifyUploadedImagesAreReal } from "../../config/upload";
 import { requireAuth, requireAdminRole, requireRestaurantRole, requireRestaurantOwnership, requireRole } from "../../middlewares/role.middleware";
 import { requireActiveSubscription } from "./subscription/requireActiveSubscription.middleware";
 
@@ -153,7 +153,7 @@ const router = Router();
  *         description: Email already registered
  */
 // Admin route - require admin role
-router.post("/admin/restaurants/create", requireAuth, requireAdminRole, uploadRestaurantBanner.single("banner"), restaurantController.createByAdmin);
+router.post("/admin/restaurants/create", requireAuth, requireAdminRole, uploadRestaurantBanner.single("banner"), verifyUploadedImagesAreReal, restaurantController.createByAdmin);
 
 /**
  * @swagger
@@ -656,7 +656,7 @@ router.get("/restaurant/get-details/:restaurantId", restaurantController.getDeta
  *               $ref: '#/components/schemas/Error'
  */
 // Restaurant management routes - require restaurant role and ownership
-router.patch("/restaurant/update/:restaurantId", requireAuth, requireRestaurantRole, requireRestaurantOwnership, uploadRestaurantBanner.single("banner"), restaurantController.update);
+router.patch("/restaurant/update/:restaurantId", requireAuth, requireRestaurantRole, requireRestaurantOwnership, uploadRestaurantBanner.single("banner"), verifyUploadedImagesAreReal, restaurantController.update);
 
 /**
  * @swagger

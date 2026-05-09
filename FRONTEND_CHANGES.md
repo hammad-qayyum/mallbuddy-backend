@@ -1,6 +1,10 @@
-# Frontend Migration Guide — Backend Security Fixes (2026-05-09)
+# Frontend Migration Guide — Backend Security Fixes
 
-This document lists every frontend-visible change from the backend security fix batch (audit findings C1–C10). All changes are **live on `https://backend.mallbuddy.net`** after deploy. Read this end-to-end before pushing the next frontend release.
+This document lists every frontend-visible change from the backend security fix batches. All changes are **live on `https://backend.mallbuddy.net`** after deploy. Read this end-to-end before pushing the next frontend release.
+
+**Two batches landed:**
+- **Batch 1 (2026-05-09):** Audit findings **C1–C10** (Critical) — Changes 1-7 below
+- **Batch 2 (2026-05-09):** Audit findings **I1–I13** (Important) — Changes 8-13 below
 
 > **TL;DR for the impatient**
 > 1. **Stop sending `userId` in body or query** on any orders / cart / checkout / delivery-address endpoint — the backend now reads it from the auth cookie.
@@ -8,6 +12,11 @@ This document lists every frontend-visible change from the backend security fix 
 > 3. **Handle `429 Too Many Requests`** on login / register / password-reset / verify-otp.
 > 4. **All Amwal payment endpoints now require auth** (the cookie you already send works — but `/test-page` and direct `/initiate` from logged-out users will now fail).
 > 5. **Push notifications now actually work** — `POST /api/notifications/register-token` was silently broken before. Re-test after deploy.
+> 6. **Handle `413 Payload Too Large`** for any request with a body larger than ~100KB.
+> 7. **Handle the new `PAST_DUE` subscription status** — restaurants whose automatic renewal failed get this status (was previously indistinguishable from `INCOMPLETE`).
+> 8. **5xx error responses no longer expose `err.message`** — show a generic friendly message instead of relying on the backend string.
+> 9. **List endpoints silently clamp `limit` to 100** — passing `limit=999999` no longer returns the whole table.
+> 10. **Image uploads are validated by file content, not just MIME type** — spoofed `.html`/`.svg`/etc disguised as `.jpg` are now rejected with 400.
 
 ---
 
@@ -283,8 +292,161 @@ Make sure the frontend always sends the **logged-in restaurant's own ID** as `re
 
 ---
 
+---
+
+# Batch 2 (Important — I1–I13)
+
+The remaining changes below all landed in the same deploy and may affect the frontend.
+
+---
+
+## Change 8 — Handle `413 Payload Too Large`
+**Audit ID:** I13
+**Why:** the backend now enforces an explicit 100KB limit on JSON request bodies. Any POST/PATCH that ships unusually large JSON (e.g. lots of inline base64 data, accidentally huge text fields) will be rejected.
+
+### Response shape on 413
+
+```json
+HTTP 413 Payload Too Large
+{ "success": false, "error": "Request body too large" }
+```
+
+### Action
+
+- File uploads are unaffected — multer has its own 5MB-per-file limit and a separate code path.
+- For text-heavy endpoints (e.g. menu item descriptions, review bodies), if you were ever inlining base64 image data in JSON: stop. Use the file-upload endpoints instead.
+- Add a global 413 handler that surfaces a friendly "this content is too large to submit" message.
+
+---
+
+## Change 9 — New subscription status: `PAST_DUE`
+**Audit ID:** I7
+**Why:** when a recurring renewal charge fails (saved card declined, etc.), the subscription previously stayed `ACTIVE` with a past `endDate` and the cron created an orphan `INCOMPLETE` row every retry. Now there's a dedicated `PAST_DUE` status so the UI can communicate "we tried to charge your card and couldn't" distinctly from "you cancelled" or "you never paid".
+
+### What changed
+
+`SubscriptionStatus` enum now has 5 values:
+
+```ts
+type SubscriptionStatus =
+  | "ACTIVE"      // currently paid, endDate in the future
+  | "INCOMPLETE"  // first payment never completed
+  | "CANCELLED"   // restaurant explicitly cancelled
+  | "EXPIRED"     // (existing, less commonly used)
+  | "PAST_DUE";   // ← new: automatic renewal failed
+```
+
+### Where you'll see it
+
+`GET /api/payments/amwal/verify/:orderId` and any `GET /api/subscriptions/list/:restaurantId` response can now return `status: "PAST_DUE"`.
+
+### Action
+
+In the restaurant-side dashboard:
+
+- **`ACTIVE`** → green badge, normal operation.
+- **`INCOMPLETE`** → "Complete payment to activate" CTA → `/initiate` flow.
+- **`CANCELLED`** → "Subscription cancelled. Resubscribe?" CTA.
+- **`PAST_DUE`** → "We couldn't charge your saved card. Update payment to continue." CTA → ideally a button that calls `POST /api/payments/amwal/renew` (to retry with the existing saved card) AND a fallback button to add a new card via the SmartBox flow.
+- **`EXPIRED`** → same UX as CANCELLED for now.
+
+### Note
+
+A restaurant in `PAST_DUE` is treated identically to expired/inactive by `requireActiveSubscription` (Change 2 from Batch 1) — they get 402 on every action endpoint until the subscription is back to `ACTIVE`. The frontend's existing 402 handler will catch them; the only new UX is showing the right message in the subscription dashboard.
+
+---
+
+## Change 10 — Generic 5xx error messages
+**Audit ID:** I4
+**Why:** previously, 500 responses echoed `err.message` directly to the client (leaking Prisma errors, file paths, stack traces). Now all 500s return a generic message and details are only logged server-side.
+
+### Response shape on 500
+
+```json
+HTTP 500
+{ "success": false, "error": "Internal server error" }
+```
+
+(Previously could be anything from `"Cannot read property 'foo' of undefined"` to `"Unique constraint failed on the fields: (\`email\`)"`.)
+
+### Action
+
+Don't show `response.error` text directly in the UI for 5xx responses — display a fixed "Something went wrong, please try again" message. (For 4xx, the error string is still safe to show; those are deliberate business-rule messages.)
+
+If you have any code that branches on the exact error text from 5xx (e.g. `if (err.includes("Prisma"))`), it'll stop matching. That code was relying on a leak; rewrite to use status code + structured error fields if you need more granularity.
+
+---
+
+## Change 11 — List endpoints clamp `limit` to 100
+**Audit ID:** I11
+**Why:** `?limit=999999` used to dump the entire table. Now it's silently clamped.
+
+### Behavior
+
+- `?limit=999999` → silently treated as `limit=100`
+- `?limit=-5` or `?limit=abc` → silently treated as default (10–50 depending on endpoint)
+- `?offset=-1` → silently treated as `offset=0`
+
+### Affected endpoints
+
+- `GET /api/orders/list`, `/active`, `/past` — max 100
+- `GET /api/orders/restaurant/:restaurantId/accepted` — max 100
+- (More endpoints will adopt this as we touch them; the helper is in place for incremental rollout.)
+
+### Action
+
+If you were previously requesting `limit=500` to get more rows in one shot, you'll now get 100. Implement proper pagination via `offset` if you need more.
+
+---
+
+## Change 12 — Image uploads now validated by file content
+**Audit ID:** I2
+**Why:** previously the backend checked `Content-Type: image/jpeg` from the client, which is trivially spoofed. An attacker could rename `.html` to `.jpg`, set MIME to `image/jpeg`, and host arbitrary content on `/uploads`. Now the backend reads the first bytes of every saved file and rejects anything that isn't a real JPEG/PNG/GIF/WebP.
+
+### Affected endpoints (all image-upload routes)
+
+- `PATCH /api/users/me` (image)
+- `POST /api/users/me/profile-picture`
+- `POST /api/menu/create-item` (image)
+- `PATCH /api/menu/update-item/:id` (image)
+- `POST /api/admin/restaurants/create` (banner)
+- `PATCH /api/restaurant/update/:restaurantId` (banner)
+- `POST /api/restaurant/:restaurantId/promotions` (banner)
+- `PUT /api/promotions/:id` (banner)
+- `POST /api/cuisine/create-category/:mallId` (image)
+- `PATCH /api/cuisine/update-category/:id` (image)
+- `POST /api/restaurant/:restaurantId/gallery` (images, multiple)
+
+### Response shape on rejection
+
+```json
+HTTP 400
+{ "success": false, "error": "Uploaded file is not a valid image" }
+```
+
+### Action
+
+If your frontend uses real image files from a file picker / camera, **nothing changes** — they'll pass.
+
+If for any reason you have code that uploads non-image content via these endpoints (e.g. a placeholder string, an SVG, a PDF preview), it will now fail. Either:
+- Use a real image, or
+- Don't use image-upload endpoints for non-images.
+
+### Note on SVG
+
+SVG is **not** in the allowed list. SVGs can contain JavaScript and are an XSS vector when served from a domain that holds session cookies. If you genuinely need vector logos, add a separate, sanitized SVG endpoint.
+
+---
+
+## Change 13 — Push token registration log line cleaned up
+**Audit ID:** I3, N14
+**Why:** internal — the backend's logging no longer includes user ids or OTP codes. No frontend impact, just mentioning so support engineers know they can no longer correlate push-token registrations to user ids by tailing logs (use the DB instead).
+
+---
+
 ## Quick checklist before pushing the next frontend release
 
+### Batch 1 (C1–C10)
 - [ ] Removed `userId` from every request body/query in orders, cart, checkout, delivery-address modules (Change 1)
 - [ ] Added a `402` interceptor that routes restaurant users to the subscription-renewal screen (Change 2)
 - [ ] Added a `429` handler showing "Try again in N minutes" with `Retry-After` countdown (Change 3)
@@ -292,6 +454,13 @@ Make sure the frontend always sends the **logged-in restaurant's own ID** as `re
 - [ ] Verified push-token registration end-to-end on a real device (Change 5)
 - [ ] All Amwal payment requests still send the auth cookie; removed any direct hits to `/test-page` (Change 6)
 - [ ] No code path passes another restaurant's id to menu mutation endpoints (Change 7)
+
+### Batch 2 (I1–I13)
+- [ ] Added a `413` handler with a "content too large" message (Change 8)
+- [ ] Subscription status switch handles the new `PAST_DUE` case with appropriate CTA (Change 9)
+- [ ] 5xx error responses surfaced via a generic "something went wrong" message (Change 10)
+- [ ] If any code passes `limit > 100`, switched to proper `offset` pagination (Change 11)
+- [ ] No flow uploads non-image content to image endpoints (Change 12)
 
 ---
 
@@ -311,7 +480,15 @@ If you don't see an endpoint listed above, **its contract is unchanged**. This i
 
 If the frontend hits an unexpected error after deploy:
 
-1. Check the response status code first — it tells you which change is involved (401 = auth, 402 = subscription, 403 = ownership, 404 = cross-tenant, 429 = rate limit).
+1. Check the response status code first — it tells you which change is involved:
+   - `401` = auth (Changes 1, 6)
+   - `402` = subscription inactive/expired/PAST_DUE (Changes 2, 9)
+   - `403` = ownership / forbidden (Changes 6, 7)
+   - `404` = cross-tenant or resource not found (Change 7)
+   - `413` = body too large (Change 8)
+   - `429` = rate-limited (Change 3)
+   - `500` = generic server error — body no longer says what (Change 10)
+   - `400 "Uploaded file is not a valid image"` = magic-byte rejection (Change 12)
 2. Open the Network tab and confirm `Cookie: better-auth.session_token=...` is sent on the request.
 3. If still stuck, ping me with the request URL, status code, and response body.
 

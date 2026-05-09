@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { promotionController } from "./promotion.controller";
-import { uploadPromotionBanner } from "../../../config/upload";
+import { uploadPromotionBanner, verifyUploadedImagesAreReal } from "../../../config/upload";
 import { requireAuth, requireRestaurantRole, requireRestaurantOwnership } from "../../../middlewares/role.middleware";
 import { requireActiveSubscription } from "../subscription/requireActiveSubscription.middleware";
 
@@ -119,6 +119,7 @@ router.post(
   requireRestaurantOwnership,
   requireActiveSubscription,
   uploadPromotionBanner.single("banner"),
+  verifyUploadedImagesAreReal,
   promotionController.createPromotion
 );
 
@@ -353,6 +354,7 @@ router.put(
   requireRestaurantRole,
   requireActiveSubscription,
   uploadPromotionBanner.single("banner"),
+  verifyUploadedImagesAreReal,
   promotionController.updatePromotion
 );
 
