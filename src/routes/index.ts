@@ -36,8 +36,13 @@ import subscriptionRoutes from "../modules/restaurant/subscription/subscription.
 import subscriptionPlanRoutes from "../modules/restaurant/subscription/subscriptionplan-admin/subscriptionplan.routes";
 import notificationRoutes from "../modules/notifications/notification.routes";
 import { requireAuth } from "../middlewares/role.middleware";
+import healthRoutes from "../modules/common/health.routes";
 
 const router = Router();
+
+// N15 — health/readiness endpoints, mounted BEFORE the auth gate so load
+// balancers and uptime checks can hit them without a session cookie.
+router.use("/", healthRoutes);
 
 // Better Auth built-in routes (optional - use if you want Better Auth's default endpoints)
 // These routes are excluded from requireAuth (login, signup, forgot password, etc.)

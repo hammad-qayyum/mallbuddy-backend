@@ -9,11 +9,13 @@ function getAuthUser(req: Request): { id: string; role?: AppRole } | null {
   }
   
   const user = auth.user;
-  // Ensure role is properly typed and uppercase (in case it comes as lowercase from DB)
+  // N10 — defensive uppercasing. Prisma's `Role` enum is uppercase
+  // (USER/ADMIN/RESTAURANT) and Postgres stores it uppercase, so this
+  // *should* be a no-op. Kept as a belt-and-suspenders guard against any
+  // future better-auth release that returns the role as a JS string.
   let role: AppRole | undefined = undefined;
-  
+
   if (user.role) {
-    // Handle both string and enum values, ensure uppercase
     const roleStr = String(user.role).toUpperCase();
     if (roleStr === 'USER' || roleStr === 'ADMIN' || roleStr === 'RESTAURANT') {
       role = roleStr as AppRole;
@@ -46,15 +48,10 @@ export function requireRole(...allowedRoles: AppRole[]) {
 
     const role = user.role;
     
-    // Debug logging to help diagnose role issues (remove in production)
+    // N13 — log only what's needed to diagnose role issues. Don't log the
+    // full auth.user object (leaks email/phone to anyone with log access).
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[requireRole] Debug:', { 
-        userId: user.id, 
-        userRole: role, 
-        roleType: typeof role,
-        allowedRoles,
-        authUser: (req as any).auth?.user 
-      });
+      console.log('[requireRole]', { userRole: role, allowedRoles });
     }
     
     // Admins have elevated privileges - they can access USER and RESTAURANT routes

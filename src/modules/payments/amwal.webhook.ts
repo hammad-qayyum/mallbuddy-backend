@@ -61,15 +61,33 @@ function decimalToNumber(value: unknown): number {
   return Number(value);
 }
 
-// Amwal sends `Amount` in baisa (1 OMR = 1000 baisa). Plan price in DB is in
-// OMR (Decimal). Compare expected baisa to received baisa with a tiny
-// tolerance for floating-point rounding.
-function amountMatchesPlan(receivedAmount: unknown, planPriceOMR: unknown, currencyId: unknown): boolean {
+// ISO-4217 numeric → smallest-unit multiplier (3-decimal: OMR/KWD/BHD; rest: 2)
+const CURRENCY_MULTIPLIERS: Record<string, { id: number; multiplier: number }> = {
+  OMR: { id: 512, multiplier: 1000 },
+  KWD: { id: 414, multiplier: 1000 },
+  BHD: { id: 48, multiplier: 1000 },
+  AED: { id: 784, multiplier: 100 },
+  SAR: { id: 682, multiplier: 100 },
+  QAR: { id: 634, multiplier: 100 },
+  USD: { id: 840, multiplier: 100 },
+};
+
+// N3 / C10 — Amwal sends `Amount` in the currency's smallest unit (baisa for
+// OMR, fils for AED, etc). The plan's price is in major units (Decimal).
+// Compare both in smallest-unit space, with a tiny tolerance for FP rounding.
+function amountMatchesPlan(
+  receivedAmount: unknown,
+  planPriceMajor: unknown,
+  receivedCurrencyId: unknown,
+  planCurrencyCode: string,
+): boolean {
   const received = Number(receivedAmount);
-  const expectedBaisa = Math.round(decimalToNumber(planPriceOMR) * 1000);
+  const cur = CURRENCY_MULTIPLIERS[planCurrencyCode.toUpperCase()];
+  if (!cur) return false;
+  if (Number(receivedCurrencyId) !== cur.id) return false;
   if (!Number.isFinite(received)) return false;
-  if (Number(currencyId) !== 512) return false; // only OMR plans for now
-  return Math.abs(received - expectedBaisa) < 0.01;
+  const expected = Math.round(decimalToNumber(planPriceMajor) * cur.multiplier);
+  return Math.abs(received - expected) < 0.01;
 }
 
 export const amwalWebhook = async (req: Request, res: Response) => {
@@ -110,12 +128,14 @@ export const amwalWebhook = async (req: Request, res: Response) => {
       // Defends against misrouted notifications / future Amwal misconfig.
       const receivedAmount = pickField(body, "Amount", "amount");
       const receivedCurrency = pickField(body, "CurrencyId", "currencyId");
-      if (!amountMatchesPlan(receivedAmount, sub.plan.price, receivedCurrency)) {
+      const planCurrency = (sub.plan as any).currency || "OMR"; // N3 — per-plan currency
+      if (!amountMatchesPlan(receivedAmount, sub.plan.price, receivedCurrency, planCurrency)) {
         console.error("[Amwal Webhook] Amount mismatch — refusing to activate", {
           id: sub.id,
           received: receivedAmount,
           receivedCurrency,
-          expectedOMR: sub.plan.price,
+          expectedMajor: sub.plan.price,
+          planCurrency,
         });
         return res.status(200).json({ message: "amount mismatch", success: false });
       }
@@ -127,7 +147,7 @@ export const amwalWebhook = async (req: Request, res: Response) => {
         data: {
           status: "ACTIVE",
           endDate,
-          amwalSubscriptionId: systemReference ?? null,
+          lastAmwalTransactionId: systemReference ?? null,
         },
       });
       console.log("[Amwal Webhook] Activated subscription", { id: sub.id, endDate });

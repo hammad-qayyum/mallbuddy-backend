@@ -307,6 +307,11 @@ model SubscriptionPlan {
   id            String                   @id @default(uuid())
   name          String
   price         Decimal
+  // N3 — per-plan currency (ISO 4217 alpha code, e.g. "OMR", "AED").
+  // Defaults to "OMR" since the platform launched Oman-only. Existing rows
+  // get OMR via the default. When the platform expands, new plans can be
+  // priced in their target currency without code changes elsewhere.
+  currency      String                   @default("OMR")
   interval      SubscriptionInterval
   features      Json
   isActive      Boolean                  @default(true)
@@ -317,7 +322,12 @@ model SubscriptionPlan {
 }
 
 model RestaurantSubscription {
-    amwalSubscriptionId String? @unique
+    // N7 — Prisma field renamed from `amwalSubscriptionId` (which referred to
+    // the abandoned recurring-link flow). The underlying DB column still
+    // has the legacy name (via @map) so no destructive migration is needed.
+    // Stores the per-transaction id from Amwal's SystemReference (webhook)
+    // or Pay-by-Token transactionId (renewal cron).
+    lastAmwalTransactionId String? @unique @map("amwalSubscriptionId")
   id                   String             @id @default(uuid())
   restaurantId         String
   planId               String

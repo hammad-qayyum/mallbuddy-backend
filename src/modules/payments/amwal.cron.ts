@@ -9,7 +9,9 @@ import { processDueSubscriptionRenewals, cleanupStaleIncompleteSubscriptions } f
  * GST/AST so any failures email the team during normal business hours.
  */
 const DEFAULT_CRON = "0 2 * * *";
-const DEFAULT_TZ = "Etc/UTC";
+// N12 — default to Oman local time so "02:00" lands in actual off-peak local
+// hours and ops logs read naturally. Override via AMWAL_RENEWAL_TZ.
+const DEFAULT_TZ = "Asia/Muscat";
 const RENEWAL_WINDOW_HOURS = 24;
 // I12 — delete INCOMPLETE rows that have been abandoned for this long.
 const ORPHAN_CLEANUP_DAYS = parseInt(process.env.AMWAL_ORPHAN_CLEANUP_DAYS || "7", 10);

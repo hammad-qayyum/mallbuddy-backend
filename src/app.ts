@@ -7,6 +7,7 @@ import {swaggerSpec} from "./config/swagger";
 import router from "./routes";
 import { attachAuth } from "./middlewares/attach-auth.middleware";
 import { errorHandler } from "./middlewares/error.middleware";
+import { csrfHeaderGuard } from "./middlewares/csrf.middleware";
 
 const app = express();
 
@@ -37,6 +38,11 @@ app.use(
 // here to keep it deliberate. Multer routes have their own per-file limit.
 app.use(express.json({ limit: "100kb" }));
 app.use(cookieParser());
+
+// N4 — CSRF defense via custom-header requirement on state-changing routes.
+// Mounted before route handlers so unauthenticated cross-origin POSTs are
+// rejected before they hit anything sensitive.
+app.use(csrfHeaderGuard);
 
 // Apply general rate limiting to all routes
 // app.use("/api", apiLimiter);

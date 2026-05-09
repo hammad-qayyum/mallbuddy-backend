@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { logger } from "../libs/logger";
 
 /**
  * I4 — Centralized error handler. Catches anything thrown / `next(err)`'d in
@@ -34,7 +35,7 @@ export function errorHandler(err: any, req: Request, res: Response, _next: NextF
   const safeStatus = Number.isFinite(status) && status >= 400 && status < 600 ? status : 500;
 
   // Log everything server-side. Never log secrets / passwords / tokens.
-  console.error("[errorHandler]", {
+  logger.error("unhandled error", {
     method: req.method,
     url: req.originalUrl,
     status: safeStatus,

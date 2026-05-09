@@ -345,21 +345,21 @@ Fine technically. Consider switching to `Asia/Muscat` so logs read naturally and
 | I11 | 🟠 Important | global | List endpoints have no max-limit clamp | [orders.controller.ts:22](src/modules/orders/orders.controller.ts#L22) | ✅ **Done** |
 | I12 | 🟠 Important | payments | No cleanup job for orphan INCOMPLETE rows | [amwal.cron.ts](src/modules/payments/amwal.cron.ts) | ✅ **Done** |
 | I13 | 🟠 Important | global | No explicit body-size limit on JSON parser | [app.ts](src/app.ts) | ✅ **Done** |
-| N1 | 🟡 Notable | subscription | Two parallel subscription-create flows | [subscription.service.ts:20](src/modules/restaurant/subscription/subscription.service.ts#L20) | Pending |
-| N2 | 🟡 Notable | env | Dead/misnamed env vars (AMWAL_RETURN_URL, AMWAL_PAYMENT_LINK_API_URL) | .env | Pending |
-| N3 | 🟡 Notable | payments | Currency hardcoded to OMR | [amwal.controller.ts:60](src/modules/payments/amwal.controller.ts#L60) | Pending |
-| N4 | 🟡 Notable | global | No CSRF protection (with `sameSite: none` cookies) | [app.ts](src/app.ts) | Pending |
-| N5 | 🟡 Notable | schema | Schema vs migrations drift (amwalCustomerId / amwalCustomerTokenId) | [prisma/](prisma/) | Pending |
-| N6 | 🟡 Notable | global | Logging is `console.log`-only, not structured | many | Pending |
-| N7 | 🟡 Notable | schema | `amwalSubscriptionId` field is misnamed | [schema.prisma](prisma/schema.prisma) | Pending |
-| N8 | 🟡 Notable | schema | Missing subscription lifecycle states (PAST_DUE etc.) | [schema.prisma](prisma/schema.prisma) | Pending |
-| N9 | 🟡 Notable | global | No automated tests anywhere | repo root | Pending |
-| N10 | 🟡 Notable | auth | Role-uppercase coercion is workaround for upstream bug | [role.middleware.ts:17](src/middlewares/role.middleware.ts#L17) | Pending |
-| N11 | 🟡 Notable | schema | Possible case-insensitive email lookup not indexed | [schema.prisma:14](prisma/schema.prisma#L14) | Pending |
-| N12 | 🟡 Notable | payments | Renewal cron timezone defaults to UTC | [amwal.cron.ts](src/modules/payments/amwal.cron.ts) | Pending |
-| N13 | 🟡 Notable | auth | `requireRole` debug logging exposes user object | [role.middleware.ts:51](src/middlewares/role.middleware.ts#L51) | Pending |
+| N1 | 🟡 Notable | subscription | Two parallel subscription-create flows | [subscription.service.ts:20](src/modules/restaurant/subscription/subscription.service.ts#L20) | ✅ **Done** (deprecated) |
+| N2 | 🟡 Notable | env | Dead/misnamed env vars (AMWAL_RETURN_URL, AMWAL_PAYMENT_LINK_API_URL) | .env | ✅ **Done** |
+| N3 | 🟡 Notable | payments | Currency hardcoded to OMR | [amwal.controller.ts:60](src/modules/payments/amwal.controller.ts#L60) | ✅ **Done** |
+| N4 | 🟡 Notable | global | No CSRF protection (with `sameSite: none` cookies) | [app.ts](src/app.ts) | ✅ **Done** |
+| N5 | 🟡 Notable | schema | Schema vs migrations drift (amwalCustomerId / amwalCustomerTokenId) | [prisma/](prisma/) | ✅ **Done** |
+| N6 | 🟡 Notable | global | Logging is `console.log`-only, not structured | many | ✅ **Done** |
+| N7 | 🟡 Notable | schema | `amwalSubscriptionId` field is misnamed | [schema.prisma](prisma/schema.prisma) | ✅ **Done** |
+| N8 | 🟡 Notable | schema | Missing subscription lifecycle states (PAST_DUE etc.) | [schema.prisma](prisma/schema.prisma) | ✅ **Done** (covered by I7) |
+| N9 | 🟡 Notable | global | No automated tests anywhere | repo root | ✅ **Done** (vitest + critical test) |
+| N10 | 🟡 Notable | auth | Role-uppercase coercion is workaround for upstream bug | [role.middleware.ts:17](src/middlewares/role.middleware.ts#L17) | ✅ **Done** (documented) |
+| N11 | 🟡 Notable | schema | Possible case-insensitive email lookup not indexed | [schema.prisma:14](prisma/schema.prisma#L14) | ✅ **Done** (verified, no fix needed) |
+| N12 | 🟡 Notable | payments | Renewal cron timezone defaults to UTC | [amwal.cron.ts](src/modules/payments/amwal.cron.ts) | ✅ **Done** |
+| N13 | 🟡 Notable | auth | `requireRole` debug logging exposes user object | [role.middleware.ts:51](src/middlewares/role.middleware.ts#L51) | ✅ **Done** |
 | N14 | 🟡 Notable | notifications | `register-token` log leaks userId | [notification.controller.ts:57](src/modules/notifications/notification.controller.ts#L57) | ✅ **Done** (cleaned during C6) |
-| N15 | 🟡 Notable | infra | No dedicated health/ready endpoint | [routes/index.ts](src/routes/index.ts) | Pending |
+| N15 | 🟡 Notable | infra | No dedicated health/ready endpoint | [routes/index.ts](src/routes/index.ts) | ✅ **Done** |
 
 ---
 
@@ -511,6 +511,97 @@ All 12 remaining Important findings (I8 was already resolved by C1) were fixed i
 
 ---
 
-## Outstanding
+---
 
-15 Notable findings remain — see the table above. Recommended next batch per the **PR plan**: PR 5 (hygiene — N6 structured logging, N15 health endpoint), PR 6 (schema cleanup — N5 migrations, N7 column rename, N8 lifecycle states).
+# Resolution log — N1 through N15
+
+All 15 Notable findings closed in one sweep on **2026-05-09**. Type-check passes; vitest suite (8 tests) all pass.
+
+### N12 — Renewal cron timezone → `Asia/Muscat`
+- **File:** [src/modules/payments/amwal.cron.ts:12](src/modules/payments/amwal.cron.ts#L12)
+- Default changed from `Etc/UTC` to `Asia/Muscat`. Override via `AMWAL_RENEWAL_TZ` env. Verified live: `[renewal-cron] scheduled "0 2 * * *" (Asia/Muscat)`. ✅
+
+### N13 — `requireRole` debug log no longer exposes the auth user object
+- **File:** [src/middlewares/role.middleware.ts:50-52](src/middlewares/role.middleware.ts#L50)
+- Reduced log to `{ userRole, allowedRoles }` only. No more emails / phones in non-prod logs.
+
+### N15 — `/health` and `/ready` endpoints
+- **New file:** [src/modules/common/health.routes.ts](src/modules/common/health.routes.ts)
+- Mounted **before** the auth gate in [src/routes/index.ts](src/routes/index.ts) so load balancers / uptime checks can reach them without a session cookie.
+  - `GET /api/health` — fast liveness (process up; no DB hit)
+  - `GET /api/ready` — readiness (`SELECT 1` against Postgres; returns 503 on DB failure)
+- **Smoke test:** `GET /api/health` → 200 `{"status":"ok","uptime":21.48}` ✅. `GET /api/ready` → 200 `{"status":"ready"}` ✅.
+
+### N2 — Env cleanup + rename
+- `AMWAL_RETURN_URL` removed from `.env` (was unused).
+- `AMWAL_PAYMENT_LINK_API_URL` superseded by `AMWAL_API_BASE_URL` (clearer name; the old one is still read for backward compat in [src/libs/amwalpay.ts:289-296](src/libs/amwalpay.ts#L289)).
+
+### N6 — Structured logger
+- **New file:** [src/libs/logger.ts](src/libs/logger.ts) — Winston wrapper.
+- JSON output in production (parseable by log collectors), pretty/colorized in development. Levels: error/warn/info/http/debug. Override default level via `LOG_LEVEL` env.
+- Critical paths swapped to `logger`:
+  - [error.middleware.ts](src/middlewares/error.middleware.ts) — central 500 handler
+  - [subscription.controller.ts](src/modules/restaurant/subscription/subscription.controller.ts) — deprecated route logging
+- Other modules retain `console.log` for now; gradual adoption is fine since Winston transports the same stdout.
+
+### N1 — Duplicate subscription-create flow deprecated
+- **Files:** [subscription.controller.ts](src/modules/restaurant/subscription/subscription.controller.ts) `subscribeRestaurant` + `updateSubscription` now log a `deprecated subscription route used` warning that points the caller at `POST /api/payments/amwal/initiate`.
+- Routes still functional (no breaking change for any existing frontend) but tagged for removal. Once frontend migration is verified via the warning logs, the routes can be deleted.
+
+### N4 — CSRF defense via custom-header check
+- **New file:** [src/middlewares/csrf.middleware.ts](src/middlewares/csrf.middleware.ts) — `csrfHeaderGuard`.
+- Mounted in [app.ts](src/app.ts) before route handlers. State-changing requests (POST/PUT/PATCH/DELETE) must carry `X-Requested-With: <anything>`; that header forces a CORS preflight on cross-origin requests, which the CORS allowlist (already in place from C7) blocks for unknown origins. Net effect: CSRF protection layered on top of CORS.
+- Exempted: safe methods (GET/HEAD/OPTIONS), the Amwal webhook (server-to-server, hash-verified), and multipart/form-data uploads (already require non-simple `Content-Type`, so already preflight-protected).
+- **Smoke tests:**
+  - `POST /api/auth/login` without header → 403 "Missing X-Requested-With header" ✅
+  - Same with `X-Requested-With: fetch` → bypasses CSRF, hits Zod validation (400) ✅
+  - `POST /api/payments/amwal/webhook` (exempt) → still works without header ✅
+  - `GET /api/health` (exempt) → 200 ✅
+
+### N7 — `amwalSubscriptionId` Prisma field renamed → `lastAmwalTransactionId`
+- **File:** [prisma/schema.prisma:319-326](prisma/schema.prisma#L319)
+- Used `@map("amwalSubscriptionId")` so the underlying DB column **stays the same** — no destructive migration needed. Only the Prisma field name changes (callers are clearer).
+- All consumer code updated: [amwal.webhook.ts](src/modules/payments/amwal.webhook.ts), [amwal.renewal.ts](src/modules/payments/amwal.renewal.ts).
+
+### N3 — Per-plan currency
+- **File:** [prisma/schema.prisma:305-318](prisma/schema.prisma#L305)
+- Added `SubscriptionPlan.currency String @default("OMR")`. Existing rows pick up the default.
+- [amwal.controller.ts](src/modules/payments/amwal.controller.ts) `initiate`, [amwal.renewal.ts](src/modules/payments/amwal.renewal.ts) `renewSubscriptionViaPayByToken`, and [amwal.webhook.ts](src/modules/payments/amwal.webhook.ts) `amountMatchesPlan` now read currency from the plan instead of hardcoding OMR.
+- Webhook amount validation extended to support `OMR/KWD/BHD` (3-decimal) and `AED/SAR/QAR/USD` (2-decimal) with proper smallest-unit conversion.
+
+### N5 — Schema-vs-migration drift baseline
+- **New folder:** [prisma/migrations/20260509000000_baseline_after_drift/](prisma/migrations/20260509000000_baseline_after_drift/) — full-schema SQL + a [README](prisma/migrations/20260509000000_baseline_after_drift/README.md) explaining how to deploy.
+- **Production rollout:** mark this migration as already-applied (without running) on the existing DB:
+  ```bash
+  npx prisma migrate resolve --applied 20260509000000_baseline_after_drift
+  ```
+  After that, `prisma migrate deploy` resumes normal operation for future PRs.
+
+### N10 — Role coercion documented
+- **File:** [src/middlewares/role.middleware.ts:11-14](src/middlewares/role.middleware.ts#L11)
+- Investigation: Prisma's `Role` enum is uppercase (USER/ADMIN/RESTAURANT) and Postgres stores enums case-sensitively. The `String(user.role).toUpperCase()` is therefore a no-op in practice — kept as defensive coding against any future better-auth release that returns role as a JS lowercase string. Comment now explains *why*.
+
+### N11 — Case-insensitive email lookup not in the hot path
+- Investigation: `mode: 'insensitive'` is used only in admin search modules (low-traffic) on `contains` queries — not on login. Login uses exact-match `where: { email }`, which hits the existing unique index on `email`. No performance issue; no extra index needed.
+
+### N8 — `SubscriptionStatus` lifecycle
+- Resolved by **I7** which added `PAST_DUE`. The audit's other suggestions (`TRIAL`, `GRACE_PERIOD`) aren't currently used by the business — adding unused enum values would be dead schema. The enum can grow when the business adds free trials or grace periods.
+
+### N14 — `register-token` log
+- Resolved during **C6** — userId no longer interpolated into the success log line.
+
+### N9 — Vitest setup + first critical test
+- **Installed:** `vitest@^4.1.5` as a dev dep.
+- **New scripts:** `npm test` and `npm run test:watch`.
+- **New test file:** [src/libs/amwalhash.test.ts](src/libs/amwalhash.test.ts) — 8 tests covering the most critical / regression-prone code in the codebase: the Amwal HMAC hash function. One of those tests pins the canonical hash output against a real Amwal-issued SecureHash (captured 2026-05-09) so any future drift in the canonical-string assembly fails fast.
+- **Result:** `Test Files 1 passed (1) | Tests 8 passed (8)`.
+
+---
+
+## All 38 audit findings now resolved.
+
+What remains is operational follow-up:
+1. **Deploy** these changes to the VPS (`git pull && npm install && npm run build && pm2 restart 1`).
+2. On the VPS, run **once**: `npx prisma migrate resolve --applied 20260509000000_baseline_after_drift` to bring the production DB's `_prisma_migrations` table in sync.
+3. Hand [FRONTEND_CHANGES.md](FRONTEND_CHANGES.md) to the frontend developer — Batch 3 is appended there.
+4. Watch the production logs for `deprecated subscription route used` warnings; once you don't see them for a week, delete `/api/subscriptions/subscribe` and `/api/subscriptions/update` (N1's last step).

@@ -66,7 +66,7 @@ export async function renewSubscriptionViaPayByToken(
   try {
     result = await amwal.executePayByToken({
       amount,
-      currency: "OMR",
+      currency: (plan as any).currency || "OMR", // N3 — plan currency
       customerId,
       customerTokenId,
       transactionId: dbSub.id,
@@ -85,7 +85,7 @@ export async function renewSubscriptionViaPayByToken(
       data: {
         status: "ACTIVE",
         endDate,
-        amwalSubscriptionId: typeof result.data?.transactionId === "string" ? result.data.transactionId : null,
+        lastAmwalTransactionId: typeof result.data?.transactionId === "string" ? result.data.transactionId : null,
       },
     });
     return { status: "renewed", subscriptionId: updated.id, expiresAt: endDate, amwal: result };

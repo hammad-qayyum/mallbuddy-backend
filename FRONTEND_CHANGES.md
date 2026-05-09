@@ -2,9 +2,10 @@
 
 This document lists every frontend-visible change from the backend security fix batches. All changes are **live on `https://backend.mallbuddy.net`** after deploy. Read this end-to-end before pushing the next frontend release.
 
-**Two batches landed:**
+**Three batches landed:**
 - **Batch 1 (2026-05-09):** Audit findings **C1–C10** (Critical) — Changes 1-7 below
 - **Batch 2 (2026-05-09):** Audit findings **I1–I13** (Important) — Changes 8-13 below
+- **Batch 3 (2026-05-09):** Audit findings **N1–N15** (Notable) — Changes 14-17 below
 
 > **TL;DR for the impatient**
 > 1. **Stop sending `userId` in body or query** on any orders / cart / checkout / delivery-address endpoint — the backend now reads it from the auth cookie.
@@ -17,6 +18,10 @@ This document lists every frontend-visible change from the backend security fix 
 > 8. **5xx error responses no longer expose `err.message`** — show a generic friendly message instead of relying on the backend string.
 > 9. **List endpoints silently clamp `limit` to 100** — passing `limit=999999` no longer returns the whole table.
 > 10. **Image uploads are validated by file content, not just MIME type** — spoofed `.html`/`.svg`/etc disguised as `.jpg` are now rejected with 400.
+> 11. **Send `X-Requested-With: fetch` (or any value) on every state-changing request** — without it the backend returns 403 "Missing X-Requested-With header" (CSRF defense).
+> 12. **`/api/subscriptions/subscribe` and `/api/subscriptions/update` are deprecated** — migrate to `POST /api/payments/amwal/initiate`. Old routes still work but log a warning.
+> 13. **`SubscriptionPlan` now has a `currency` field** — surface it in the UI when displaying prices (e.g. "5.000 OMR" not just "5.000").
+> 14. **`/api/health` and `/api/ready` are public** — for ops/monitoring only; not for the frontend.
 
 ---
 
@@ -444,6 +449,129 @@ SVG is **not** in the allowed list. SVGs can contain JavaScript and are an XSS v
 
 ---
 
+---
+
+# Batch 3 (Notable — N1–N15)
+
+The Notable batch is mostly internal hardening. Frontend impact is small but real for the items below.
+
+---
+
+## Change 14 — Send `X-Requested-With` on every state-changing request
+**Audit ID:** N4
+**Why:** with `sameSite: "none"` cookies (required for cross-origin frontends), the browser's default CSRF defense is off. Adding a custom header that the browser refuses to send cross-origin without a CORS preflight is a simple, robust CSRF mitigation.
+
+### What changed
+
+Every `POST` / `PUT` / `PATCH` / `DELETE` request must now carry an `X-Requested-With` header. Without it, the backend returns:
+
+```json
+HTTP 403
+{ "success": false, "error": "Missing X-Requested-With header" }
+```
+
+### Exemptions (no header needed)
+
+- All `GET` / `HEAD` / `OPTIONS` requests
+- The Amwal cloud-notification webhook (server-to-server)
+- File uploads (`multipart/form-data`) — these already trigger preflight on their own
+
+### Action
+
+Set the header globally on your fetch / Axios client. The value can be anything; convention is `"fetch"` or `"XMLHttpRequest"`.
+
+**Axios:**
+```ts
+axios.defaults.headers.common["X-Requested-With"] = "fetch";
+```
+
+**Native fetch (set per-call or in a wrapper):**
+```ts
+fetch(url, {
+  method: "POST",
+  credentials: "include",
+  headers: {
+    "Content-Type": "application/json",
+    "X-Requested-With": "fetch",   // ← add this
+  },
+  body: JSON.stringify(payload),
+});
+```
+
+If your existing code already uses Axios's defaults or has a single `apiClient.ts` wrapper, this is a one-line fix.
+
+---
+
+## Change 15 — Subscription endpoints deprecated; switch to `/payments/amwal/initiate`
+**Audit ID:** N1
+**Why:** there were two parallel ways to start a subscription — `POST /api/subscriptions/subscribe` and `POST /api/payments/amwal/initiate` — doing exactly the same thing. The payments-module endpoint is canonical; the subscription-module wrappers are deprecated.
+
+### What changed
+
+- `POST /api/subscriptions/subscribe` → still works, but now emits a deprecation warning to the server logs.
+- `POST /api/subscriptions/update` → same.
+- The new canonical endpoint is `POST /api/payments/amwal/initiate` (already documented in Change 1 from Batch 1).
+
+### Action
+
+If the frontend currently calls `POST /api/subscriptions/subscribe`, switch to `POST /api/payments/amwal/initiate`. Body fields are the same: `{ restaurantId, planId }` (and optional `customerId` for a saved-card flow). Response shape is the same: `{ success, subscriptionId, scriptUrl, smartbox }`.
+
+The deprecated routes will be deleted in a future release once the warning logs go quiet.
+
+---
+
+## Change 16 — `SubscriptionPlan` now has a `currency` field
+**Audit ID:** N3
+**Why:** the platform launched OMR-only, but the schema is now ready for multi-country expansion. Plans returned via `GET /api/subscription-plans` now include a `currency` string (default `"OMR"` for existing rows).
+
+### What changed
+
+The plan response shape:
+
+```json
+{
+  "id": "abc-123",
+  "name": "Premium Monthly",
+  "price": "5.000",
+  "currency": "OMR",          // ← new
+  "interval": "MONTHLY",
+  "features": [...],
+  "isActive": true,
+  ...
+}
+```
+
+### Action
+
+In the UI, when you display a plan price, also render the currency:
+
+```tsx
+<span>{plan.price} {plan.currency}</span>
+```
+
+(Previously you'd hardcoded "OMR" everywhere; replacing those literals is a quick grep-and-replace.)
+
+`currency` is an ISO-4217 alpha code: currently always `"OMR"`. If/when the platform expands, plans for new regions can be priced in `"AED"`, `"SAR"`, etc.
+
+---
+
+## Change 17 — Public `/api/health` and `/api/ready` endpoints
+**Audit ID:** N15
+**Why:** ops/monitoring need a way to check the service is alive without carrying a session cookie. **No frontend impact.**
+
+### What changed
+
+Two new unauthenticated endpoints:
+
+- `GET /api/health` — quick liveness check, returns 200 with `{ status, uptime }`.
+- `GET /api/ready` — readiness check (DB ping), returns 200 with `{ status: "ready" }` or 503 if Postgres is unreachable.
+
+### Action
+
+**Nothing for the frontend.** Just listing for completeness so support engineers know these exist for uptime checks.
+
+---
+
 ## Quick checklist before pushing the next frontend release
 
 ### Batch 1 (C1–C10)
@@ -461,6 +589,11 @@ SVG is **not** in the allowed list. SVGs can contain JavaScript and are an XSS v
 - [ ] 5xx error responses surfaced via a generic "something went wrong" message (Change 10)
 - [ ] If any code passes `limit > 100`, switched to proper `offset` pagination (Change 11)
 - [ ] No flow uploads non-image content to image endpoints (Change 12)
+
+### Batch 3 (N1–N15)
+- [ ] **`X-Requested-With` header set as a default on every state-changing API call** (Change 14) — this is the highest-priority Batch-3 item; without it most write requests will start returning 403
+- [ ] Migrated any `POST /api/subscriptions/subscribe` callers to `POST /api/payments/amwal/initiate` (Change 15)
+- [ ] Plan price UI shows `currency` next to price (Change 16)
 
 ---
 
@@ -483,6 +616,7 @@ If the frontend hits an unexpected error after deploy:
 1. Check the response status code first — it tells you which change is involved:
    - `401` = auth (Changes 1, 6)
    - `402` = subscription inactive/expired/PAST_DUE (Changes 2, 9)
+   - `403 "Missing X-Requested-With header"` = CSRF gate, add the header (Change 14)
    - `403` = ownership / forbidden (Changes 6, 7)
    - `404` = cross-tenant or resource not found (Change 7)
    - `413` = body too large (Change 8)

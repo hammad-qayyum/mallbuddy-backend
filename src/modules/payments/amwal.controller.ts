@@ -81,9 +81,11 @@ export const initiateAmwalSubscriptionPayment = async (req: Request, res: Respon
 
     const amwal = new AmwalPayService();
 
+    // N3 — currency comes from the plan. Defaults to OMR but plans can be
+    // priced in any currency Amwal supports (AED, KWD, BHD, etc).
     const smartboxInput: Parameters<AmwalPayService["buildSmartBoxConfig"]>[0] = {
       amount,
-      currency: "OMR",
+      currency: (plan as any).currency || "OMR",
       merchantReference: dbSub.id,
     };
     if (typeof customerId === "string" && customerId.length > 0) {
