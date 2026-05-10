@@ -17,13 +17,27 @@ import { Request, Response, NextFunction } from "express";
  * fetch` (or `XMLHttpRequest`) and is unaffected. A malicious page
  * cross-origin POST without that header is rejected.
  *
- * Excluded:
+ * Excluded (CSRF doesn't apply or is over-protective):
  *  - safe methods (GET/HEAD/OPTIONS)
  *  - the Amwal cloud-notification webhook (server-to-server, hash-verified)
  *  - file-upload routes that use multipart/form-data (which itself requires
  *    a non-simple Content-Type and can't be triggered from a basic <form>)
+ *  - pre-auth routes (login / register / signup OTP / password reset). CSRF
+ *    protects authenticated state-changing actions; before login there's
+ *    no session for an attacker to forge against. These routes have their
+ *    own rate limiters (see C3 + C5).
  */
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+// Pre-auth public routes that don't need CSRF protection.
+const AUTH_ROUTE_PREFIXES = [
+  "/auth/login",
+  "/auth/register",
+  "/auth/restaurant/signup",
+  "/auth/user/signup",
+  "/auth/password/reset",
+  "/auth/better-auth",
+];
 
 function isExempt(req: Request): boolean {
   if (SAFE_METHODS.has(req.method)) return true;
@@ -38,6 +52,15 @@ function isExempt(req: Request): boolean {
   const contentType = req.headers["content-type"] || "";
   if (typeof contentType === "string" && contentType.startsWith("multipart/form-data")) {
     return true;
+  }
+
+  // Pre-auth routes — login can't be CSRF'd in any meaningful way (the
+  // attacker would just be logging in as themselves on the victim's browser,
+  // which has no value). Brute force is handled by the auth rate limiters.
+  const path = req.path || "";
+  const url = req.originalUrl || "";
+  for (const prefix of AUTH_ROUTE_PREFIXES) {
+    if (path.startsWith(prefix) || url.includes(prefix)) return true;
   }
 
   return false;
