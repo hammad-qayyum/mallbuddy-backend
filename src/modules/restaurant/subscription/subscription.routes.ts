@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   cancelSubscription,
   getRestaurantSubscriptions,
+  getMySubscriptions,
 } from "./subscription.controller";
 import { requireRestaurantRole } from "../../../middlewares/role.middleware";
 
@@ -60,5 +61,21 @@ router.post("/cancel", cancelSubscription);
  *       500: { description: Internal server error }
  */
 router.get("/list/:restaurantId", getRestaurantSubscriptions);
+
+/**
+ * @swagger
+ * /subscriptions:
+ *   get:
+ *     summary: List the caller's own subscriptions
+ *     tags: [Subscriptions]
+ *     security:
+ *       - cookieAuth: []
+ *     description: Returns subscriptions belonging to the authenticated restaurant.
+ *     responses:
+ *       200: { description: Subscriptions retrieved }
+ *       401: { description: Unauthorized }
+ *       500: { description: Internal server error }
+ */
+router.get("/", getMySubscriptions);
 
 export default router;
