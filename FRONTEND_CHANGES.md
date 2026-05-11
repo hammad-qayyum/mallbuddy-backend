@@ -618,6 +618,40 @@ Two new unauthenticated endpoints:
 
 ---
 
+## Summary table
+
+| # | Title | Batch / Audit ID | Affected endpoints / area | Frontend action | Status |
+|---|---|---|---|---|---|
+| 1 | Drop `userId` from body/query | Batch 1 — C1 / I8 | 22 orders / cart / checkout / delivery-address endpoints | Remove `userId` field from every request | Pending |
+| 2 | Handle `402 Payment Required` | Batch 1 — C4 | All 15 restaurant-action endpoints (menu / promotions / gallery / order-management / business-hours) | Global interceptor → redirect to subscription-renewal screen | Pending |
+| 3 | Handle `429 Too Many Requests` | Batch 1 — C3, C5 | `/auth/login`, `/auth/register`, `/auth/password/reset`, 3× `/verify-otp` | Show "Try again in N min" using `Retry-After` header | Pending |
+| 4 | OTP attempt cap | Batch 1 — C3 | All `/verify-otp` endpoints | Show "Resend OTP" button when "Too many invalid attempts" message comes back | Pending |
+| 5 | Push token registration works now | Batch 1 — C6 | `POST /api/notifications/register-token` | Re-test push notifications end-to-end on a real device | Pending |
+| 6 | Amwal endpoints require auth + ownership | Batch 1 — C7 | `/payments/amwal/initiate`, `/confirm`, `/renew`, `/session-token`, `/verify` | Ensure cookies sent; only pass own `restaurantId`; drop `/test-page` references | Pending |
+| 7 | Menu ownership enforcement | Batch 1 — C2 | All `/menu/*` mutations | Always pass logged-in restaurant's own id (no UI change for clean code) | Pending |
+| 8 | Handle `413 Payload Too Large` | Batch 2 — I13 | Any JSON request > 100KB | Add 413 handler with "content too large" message | Pending |
+| 9 | New `PAST_DUE` subscription status | Batch 2 — I7 | `/payments/amwal/verify/:orderId`, `/subscriptions/list/:restaurantId` | Add `PAST_DUE` branch to status switch with "Update payment" CTA | Pending |
+| 10 | Generic 5xx error messages | Batch 2 — I4 | All endpoints | Show fixed "Something went wrong" UI on 5xx; don't display `response.error` | Pending |
+| 11 | List endpoints clamp `limit ≤ 100` | Batch 2 — I11 | `/orders/list`, `/active`, `/past`, `/orders/restaurant/:id/accepted` | Stop passing `limit > 100`; use `offset` pagination instead | Pending |
+| 12 | Image uploads validated by magic bytes | Batch 2 — I2 | All 11 image-upload routes | Only upload real images (no SVG / HTML / placeholder text) | Pending |
+| 13 | Server log hygiene | Batch 2 — I3, N14 | Internal — no frontend code change | None (informational only) | Pending |
+| 14 | **`X-Requested-With` header required** | Batch 3 — N4 | Every authenticated state-changing request | Set `X-Requested-With: fetch` globally on Axios / fetch wrapper | Pending |
+| 15 | `/subscriptions/subscribe` etc. removed | Batch 3 — N1 | `/api/subscriptions/subscribe`, `/update`, `/attach-payment-method` | Migrate callers to `POST /api/payments/amwal/initiate` | Pending |
+| 16 | Plan response now has `currency` field | Batch 3 — N3 | `GET /api/subscription-plans/*` | Display `{plan.currency}` next to `{plan.price}` instead of hardcoded "OMR" | Pending |
+| 17 | Public `/health` + `/ready` endpoints | Batch 3 — N15 | Internal — for ops | None (informational only) | Pending |
+
+**Priority order if you can't do everything in one PR:**
+1. Change **14** (CSRF header) — without it, every authenticated state-changing call will start returning 403 after deploy
+2. Change **1** (drop `userId`) — biggest behavioral surface; affects orders / cart / checkout
+3. Change **2** (402 handler) — restaurants will see this immediately if their subscription expires
+4. Change **15** (subscription endpoint migration) — only matters if you currently call those URLs; otherwise no-op
+5. Changes **9, 16** (PAST_DUE, currency) — UX polish
+6. Everything else — defensive / edge-case handling
+
+Mark each row **Done** as you ship.
+
+---
+
 ## Endpoints that did NOT change
 
 If you don't see an endpoint listed above, **its contract is unchanged**. This includes:
