@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { orderDetailService } from "./order-detail.service";
 import { orderDetailSchema } from "./order-detail.schema";
+import { getAuthUserId } from "../common/utils";
 
 export const orderDetailController = {
   // GET /order-detail/:orderId - Get detailed order information
@@ -49,18 +50,19 @@ export const orderDetailController = {
     }
   },
 
-  // GET /order-detail/user/:userId - Get all orders for a user
+  // GET /order-detail/user/:userId - Get all orders for a user.
+  // The :userId path param is ignored: results are always scoped to the
+  // authenticated user so this can't be used to read another user's orders.
   async getUserOrders(req: Request, res: Response) {
     try {
-      const { userId } = req.params;
+      const sessionUserId = getAuthUserId(req);
+      if (!sessionUserId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
       const { status, limit = "10", offset = "0" } = req.query;
 
-      if (!userId) {
-        return res.status(400).json({ message: "User ID is required" });
-      }
-
       const orders = await orderDetailService.getUserOrdersList(
-        userId,
+        sessionUserId,
         status as string | undefined,
         parseInt(limit as string),
         parseInt(offset as string),
