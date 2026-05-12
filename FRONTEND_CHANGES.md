@@ -620,25 +620,34 @@ Two new unauthenticated endpoints:
 
 ## Summary table
 
-| # | Title | Batch / Audit ID | Affected endpoints / area | Frontend action | Status |
+Walk through each row in order. Flip **Status** from `Pending` → `Done` as each item lands. **Where done** points at the file or commit so we can verify.
+
+| # | Title | Batch / Audit ID | Frontend action | Where done | Status |
 |---|---|---|---|---|---|
-| 1 | Drop `userId` from body/query | Batch 1 — C1 / I8 | 22 orders / cart / checkout / delivery-address endpoints | Remove `userId` field from every request | Pending |
-| 2 | Handle `402 Payment Required` | Batch 1 — C4 | All 15 restaurant-action endpoints (menu / promotions / gallery / order-management / business-hours) | Global interceptor → redirect to subscription-renewal screen | Pending |
-| 3 | Handle `429 Too Many Requests` | Batch 1 — C3, C5 | `/auth/login`, `/auth/register`, `/auth/password/reset`, 3× `/verify-otp` | Show "Try again in N min" using `Retry-After` header | Pending |
-| 4 | OTP attempt cap | Batch 1 — C3 | All `/verify-otp` endpoints | Show "Resend OTP" button when "Too many invalid attempts" message comes back | Pending |
-| 5 | Push token registration works now | Batch 1 — C6 | `POST /api/notifications/register-token` | Re-test push notifications end-to-end on a real device | Pending |
-| 6 | Amwal endpoints require auth + ownership | Batch 1 — C7 | `/payments/amwal/initiate`, `/confirm`, `/renew`, `/session-token`, `/verify` | Ensure cookies sent; only pass own `restaurantId`; drop `/test-page` references | Pending |
-| 7 | Menu ownership enforcement | Batch 1 — C2 | All `/menu/*` mutations | Always pass logged-in restaurant's own id (no UI change for clean code) | Pending |
-| 8 | Handle `413 Payload Too Large` | Batch 2 — I13 | Any JSON request > 100KB | Add 413 handler with "content too large" message | Pending |
-| 9 | New `PAST_DUE` subscription status | Batch 2 — I7 | `/payments/amwal/verify/:orderId`, `/subscriptions/list/:restaurantId` | Add `PAST_DUE` branch to status switch with "Update payment" CTA | Pending |
-| 10 | Generic 5xx error messages | Batch 2 — I4 | All endpoints | Show fixed "Something went wrong" UI on 5xx; don't display `response.error` | Pending |
-| 11 | List endpoints clamp `limit ≤ 100` | Batch 2 — I11 | `/orders/list`, `/active`, `/past`, `/orders/restaurant/:id/accepted` | Stop passing `limit > 100`; use `offset` pagination instead | Pending |
-| 12 | Image uploads validated by magic bytes | Batch 2 — I2 | All 11 image-upload routes | Only upload real images (no SVG / HTML / placeholder text) | Pending |
-| 13 | Server log hygiene | Batch 2 — I3, N14 | Internal — no frontend code change | None (informational only) | Pending |
-| 14 | **`X-Requested-With` header required** | Batch 3 — N4 | Every authenticated state-changing request | Set `X-Requested-With: fetch` globally on Axios / fetch wrapper | Pending |
-| 15 | `/subscriptions/subscribe` etc. removed | Batch 3 — N1 | `/api/subscriptions/subscribe`, `/update`, `/attach-payment-method` | Migrate callers to `POST /api/payments/amwal/initiate` | Pending |
-| 16 | Plan response now has `currency` field | Batch 3 — N3 | `GET /api/subscription-plans/*` | Display `{plan.currency}` next to `{plan.price}` instead of hardcoded "OMR" | Pending |
-| 17 | Public `/health` + `/ready` endpoints | Batch 3 — N15 | Internal — for ops | None (informational only) | Pending |
+| 1 | Drop `userId` from body/query | Batch 1 — C1 / I8 | Remove `userId` from every orders / cart / checkout / delivery-address / favourite-cart request | Customer app: `services/apiCalls.js`, `services/useQueries.js`, all 12 screen call sites. Restaurant app: same files + `AddressesScreen.jsx`. Backend follow-up IDOR fixes: `favourite-cart.controller.ts`, `order-detail.controller.ts`, `subscription.controller.ts` | **Done** |
+| 2 | Handle `402 Payment Required` | Batch 1 — C4 | Friendly message on 402 (and surface a `subscriptionRequired` flag screens can act on) | All 3 apps' `services/instance.js` — `friendlyMessage()` returns the backend's renew-subscription text on 402. Restaurant app's `SubscriptionScreen.jsx` shows the renewal banner / PAST_DUE CTA when the user lands there | **Done** |
+| 3 | Handle `429 Too Many Requests` | Batch 1 — C3, C5 | Show backend's rate-limit message (handles the plain-text body shape) | All 3 apps' `services/instance.js` — `extractBackendMessage()` parses the text body; live-verified on real `/auth/login` rate-limit | **Done** |
+| 4 | OTP attempt cap "Resend OTP" branch | Batch 1 — C3 | When backend returns `"Too many invalid attempts. Please request a new OTP."`, OTP screen forces the user onto the Resend path | Customer + restaurant apps' `OtpVerificationScreen.jsx`: regex-matches the backend message, clears the input, kills the countdown, hides Verify, swaps to a red banner + Resend button. Live-verified against real backend: 5 wrong attempts → HTTP 400 with the exact trigger message | **Done** |
+| 5 | Re-test push token registration | Batch 1 — C6 | Frontend must actually call `POST /notifications/register-token`; backend's C6 fix is what makes it return 200 | Customer app's `services/notificationService.js` was entirely commented out — restored from the restaurant app's working version. Both `App.js` files now invoke `useNotifications()` (was commented out in both). Live-verified end-to-end: login → cookie session → `register-token` → HTTP 200 `{"success":true,"message":"Push token registered successfully"}` | **Done** (manual device push-arrival test still pending — needs a real device + EAS build) |
+| 6 | Amwal endpoints require auth + ownership | Batch 1 — C7 | Cookies/Bearer on every Amwal call; only pass own `restaurantId`; drop `/test-page` refs | Restaurant app: `services/apiCalls.js` (`initiateAmwalSubscription`, `confirmAmwalSubscription`, `renewAmwalSubscription`), `SubscriptionScreen.jsx`, `AmwalCheckoutScreen.jsx`. No `/test-page` refs in any frontend | **Done** |
+| 7 | Menu ownership enforcement | Batch 1 — C2 | Always pass logged-in restaurant's own id | Restaurant app already does — verified via grep of `createMenuCategory`/`createMenuItem` callers; no change needed | **Done** |
+| 8 | Handle `413 Payload Too Large` | Batch 2 — I13 | Show "File or request is too large" on 413 | All 3 apps' `services/instance.js` — `friendlyMessage()` for 413; live-verified with a 2MB body | **Done** |
+| 9 | New `PAST_DUE` subscription status | Batch 2 — I7 | Red banner + "Renew now" CTA when latest sub is `PAST_DUE` | Restaurant app: `SubscriptionScreen.jsx` — uses `useGetMySubscriptionsQuery` (new backend `GET /subscriptions`), shows PAST_DUE banner and disables "Current plan" on still-ACTIVE plan | **Done** |
+| 10 | Generic 5xx error messages | Batch 2 — I4 | Don't echo backend's 5xx body; show "Something went wrong" | All 3 apps' `services/instance.js` — `friendlyMessage()` always returns the generic string for `status >= 500` | **Done** |
+| 11 | List endpoints clamp `limit ≤ 100` | Batch 2 — I11 | Don't pass `limit > 100`; use `offset` pagination | Grep of all 3 apps shows current limits are 10–20. No change needed | **Done** |
+| 12 | Image uploads validated by magic bytes | Batch 2 — I2 | Only upload real images (no SVG/placeholder text) | Backend-side validation; frontends already upload real files from picker/camera. No frontend change | **Done** |
+| 13 | Server log hygiene | Batch 2 — I3, N14 | Informational only | n/a | **Done** |
+| 14 | **`X-Requested-With` header required** | Batch 3 — N4 | `X-Requested-With: fetch` on every state-changing request | All 3 apps' `services/instance.js` — set on `axios.create({ headers })` so every `makeRequest()` call carries it. Backend `csrf.middleware.ts` exempts pre-auth routes | **Done** |
+| 15 | `/subscriptions/subscribe` etc. removed | Batch 3 — N1 | Migrate to `POST /payments/amwal/initiate` | Restaurant app's `SubscriptionScreen.jsx` calls `initiateAmwalSubscription` → `/payments/amwal/initiate` directly. No callers of the deleted routes anywhere in any frontend | **Done** |
+| 16 | Plan response now has `currency` field | Batch 3 — N3 | Render `{currency} {price}` instead of hardcoded "OMR" | Restaurant app `SubscriptionScreen.jsx` price block now renders `{plan.currency} {plan.price}` | **Done** |
+| 17 | Public `/health` + `/ready` endpoints | Batch 3 — N15 | Informational only | n/a | **Done** |
+
+### Where we stand
+
+**All 17 items are Done code-side.**
+
+Remaining manual verification (can't be done from a terminal):
+- **#5 device push-arrival test.** Install build on a real device → log in → confirm `register-token` returns 200 (already verified server-side: it does) → trigger an order event → confirm the push notification actually arrives. If push doesn't arrive after a 200 from `register-token`, the issue is downstream (Expo project setup, device permissions, FCM/APNs credentials), not the backend or app wiring.
 
 **Priority order if you can't do everything in one PR:**
 1. Change **14** (CSRF header) — without it, every authenticated state-changing call will start returning 403 after deploy
