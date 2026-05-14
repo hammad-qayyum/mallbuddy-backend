@@ -87,7 +87,10 @@ router.post("/country/create", requireAuth, requireAdminRole, countryController.
  *                     type: string
  *                     format: date-time
  */
-router.get("/country/get-all", requireAuth,countryController.getAll);
+// Public read — needed by the restaurant signup flow before a session exists.
+// (city/mall get-all routes are likewise public; create/update/delete below
+// still require requireAuth + requireAdminRole.)
+router.get("/country/get-all", countryController.getAll);
 
 /**
  * @swagger

@@ -52,6 +52,16 @@ router.use("/auth/better-auth", betterAuthRoutes);
 // These routes are excluded from requireAuth (login, signup, forgot password, etc.)
 router.use("/auth", authRoutes);
 
+// Location reference data (countries / cities / malls) — mounted BEFORE the
+// auth gate because the restaurant signup flow needs to fetch the mall list on
+// MallSelectionScreen, which runs after OTP verification but BEFORE the account
+// is created (so there's no session token yet). These routers only expose
+// public GET reads here; their create/update/delete routes carry their own
+// per-route `requireAuth, requireAdminRole` middleware and stay protected.
+router.use("/countries", countryRoutes);
+router.use("/cities", cityRoutes);
+router.use("/malls", mallRoutes);
+
 // Apply requireAuth to all routes after auth routes
 // This ensures all routes except auth routes require authentication
 router.use((req, res, next) => {
@@ -90,14 +100,7 @@ router.use((req, res, next) => {
 // User routes
 router.use("/users", userRoutes);
 
-// Country routes
-router.use("/countries", countryRoutes);
-
-// City routes
-router.use("/cities", cityRoutes);
-
-// Mall routes
-router.use("/malls", mallRoutes);
+// Country / City / Mall routes are mounted above, before the auth gate.
 
 // Cuisine routes
 router.use("/", cuisineRoutes);
