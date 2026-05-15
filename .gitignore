@@ -13,3 +13,6 @@ media/
 
 #build files
 dist/
+
+# IDE / editor — VS Code multi-root workspaces
+*.code-workspace
