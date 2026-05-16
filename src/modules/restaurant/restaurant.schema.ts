@@ -52,7 +52,7 @@ export const declineOrderSchema = z.object({
 export const updateOrderStatusSchema = z.object({
   orderId: z.string().min(1, "Order ID is required").uuid("Invalid order ID"),
   restaurantId: z.string().min(1, "Restaurant ID is required"),
-  status: z.enum(["ACCEPTED", "PREPARING", "READY", "OUT_FOR_DELIVERY", "DELIVERED", "REJECTED"], {
+  status: z.enum(["ACCEPTED", "PREPARING", "READY", "OUT_FOR_DELIVERY", "DELIVERED", "REJECTED", "CANCELLED"], {
     message: "Invalid order status",
   }),
 });
