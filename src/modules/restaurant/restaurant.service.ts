@@ -206,6 +206,12 @@ export const restaurantService = {
         totalMenuCategories: restaurant._count.menuCategories,
         // Exclude revenue for public access
       },
+      // Admin-visible status fields. Safe to expose even on this "public"
+      // endpoint — neither leaks revenue or PII, both are needed by the
+      // admin dashboard to render the Status badge and decide whether the
+      // row's action button should say "Block" or "Unblock".
+      RestaurantStatus: restaurant.RestaurantStatus,
+      approvalStatus: restaurant.approvalStatus,
       createdAt: restaurant.createdAt,
       updatedAt: restaurant.updatedAt,
     }));
