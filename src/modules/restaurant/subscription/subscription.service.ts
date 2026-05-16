@@ -49,13 +49,16 @@ export async function isSubscriptionActive(restaurantId: string) {
 
 /**
  * Prisma `where` fragment for Restaurant queries that should only return
- * restaurants currently allowed to serve customers — at least one ACTIVE
- * subscription whose endDate hasn't passed.
+ * restaurants currently allowed to serve customers. A restaurant is
+ * customer-visible only if BOTH:
+ *
+ *   1. It has at least one ACTIVE subscription whose endDate hasn't passed
+ *      (the platform is paid-only for restaurants), AND
+ *   2. The admin hasn't BLOCKED it (`RestaurantStatus = ACTIVE`).
  *
  * Customer-facing reads (mall list, restaurant page, menu, explore, search,
- * product detail) use this so restaurants without an active subscription
- * never appear in the customer app. Same predicate as `isSubscriptionActive`,
- * just expressed as a relation filter so it composes into other queries.
+ * product detail, cart-add) use this so neither unpaid nor admin-blocked
+ * restaurants ever appear in the customer app.
  *
  * Spread directly into a Restaurant-rooted `where`:
  *   where: { ...filters, ...activeSubscriptionWhere() }
@@ -65,11 +68,14 @@ export async function isSubscriptionActive(restaurantId: string) {
  */
 export function activeSubscriptionWhere() {
   return {
+    // (1) paid + still in date
     subscriptions: {
       some: {
         status: "ACTIVE" as const,
         endDate: { gte: new Date() },
       },
     },
+    // (2) admin hasn't blocked them
+    RestaurantStatus: "ACTIVE" as const,
   };
 }

@@ -24,6 +24,20 @@ export const userService = {
                 country: true,
                 city: true,
                 mall: true,
+                // For RESTAURANT-role users this brings back the Restaurant
+                // row (including RestaurantStatus / approvalStatus) — the
+                // restaurant mobile app reads these to surface a
+                // "blocked by admin" banner. USER-role accounts won't have a
+                // related Restaurant row, so this is null for customers.
+                restaurant: {
+                    select: {
+                        userId: true,
+                        name: true,
+                        RestaurantStatus: true,
+                        approvalStatus: true,
+                        onboardingCompleted: true,
+                    },
+                },
             },
         });
     },

@@ -174,12 +174,24 @@ export const confirmAmwalSmartBoxCallback = async (req: Request, res: Response) 
     // optimistic UI path; it activates the subscription but leaves the gateway
     // reference for the webhook. If the webhook has already arrived, its value
     // is preserved.
-    const updated = await prisma.restaurantSubscription.update({
-      where: { id: subscriptionId },
-      data: {
-        status: "ACTIVE",
-        endDate,
-      },
+    //
+    // Atomically: (a) demote any previously-ACTIVE row for this restaurant to
+    // EXPIRED — a successful new subscription supersedes the old one, so the
+    // restaurant should never end up with two ACTIVE rows simultaneously, and
+    // (b) flip the target row to ACTIVE with its computed endDate.
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.restaurantSubscription.updateMany({
+        where: {
+          restaurantId: sub.restaurantId,
+          status: "ACTIVE",
+          NOT: { id: subscriptionId },
+        },
+        data: { status: "EXPIRED", endDate: new Date() },
+      });
+      return tx.restaurantSubscription.update({
+        where: { id: subscriptionId },
+        data: { status: "ACTIVE", endDate },
+      });
     });
 
     // If the customer ticked "save card", persist the tokens on the Restaurant

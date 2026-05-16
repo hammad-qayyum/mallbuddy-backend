@@ -142,13 +142,26 @@ export const amwalWebhook = async (req: Request, res: Response) => {
 
       const startDate = sub.startDate ?? new Date();
       const endDate = computeEndDate(startDate, sub.plan.interval);
-      await prisma.restaurantSubscription.update({
-        where: { id: sub.id },
-        data: {
-          status: "ACTIVE",
-          endDate,
-          lastAmwalTransactionId: systemReference ?? null,
-        },
+      // Same supersede pattern as confirmAmwalSmartBoxCallback: demote any
+      // previously-ACTIVE rows for this restaurant to EXPIRED so we never
+      // leave duplicate ACTIVE rows after a new subscription pays through.
+      await prisma.$transaction(async (tx) => {
+        await tx.restaurantSubscription.updateMany({
+          where: {
+            restaurantId: sub.restaurantId,
+            status: "ACTIVE",
+            NOT: { id: sub.id },
+          },
+          data: { status: "EXPIRED", endDate: new Date() },
+        });
+        await tx.restaurantSubscription.update({
+          where: { id: sub.id },
+          data: {
+            status: "ACTIVE",
+            endDate,
+            lastAmwalTransactionId: systemReference ?? null,
+          },
+        });
       });
       console.log("[Amwal Webhook] Activated subscription", { id: sub.id, endDate });
     } else {
