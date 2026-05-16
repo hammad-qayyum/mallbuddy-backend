@@ -57,19 +57,29 @@ export const checkoutService = {
       include: { timeSlots: true },
     });
 
-    // Get current day and time
-    const now = new Date();
-    const daysOfWeek = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
-    const today = daysOfWeek[now.getDay()];
+    // Day-of-week and HH:MM must be computed in Asia/Muscat regardless of the
+    // server's local TZ — otherwise a UTC server checks Saturday's hours at
+    // 22:00 Sunday Oman time, and every order looks "closed".
+    const omanFmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Muscat",
+      weekday: "long",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    const parts = omanFmt.formatToParts(new Date());
+    const today = (parts.find((p) => p.type === "weekday")?.value || "").toUpperCase();
+    const hourRaw = parts.find((p) => p.type === "hour")?.value || "00";
+    const minute = parts.find((p) => p.type === "minute")?.value || "00";
+    // Some ICU builds emit "24" at midnight; normalize to "00".
+    const hour = hourRaw === "24" ? "00" : hourRaw;
+    const currentTime = `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
 
     const todayBusiness = businessDays.find((d: any) => d.day === today);
     if (!todayBusiness || todayBusiness.isClosed) {
       throw new Error("Restaurant is closed today. Cannot place order.");
     }
 
-    // Check if current time is within any open time slot
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    const currentTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
     const isOpen = (todayBusiness.timeSlots || []).some((slot: any) => {
       if (slot.slotType !== "OPEN") return false;
       return slot.openTime <= currentTime && currentTime < slot.closeTime;
