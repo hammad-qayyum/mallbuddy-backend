@@ -88,8 +88,14 @@ router.use((req, res, next) => {
   const isPublicAmwalRoute =
     path === "/payments/amwal/webhook" ||
     originalUrl.endsWith("/payments/amwal/webhook");
-  
-  if (isAuthRoute || isPublicAmwalRoute) {
+
+  // The canonical cuisine list is hardcoded reference data (no PII, same for
+  // everyone). Public so the mobile apps can fetch it without a session, in
+  // line with /countries, /cities, /malls.
+  const isPublicCuisinesList =
+    path === "/cuisines/list" || originalUrl.endsWith("/cuisines/list");
+
+  if (isAuthRoute || isPublicAmwalRoute || isPublicCuisinesList) {
     return next();
   }
   
