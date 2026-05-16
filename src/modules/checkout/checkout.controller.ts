@@ -35,13 +35,25 @@ export const checkoutController = {
         data: order,
       });
     } catch (error: any) {
-      if (error.message.includes("not found")) {
-        return res.status(404).json({ message: error.message });
+      const msg = error?.message || "Failed to create order";
+      if (msg.includes("not found")) {
+        return res.status(404).json({ message: msg });
       }
-      if (error.message.includes("empty") || error.message.includes("same restaurant")) {
-        return res.status(400).json({ message: error.message });
+      if (msg.includes("does not belong")) {
+        return res.status(403).json({ message: msg });
       }
-      return res.status(500).json({ message: error.message });
+      if (
+        msg.includes("empty") ||
+        msg.includes("same restaurant") ||
+        msg.includes("Invalid restaurant")
+      ) {
+        return res.status(400).json({ message: msg });
+      }
+      if (msg.includes("closed")) {
+        return res.status(409).json({ message: msg });
+      }
+      console.error("[Checkout.createOrder] unexpected error:", error);
+      return res.status(500).json({ message: "Failed to create order" });
     }
   },
 
