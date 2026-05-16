@@ -158,6 +158,10 @@ model Restaurant {
   story                  String?
   location               String?
   cuisineCategoryId      String?
+  // Hardcoded cuisines a restaurant identifies with (multi-select). Sourced
+  // from src/constants/cuisines.ts and validated on write. Replaces the older
+  // single-cuisineCategoryId FK (kept for backward compat but no longer used).
+  cuisines               String[]                  @default([])
   isFavorite             Boolean                   @default(false)
   mallId                 String
   address                String?

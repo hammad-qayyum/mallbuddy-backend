@@ -2,8 +2,34 @@ import { Router } from "express";
 import { cuisineController } from "./cuisine.controller";
 import { uploadCuisineCategoryImage, verifyUploadedImagesAreReal } from "../../config/upload";
 import { requireAuth, requireAdminRole } from "../../middlewares/role.middleware";
+import { CUISINES } from "../../constants/cuisines";
 
 const router = Router();
+
+/**
+ * @swagger
+ * /cuisines/list:
+ *   get:
+ *     summary: Get the hardcoded list of cuisines a restaurant can identify with
+ *     tags: [Cuisine]
+ *     description: |
+ *       Canonical cuisine list (universal, not per-mall). Both mobile apps fetch
+ *       this so they stay in sync with what the backend will accept on writes.
+ *     responses:
+ *       200:
+ *         description: List of cuisine names (strings)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 cuisines:
+ *                   type: array
+ *                   items: { type: string }
+ */
+router.get("/cuisines/list", (_req, res) => {
+  res.json({ cuisines: CUISINES });
+});
 
 /**
  * @swagger

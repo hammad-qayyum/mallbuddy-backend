@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CUISINES } from "../../constants/cuisines";
 
 // Helper to treat empty strings from multipart/form-data as undefined for optional fields
 const optionalString = (min?: number) =>
@@ -6,6 +7,25 @@ const optionalString = (min?: number) =>
     (val) => (val === "" ? undefined : val),
     min ? z.string().min(min).optional() : z.string().optional()
   );
+
+// Cuisines arrive as an array on JSON requests but as a JSON-encoded string on
+// multipart/form-data ones. Normalize both forms before validating each entry
+// against the canonical CUISINES constant.
+const cuisinesSchema = z.preprocess(
+  (val) => {
+    if (val === undefined || val === null || val === "") return undefined;
+    if (typeof val === "string") {
+      try {
+        const parsed = JSON.parse(val);
+        return Array.isArray(parsed) ? parsed : undefined;
+      } catch {
+        return undefined;
+      }
+    }
+    return val;
+  },
+  z.array(z.enum(CUISINES as unknown as [string, ...string[]])).optional()
+);
 
 // Base schema for restaurant fields (used for updates)
 // Note: This is kept for updateRestaurantSchema only
@@ -18,6 +38,10 @@ const restaurantFieldsSchema = z.object({
   story: optionalString(),
   location: optionalString(),
   cuisineCategoryId: optionalString(),
+  // Hardcoded multi-select cuisines on Restaurant. Validated against
+  // CUISINES constant. Old single cuisineCategoryId stays for backward compat
+  // but is no longer the canonical source.
+  cuisines: cuisinesSchema,
   // Coerce boolean coming from multipart/form-data ("true"/"false")
   isFavorite: z
     .preprocess((val) => {

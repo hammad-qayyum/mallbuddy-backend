@@ -36,6 +36,7 @@ export const userService = {
                         RestaurantStatus: true,
                         approvalStatus: true,
                         onboardingCompleted: true,
+                        cuisines: true,
                     },
                 },
             },

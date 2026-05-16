@@ -36,7 +36,8 @@ export const restaurantService = {
     mallId: string,
     category?: string,
     page: number = 1,
-    limit: number = 10
+    limit: number = 10,
+    cuisine?: string,
   ) {
     // Customer-facing list — only show restaurants with an active, paid
     // subscription. Restaurants without one are hidden entirely (not just
@@ -44,6 +45,9 @@ export const restaurantService = {
     // findMany() below see the same filter.
     const where: any = { mallId, ...activeSubscriptionWhere() };
     if (category) where.mainCategory = category;
+    // ?cuisine=Italian — match any restaurant whose cuisines array contains
+    // this hardcoded cuisine name. Postgres array contains via Prisma `has`.
+    if (cuisine) where.cuisines = { has: cuisine };
 
     const total = await prisma.restaurant.count({ where });
 
@@ -186,6 +190,7 @@ export const restaurantService = {
             name: restaurant.cuisineCategory.name,
           }
         : null,
+      cuisines: restaurant.cuisines || [],
       isFavorite: restaurant.isFavorite,
       user: {
         id: restaurant.user.id,
@@ -309,6 +314,12 @@ export const restaurantService = {
     }
     if (data.cuisineCategoryId !== undefined && data.cuisineCategoryId !== null && data.cuisineCategoryId.trim() !== "") {
       restaurantUpdateData.cuisineCategoryId = data.cuisineCategoryId;
+    }
+    // Cuisines is a multi-select (String[]) — overwrites the prior set on save.
+    // An empty array is a valid intent ("clear all cuisines"), so undefined is
+    // the only way to skip the field.
+    if ((data as any).cuisines !== undefined) {
+      restaurantUpdateData.cuisines = (data as any).cuisines;
     }
     if ((data as any).isFavorite !== undefined && (data as any).isFavorite !== null) {
       restaurantUpdateData.isFavorite = (data as any).isFavorite;
@@ -1052,6 +1063,7 @@ export const restaurantService = {
       mainCategory: restaurant.mainCategory,
       mall: restaurant.mall,
       cuisineCategory: restaurant.cuisineCategory,
+      cuisines: restaurant.cuisines || [],
       isFavorite: restaurant.isFavorite,
     }));
   },
@@ -1112,6 +1124,7 @@ export const restaurantService = {
       mainCategory: restaurant.mainCategory,
       mall: restaurant.mall,
       cuisineCategory: restaurant.cuisineCategory,
+      cuisines: restaurant.cuisines || [],
       isFavorite: restaurant.isFavorite,
       menuCategories: restaurant.menuCategories,
       gallery,

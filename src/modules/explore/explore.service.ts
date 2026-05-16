@@ -22,6 +22,7 @@ export const exploreService = {
           banner: true,
           isFavorite: true,
           cuisineCategoryId: true,
+          cuisines: true,
         },
         orderBy: { name: "asc" },
       });
@@ -41,6 +42,7 @@ export const exploreService = {
         ...(r.cuisineCategoryId && cuisineMap.has(r.cuisineCategoryId)
           ? { cuisineCategory: cuisineMap.get(r.cuisineCategoryId) }
           : {}),
+        cuisines: r.cuisines || [],
       }));
     } catch (err) {
       console.error('[exploreService] getExploreRestaurants error:', (err as any)?.stack || err);

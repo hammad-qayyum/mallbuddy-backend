@@ -67,7 +67,7 @@ export const restaurantController = {
   // GET /malls/:mallId/restaurants
   async getAll(req: Request, res: Response) {
     const { mallId } = req.params;
-    const { category, page, limit } = req.query;
+    const { category, page, limit, cuisine } = req.query;
 
     if (!mallId) return res.status(400).json({ message: "Mall ID is required" });
 
@@ -75,7 +75,8 @@ export const restaurantController = {
       mallId,
       category as string,
       Number(page) || 1,
-      Number(limit) || 10
+      Number(limit) || 10,
+      cuisine as string | undefined,
     );
 
     return res.json(data);
