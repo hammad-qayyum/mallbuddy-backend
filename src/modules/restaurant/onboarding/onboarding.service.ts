@@ -16,6 +16,7 @@ export const onboardingService = {
         where: { userId: restaurantId },
         select: {
           cuisineCategoryId: true,
+          cuisines: true,
           banner: true,
           businessDays: {
             select: {
@@ -34,8 +35,13 @@ export const onboardingService = {
         throw new Error("Restaurant not found");
       }
 
-      // Check each onboarding step
-      const cuisineTypeAdded = restaurant.cuisineCategoryId !== null;
+      // Cuisine onboarding step is satisfied by either the new hardcoded
+      // multi-select `cuisines` array (canonical source) or the legacy
+      // single-FK `cuisineCategoryId` (kept for backward compat with rows
+      // that haven't been migrated yet).
+      const cuisineTypeAdded =
+        (restaurant.cuisines?.length ?? 0) > 0 ||
+        restaurant.cuisineCategoryId !== null;
       const businessHoursAdded = (restaurant.businessDays?.length ?? 0) > 0;
       const bannerImageAdded = (restaurant.gallery?.length ?? 0) > 0 || restaurant.banner !== null;
 
