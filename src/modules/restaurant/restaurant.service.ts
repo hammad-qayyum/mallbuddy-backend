@@ -15,6 +15,7 @@ import {
   notifyUserOrderStatus,
   notifyRestaurantAndAdminCancelled,
 } from "../notifications/notification.service";
+import { activeSubscriptionWhere } from "./subscription/subscription.service";
 
 function hasGalleryModel() {
   try {
@@ -37,7 +38,11 @@ export const restaurantService = {
     page: number = 1,
     limit: number = 10
   ) {
-    const where: any = { mallId };
+    // Customer-facing list — only show restaurants with an active, paid
+    // subscription. Restaurants without one are hidden entirely (not just
+    // un-orderable). Spread the helper into the where so the count() and
+    // findMany() below see the same filter.
+    const where: any = { mallId, ...activeSubscriptionWhere() };
     if (category) where.mainCategory = category;
 
     const total = await prisma.restaurant.count({ where });
@@ -203,8 +208,12 @@ export const restaurantService = {
   },
 
   async getRestaurantDetails(restaurantId: string) {
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { userId: restaurantId },
+    // Customer reads the menu via this. Use findFirst with the active-sub
+    // filter so a restaurant without a paid subscription returns null
+    // (controller turns that into a 404), matching the "doesn't exist for
+    // customers" contract used elsewhere.
+    const restaurant = await prisma.restaurant.findFirst({
+      where: { userId: restaurantId, ...activeSubscriptionWhere() },
       include: {
         user: true,
         menuCategories: { include: { items: true } },

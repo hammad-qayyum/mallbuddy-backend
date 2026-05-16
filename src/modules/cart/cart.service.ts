@@ -1,5 +1,6 @@
 import prisma from "../../config/prisma";
 import { AddToCartServiceInput, UpdateCartItemInput } from "./cart.schema";
+import { activeSubscriptionWhere } from "../restaurant/subscription/subscription.service";
 
 export const cartService = {
   // Get or create cart for a user
@@ -410,12 +411,18 @@ export const cartService = {
       throw new Error("Menu item not found");
     }
 
-    // Verify restaurant exists
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { userId: data.restaurantId },
+    // Verify restaurant exists AND has an active subscription. Restaurants
+    // without one are hidden from customer browse/search; this is the
+    // defensive write-time check in case the customer reached cart-add via
+    // a stale cache between browse and add.
+    const restaurant = await prisma.restaurant.findFirst({
+      where: { userId: data.restaurantId, ...activeSubscriptionWhere() },
     });
 
     if (!restaurant) {
+      // Use the same generic "not found" message so we don't leak the
+      // distinction between "restaurant doesn't exist" and "restaurant's
+      // subscription lapsed" — both look identical to the customer.
       throw new Error("Restaurant not found");
     }
 

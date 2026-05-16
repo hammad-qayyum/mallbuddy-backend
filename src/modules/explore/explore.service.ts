@@ -1,4 +1,5 @@
 import prisma from "../../config/prisma";
+import { activeSubscriptionWhere } from "../restaurant/subscription/subscription.service";
 
 function hasGalleryModel() {
   try {
@@ -13,6 +14,8 @@ export const exploreService = {
   async getExploreRestaurants(): Promise<any[]> {
     try {
       const restaurants = await prisma.restaurant.findMany({
+        // Customer explore feed — hide restaurants without an active sub.
+        where: activeSubscriptionWhere(),
         select: {
           userId: true,
           name: true,
@@ -47,8 +50,10 @@ export const exploreService = {
 
   async getExploreRestaurantDetail(id: string): Promise<any | null> {
     try {
-      const restaurant = await prisma.restaurant.findUnique({
-        where: { userId: id },
+      // findFirst with the active-sub filter so an unsubscribed restaurant
+      // returns null (caller turns into 404).
+      const restaurant = await prisma.restaurant.findFirst({
+        where: { userId: id, ...activeSubscriptionWhere() },
         select: { userId: true, name: true, story: true },
       });
 
@@ -86,8 +91,8 @@ export const exploreService = {
 
   async getRestaurantStory(id: string): Promise<{ userId: string; name: string; story?: string } | null> {
     try {
-      const restaurant = await prisma.restaurant.findUnique({
-        where: { userId: id },
+      const restaurant = await prisma.restaurant.findFirst({
+        where: { userId: id, ...activeSubscriptionWhere() },
         select: { userId: true, name: true, story: true },
       });
 

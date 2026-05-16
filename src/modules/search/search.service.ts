@@ -1,4 +1,5 @@
 import prisma from "../../config/prisma";
+import { activeSubscriptionWhere } from "../restaurant/subscription/subscription.service";
 
 /**
  * Search service behavior:
@@ -12,9 +13,13 @@ export const searchService = {
     if (!query) return { restaurants: [], totalResults: 0 };
 
     try {
-      // 1) Look for restaurants whose name matches the query
+      // 1) Look for restaurants whose name matches the query — but only
+      // those with an active subscription (customer never sees the others).
       const restaurantMatches = await prisma.restaurant.findMany({
-        where: { name: { contains: query, mode: "insensitive" } },
+        where: {
+          name: { contains: query, mode: "insensitive" },
+          ...activeSubscriptionWhere(),
+        },
         select: {
           userId: true,
           name: true,
@@ -49,9 +54,17 @@ export const searchService = {
         return { restaurants, totalResults: restaurants.length };
       }
 
-      // 2) No restaurant name matches -> search menu items and map to restaurants
+      // 2) No restaurant name matches -> search menu items and map to
+      // restaurants. Filter at the item level by the parent restaurant's
+      // active-sub status so items from unsubscribed restaurants are
+      // excluded before we even build the restaurant list.
       const items = await prisma.menuItem.findMany({
-        where: { name: { contains: query, mode: "insensitive" } },
+        where: {
+          name: { contains: query, mode: "insensitive" },
+          category: {
+            restaurant: activeSubscriptionWhere(),
+          },
+        },
         select: { id: true, name: true, categoryId: true },
         take: 500,
       });
@@ -65,8 +78,11 @@ export const searchService = {
 
       if (restaurantIds.length === 0) return { restaurants: [], totalResults: 0 };
 
+      // Redundant given the item-side filter above, but cheap insurance —
+      // ensures any restaurant whose subscription expired between the two
+      // queries is still excluded from the final response.
       const restRows = await prisma.restaurant.findMany({
-        where: { userId: { in: restaurantIds } },
+        where: { userId: { in: restaurantIds }, ...activeSubscriptionWhere() },
         select: { userId: true, name: true, banner: true, location: true, isFavorite: true, cuisineCategoryId: true, estimatedDeliveryTime: true },
       });
 

@@ -1,4 +1,5 @@
 import prisma from "../../config/prisma";
+import { activeSubscriptionWhere } from "../restaurant/subscription/subscription.service";
 
 export const menuSearchService = {
   /**
@@ -7,9 +8,11 @@ export const menuSearchService = {
    */
   async searchMenuItems(restaurantId: string, query: string) {
     try {
-      // First, verify the restaurant exists
-      const restaurant = await prisma.restaurant.findUnique({
-        where: { userId: restaurantId },
+      // Verify the restaurant exists AND is allowed to serve customers
+      // (active, paid subscription). If not, return null so the controller
+      // 404s — customer should not see search-into a dead restaurant.
+      const restaurant = await prisma.restaurant.findFirst({
+        where: { userId: restaurantId, ...activeSubscriptionWhere() },
         select: { name: true },
       });
 

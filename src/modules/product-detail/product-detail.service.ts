@@ -9,6 +9,7 @@ import {
   CreateAddOnOptionInput,
   UpdateAddOnOptionInput,
 } from "./product-detail.schema";
+import { activeSubscriptionWhere } from "../restaurant/subscription/subscription.service";
 
 export const productDetailService = {
   // ============ GET PRODUCT DETAIL ============
@@ -18,8 +19,15 @@ export const productDetailService = {
    * @returns Complete product information with variations and add-ons
    */
   async getProductDetail(menuItemId: string) {
-    const product = await prisma.menuItem.findUnique({
-      where: { id: menuItemId },
+    // findFirst (not findUnique) so we can apply a parent-restaurant filter.
+    // The product is "not found" — same 404 as a missing id — if the
+    // restaurant doesn't have an active subscription. Same UX as if the
+    // restaurant didn't exist for the customer.
+    const product = await prisma.menuItem.findFirst({
+      where: {
+        id: menuItemId,
+        category: { restaurant: activeSubscriptionWhere() },
+      },
       include: {
         category: {
           include: {
