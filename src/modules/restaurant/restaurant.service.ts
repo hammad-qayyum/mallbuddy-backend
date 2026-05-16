@@ -88,16 +88,28 @@ export const restaurantService = {
     return { data: transformedData, total, page, limit };
   },
 
-  // Get all restaurants system-wide (public access - no sensitive info)
+  // Get all restaurants system-wide (public access - no sensitive info).
+  // Filters compose: any combo of mallId / cityId / countryId / category.
+  // - mallId pins the direct mallId column on Restaurant
+  // - cityId is enforced via the mall relation (mall.cityId)
+  // - countryId is enforced via the mall -> city -> countryId chain
+  // The admin restaurant management screen uses this endpoint as its default
+  // listing, so no active-subscription filter is applied here — admins need
+  // to see every restaurant (including pre-payment / past-due ones).
   async getAllRestaurantsSystemWidePublic(
     page: number = 1,
     limit: number = 10,
     mallId?: string,
-    category?: string
+    category?: string,
+    cityId?: string,
+    countryId?: string,
   ) {
     const where: any = {};
     if (mallId) where.mallId = mallId;
     if (category) where.mainCategory = category;
+    if (cityId) where.mall = { ...(where.mall || {}), cityId };
+    if (countryId)
+      where.mall = { ...(where.mall || {}), city: { countryId } };
 
     const total = await prisma.restaurant.count({ where });
 

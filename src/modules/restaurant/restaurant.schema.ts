@@ -93,11 +93,15 @@ export const getRestaurantAnalyticsSchema = z.object({
   limit: z.number().int().positive().max(100).default(10).optional(),
 });
 
-// Schema for getting all restaurants system-wide (public access)
+// Schema for getting all restaurants system-wide (public access).
+// `cityId` / `countryId` let admin tools (and any future UI) browse by a
+// geographic prefix without picking a specific mall.
 export const getAllRestaurantsSystemWideSchema = z.object({
   page: z.number().int().positive().default(1).optional(),
   limit: z.number().int().positive().max(100).default(10).optional(),
   mallId: z.string().optional(),
+  cityId: z.string().optional(),
+  countryId: z.string().optional(),
   category: z.string().optional(),
 });
 

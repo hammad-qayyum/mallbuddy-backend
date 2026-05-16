@@ -81,18 +81,23 @@ export const restaurantController = {
     return res.json(data);
   },
 
-  // GET /restaurants/all - Public access to all restaurants system-wide
+  // GET /restaurants/all - Public access to all restaurants system-wide.
+  // Optional filters: mallId, cityId, countryId, category. Combine freely.
   async getAllSystemWide(req: Request, res: Response) {
     try {
       const page = Number.parseInt((req.query.page ?? "1") as string);
       const limit = Number.parseInt((req.query.limit ?? "10") as string);
       const mallId = req.query.mallId as string | undefined;
+      const cityId = req.query.cityId as string | undefined;
+      const countryId = req.query.countryId as string | undefined;
       const category = req.query.category as string | undefined;
 
       const parseResult = getAllRestaurantsSystemWideSchema.safeParse({
         page,
         limit,
         mallId,
+        cityId,
+        countryId,
         category,
       });
 
@@ -107,7 +112,9 @@ export const restaurantController = {
         parseResult.data.page || 1,
         parseResult.data.limit || 10,
         parseResult.data.mallId,
-        parseResult.data.category
+        parseResult.data.category,
+        parseResult.data.cityId,
+        parseResult.data.countryId,
       );
 
       return res.json({
