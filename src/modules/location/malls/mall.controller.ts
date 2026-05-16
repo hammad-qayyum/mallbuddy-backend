@@ -51,12 +51,13 @@ export const mallController = {
     }
   },
 
-  // GET /malls or /malls?cityId=abc
+  // GET /malls or /malls?cityId=abc or /malls?countryId=xyz (or both)
   async getAll(req: Request, res: Response) {
-    const { cityId } = req.query;
+    const { cityId, countryId } = req.query;
 
     const malls = await mallService.getMalls(
-      cityId ? String(cityId) : undefined
+      cityId ? String(cityId) : undefined,
+      countryId ? String(countryId) : undefined,
     );
 
     return res.json(malls);

@@ -26,10 +26,17 @@ export const mallService = {
     });
   },
 
-  // Get all malls, optionally filtered by cityId
-  async getMalls(cityId?: string) {
+  // Get all malls, optionally filtered by cityId and/or countryId.
+  // cityId is the most specific (direct column on Mall).
+  // countryId filters via the city relation so the admin can browse all malls
+  // in a country without having to pick a city first.
+  async getMalls(cityId?: string, countryId?: string) {
+    const where: any = {};
+    if (cityId) where.cityId = cityId;
+    if (countryId) where.city = { countryId };
+
     const malls = await prisma.mall.findMany({
-      ...(cityId && { where: { cityId } }),
+      ...(Object.keys(where).length ? { where } : {}),
       orderBy: { name: "asc" },
       select: {
         id: true,
