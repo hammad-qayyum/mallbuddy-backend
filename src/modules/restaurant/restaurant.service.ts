@@ -958,6 +958,41 @@ export const restaurantService = {
       },
     });
 
+    // Daily revenue for the last 7 days — drives the home-screen "Sales
+    // summary" line chart. Each entry: { date: "Mon", revenue: 12.5,
+    // orders: 2 }. Oldest day first, newest last (so the X-axis reads
+    // left-to-right chronologically).
+    const last7Start = new Date();
+    last7Start.setDate(last7Start.getDate() - 6);
+    last7Start.setHours(0, 0, 0, 0);
+    const last7Orders = await prisma.order.findMany({
+      where: { restaurantId, createdAt: { gte: last7Start } },
+      select: { total: true, createdAt: true },
+    });
+    const SHORT_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const dailyRevenue: Array<{ date: string; revenue: number; orders: number }> = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      d.setHours(0, 0, 0, 0);
+      const dEnd = new Date(d);
+      dEnd.setHours(23, 59, 59, 999);
+      const dayOrders = last7Orders.filter(
+        (o) => o.createdAt >= d && o.createdAt <= dEnd,
+      );
+      const revenue = dayOrders.reduce(
+        (sum, o) => sum + Number.parseFloat(o.total.toString()),
+        0,
+      );
+      dailyRevenue.push({
+        // Index is always 0..6 from Date#getDay(); assert to satisfy TS's
+        // noUncheckedIndexedAccess.
+        date: SHORT_DAYS[d.getDay()]!,
+        revenue: Number(revenue.toFixed(2)),
+        orders: dayOrders.length,
+      });
+    }
+
     // Calculate total revenue (sum of all order totals)
     const totalRevenue = allOrders.reduce((sum, order) => {
       return sum + Number.parseFloat(order.total.toString());
@@ -994,6 +1029,7 @@ export const restaurantService = {
         totalRevenue: Number(totalRevenue.toFixed(2)),
         revenueByStatus,
         ordersByStatus,
+        dailyRevenue,
       },
       pagination: {
         page,
