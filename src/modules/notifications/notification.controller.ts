@@ -49,22 +49,33 @@ export const registerExpoToken = async (req: Request, res: Response): Promise<vo
       return;
     }
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: { expoPushToken },
-    });
+    // Expo push tokens are per-device, not per-user. If user A logged in on
+    // this device and saved their token, then user B logs in on the same
+    // device, B's update would collide with the `@unique` constraint on
+    // expoPushToken. So: first detach the token from any other user, then
+    // assign to the current user. Atomic via $transaction.
+    await prisma.$transaction([
+      prisma.user.updateMany({
+        where: { expoPushToken, NOT: { id: userId } },
+        data: { expoPushToken: null },
+      }),
+      prisma.user.update({
+        where: { id: userId },
+        data: { expoPushToken },
+      }),
+    ]);
 
     console.log(`[Notification] Registered push token`);
-    
-    res.json({ 
+
+    res.json({
       success: true,
-      message: "Push token registered successfully" 
+      message: "Push token registered successfully"
     });
   } catch (error: any) {
     console.error("[Notification] Error registering push token:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: "Failed to register push token" 
+      message: "Failed to register push token"
     });
   }
 };
