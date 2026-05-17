@@ -540,16 +540,33 @@ export const authService = {
 
     //Get current session
     async getSession(req: Request){
+        // Accept the session token from any of:
+        //   1) the better-auth cookie (browser, when cross-origin cookies work)
+        //   2) `Authorization: Bearer <token>` (admin web — Redux-stored token,
+        //      survives third-party-cookie blocking on Safari/ITP/strict modes)
+        //   3) custom `better-auth.session_token` header (mobile apps —
+        //      SecureStore-stored token)
+        // The cookie-only flow was the source of intermittent
+        // "Access denied / not an admin" on the web panel: when the browser
+        // dropped the cookie, /auth/me returned null even though a valid
+        // Bearer token was sitting in the request headers.
+        const authHeader = (req.headers.authorization || "").toString();
+        const bearerToken = authHeader.toLowerCase().startsWith("bearer ")
+            ? authHeader.slice(7).trim()
+            : null;
+        const customHeaderToken =
+            (req.headers["better-auth.session_token"] as string | undefined) ?? null;
         const cookieToken =
             (req as any).cookies?.["better-auth.session_token"] ??
             (req as any).cookies?.betterAuthSessionToken;
 
-        if (!cookieToken) {
+        const token = cookieToken || bearerToken || customHeaderToken;
+        if (!token) {
             return null;
         }
 
         const session = await prisma.session.findUnique({
-            where: {token: cookieToken},
+            where: {token},
             include: {
                 user: {
                     include: {
