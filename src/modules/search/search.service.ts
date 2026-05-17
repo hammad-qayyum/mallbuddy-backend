@@ -2,113 +2,109 @@ import prisma from "../../config/prisma";
 import { activeSubscriptionWhere } from "../restaurant/subscription/subscription.service";
 
 /**
- * Search service behavior:
- * - If `q` matches restaurant.name (case-insensitive contains) -> return restaurant cards and totalResults (matching restaurants count)
- * - Otherwise, try to match menu items by name; return unique restaurants that offer those menu items and totalResults (number of restaurants)
- * - If nothing found, caller should return 404 with message 'Sorry Not found'
+ * Search behavior (post-rewrite, 2026-05):
+ * - Always runs BOTH the restaurant-name search and the menu-item search in
+ *   parallel. The previous "if restaurants matched, skip menu items" rule
+ *   meant a menu item could never surface if any restaurant name partially
+ *   shared the query (e.g. "rest" hiding a "Pesto Rest..." item).
+ * - When `mallId` is provided, both searches are scoped to that mall — the
+ *   customer-facing flow always passes the selected mall, so cross-mall
+ *   bleed (Karachi searches returning Muscat hits) is eliminated.
+ * - Returns a mixed response: `{ restaurants, menuItems, totalResults }`.
+ *   Menu items carry enough context (`restaurantId`, `restaurantName`) for
+ *   the UI to navigate straight to ProductDetailsScreen on tap.
+ * - Both lists are filtered by `activeSubscriptionWhere()` so only paid /
+ *   active restaurants surface to customers.
  */
 export const searchService = {
-  async search(q: string) {
+  async search(q: string, mallId?: string) {
     const query = q.trim();
-    if (!query) return { restaurants: [], totalResults: 0 };
+    if (!query) return { restaurants: [], menuItems: [], totalResults: 0 };
+
+    // Shared filter used by both queries.
+    const restaurantFilter = {
+      ...activeSubscriptionWhere(),
+      ...(mallId ? { mallId } : {}),
+    };
 
     try {
-      // 1) Look for restaurants whose name matches the query — but only
-      // those with an active subscription (customer never sees the others).
-      const restaurantMatches = await prisma.restaurant.findMany({
-        where: {
-          name: { contains: query, mode: "insensitive" },
-          ...activeSubscriptionWhere(),
-        },
-        select: {
-          userId: true,
-          name: true,
-          banner: true,
-          location: true,
-          isFavorite: true,
-          cuisineCategoryId: true,
-          cuisines: true,
-          estimatedDeliveryTime: true,
-        },
-        take: 100,
-      });
-
-      // helper to map cuisine ids -> names
-      const cuisineIds = Array.from(new Set(restaurantMatches.map((r) => r.cuisineCategoryId).filter(Boolean))) as string[];
-      const cuisineMap = new Map<string, { id: string; name: string }>();
-      if (cuisineIds.length) {
-        const cuisines = await prisma.cuisineCategory.findMany({ where: { id: { in: cuisineIds } } });
-        cuisines.forEach((c) => cuisineMap.set(c.id, { id: c.id, name: c.name }));
-      }
-
-      if (restaurantMatches.length > 0) {
-        const restaurants = restaurantMatches.map((r) => ({
-          id: r.userId,
-          name: r.name,
-          image: r.banner,
-          location: r.location,
-          isFavorite: !!r.isFavorite,
-          cuisine: r.cuisineCategoryId ? cuisineMap.get(r.cuisineCategoryId)?.name ?? null : null,
-          cuisines: r.cuisines || [],
-          estimatedDeliveryTime: r.estimatedDeliveryTime || null,
-        }));
-
-        return { restaurants, totalResults: restaurants.length };
-      }
-
-      // 2) No restaurant name matches -> search menu items and map to
-      // restaurants. Filter at the item level by the parent restaurant's
-      // active-sub status so items from unsubscribed restaurants are
-      // excluded before we even build the restaurant list.
-      const items = await prisma.menuItem.findMany({
-        where: {
-          name: { contains: query, mode: "insensitive" },
-          category: {
-            restaurant: activeSubscriptionWhere(),
+      const [restaurantRows, menuItemRows] = await Promise.all([
+        prisma.restaurant.findMany({
+          where: {
+            ...restaurantFilter,
+            name: { contains: query, mode: "insensitive" },
           },
-        },
-        select: { id: true, name: true, categoryId: true },
-        take: 500,
-      });
+          select: {
+            userId: true,
+            name: true,
+            banner: true,
+            location: true,
+            isFavorite: true,
+            cuisines: true,
+            estimatedDeliveryTime: true,
+          },
+          take: 50,
+        }),
+        prisma.menuItem.findMany({
+          where: {
+            name: { contains: query, mode: "insensitive" },
+            category: {
+              restaurant: restaurantFilter,
+            },
+          },
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            price: true,
+            image: true,
+            category: {
+              select: {
+                restaurant: {
+                  select: {
+                    userId: true,
+                    name: true,
+                    banner: true,
+                  },
+                },
+              },
+            },
+          },
+          take: 50,
+        }),
+      ]);
 
-      if (!items || items.length === 0) return { restaurants: [], totalResults: 0 };
-
-      // collect restaurantIds via MenuCategory -> restaurantId
-      const categoryIds = Array.from(new Set(items.map((i) => i.categoryId).filter(Boolean))) as string[];
-      const categories = await prisma.menuCategory.findMany({ where: { id: { in: categoryIds } }, select: { id: true, restaurantId: true } });
-      const restaurantIds = Array.from(new Set(categories.map((c) => c.restaurantId)));
-
-      if (restaurantIds.length === 0) return { restaurants: [], totalResults: 0 };
-
-      // Redundant given the item-side filter above, but cheap insurance —
-      // ensures any restaurant whose subscription expired between the two
-      // queries is still excluded from the final response.
-      const restRows = await prisma.restaurant.findMany({
-        where: { userId: { in: restaurantIds }, ...activeSubscriptionWhere() },
-        select: { userId: true, name: true, banner: true, location: true, isFavorite: true, cuisineCategoryId: true, cuisines: true, estimatedDeliveryTime: true },
-      });
-
-      const cuisineIds2 = Array.from(new Set(restRows.map((r) => r.cuisineCategoryId).filter(Boolean))) as string[];
-      const cuisineMap2 = new Map<string, { id: string; name: string }>();
-      if (cuisineIds2.length) {
-        const cuisines = await prisma.cuisineCategory.findMany({ where: { id: { in: cuisineIds2 } } });
-        cuisines.forEach((c) => cuisineMap2.set(c.id, { id: c.id, name: c.name }));
-      }
-
-      const restaurants = restRows.map((r) => ({
+      const restaurants = restaurantRows.map((r) => ({
         id: r.userId,
         name: r.name,
         image: r.banner,
         location: r.location,
         isFavorite: !!r.isFavorite,
-        cuisine: r.cuisineCategoryId ? cuisineMap2.get(r.cuisineCategoryId)?.name ?? null : null,
         cuisines: r.cuisines || [],
         estimatedDeliveryTime: r.estimatedDeliveryTime || null,
       }));
 
-      return { restaurants, totalResults: restaurants.length };
+      const menuItems = menuItemRows
+        .filter((m) => !!m.category?.restaurant)
+        .map((m) => ({
+          id: m.id,
+          name: m.name,
+          description: m.description,
+          // Decimal -> number for JSON serialization.
+          price: m.price ? Number(m.price) : 0,
+          image: m.image,
+          restaurantId: m.category!.restaurant!.userId,
+          restaurantName: m.category!.restaurant!.name,
+          restaurantImage: m.category!.restaurant!.banner,
+        }));
+
+      return {
+        restaurants,
+        menuItems,
+        totalResults: restaurants.length + menuItems.length,
+      };
     } catch (err) {
-      console.error('[searchService] error', (err as any)?.stack || err);
+      console.error("[searchService] error", (err as any)?.stack || err);
       throw err;
     }
   },
