@@ -37,6 +37,16 @@ export const userService = {
                         approvalStatus: true,
                         onboardingCompleted: true,
                         cuisines: true,
+                        // Surface banner + story + gallery so the restaurant
+                        // app's Banner / Story-information screens can
+                        // pre-fill with the current saved state when the
+                        // owner opens them to edit.
+                        banner: true,
+                        story: true,
+                        gallery: {
+                            select: { id: true, imageUrl: true },
+                            orderBy: { createdAt: "asc" },
+                        },
                     },
                 },
             },
