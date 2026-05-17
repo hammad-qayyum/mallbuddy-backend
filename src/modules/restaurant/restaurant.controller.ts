@@ -195,7 +195,9 @@ export const restaurantController = {
 
     if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
 
-    // Send restaurant info + menu categories + items in structured format
+    // Send restaurant info + menu categories + items in structured format.
+    // `story` and `gallery` are surfaced so the customer detail screen can
+    // render Gallery / Story-information tabs without an extra round-trip.
     return res.json({
       restaurant: {
         id: restaurant.userId,
@@ -205,6 +207,10 @@ export const restaurantController = {
         description: restaurant.description,
         location: restaurant.location,
         mainCategory: restaurant.mainCategory,
+        story: (restaurant as any).story || null,
+        gallery: Array.isArray((restaurant as any).gallery)
+          ? (restaurant as any).gallery
+          : [],
       },
       menu: restaurant.menuCategories.map(category => ({
         id: category.id,
