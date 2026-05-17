@@ -77,5 +77,9 @@ export function activeSubscriptionWhere() {
     },
     // (2) admin hasn't blocked them
     RestaurantStatus: "ACTIVE" as const,
+    // (3) admin has approved the listing. Newly-signed-up restaurants are
+    // PENDING by default; even if they pay for a subscription, they stay
+    // hidden from customers until admin clicks Approve in the web app.
+    approvalStatus: "APPROVED" as const,
   };
 }
