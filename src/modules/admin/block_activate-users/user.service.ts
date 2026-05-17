@@ -36,6 +36,7 @@ export const userAdminService = {
       select: {
         id: true,
         email: true,
+        phoneNumber: true,
         name: true,
         firstName: true,
         lastName: true,
@@ -55,6 +56,7 @@ export const userAdminService = {
       select: {
         id: true,
         email: true,
+        phoneNumber: true,
         name: true,
         firstName: true,
         lastName: true,
@@ -101,6 +103,7 @@ export const userAdminService = {
       select: {
         id: true,
         email: true,
+        phoneNumber: true,
         name: true,
         firstName: true,
         lastName: true,

@@ -59,11 +59,26 @@ export const authService = {
     //Login user
     async login(req: Request){
         const {email, phoneNumber, password} = req.body;
-        const {email: identifierEmail} = resolveIdentifier(email, phoneNumber);
 
-        // Note: User can login with either email OR phone number
-        // The resolveIdentifier function converts phone to alias email
-        // So if user has both email and phone, they can login with either
+        // Resolve the actual email better-auth knows about. If the user
+        // supplied a phone number, first look up the User row by phone —
+        // if they have a real email stored, use THAT. Only fall back to the
+        // alias-email derivation when no User row matches the phone
+        // (i.e. they signed up phone-only with no real email).
+        let identifierEmail: string;
+        if (phoneNumber && !email) {
+            const normalizedPhone = normalizePhoneNumber(phoneNumber);
+            const userRow = await prisma.user.findUnique({
+                where: { phoneNumber: normalizedPhone },
+                select: { email: true },
+            });
+            identifierEmail = userRow?.email
+                ? userRow.email
+                : resolveIdentifier(undefined, phoneNumber).email;
+        } else {
+            identifierEmail = resolveIdentifier(email, phoneNumber).email;
+        }
+
         return await auth.api.signInEmail({
             body: {email: identifierEmail, password},
             headers: expressHeadersToFetch(req),
