@@ -177,23 +177,52 @@ export const checkoutService = {
     }
 
   
-     // Calculate discount if promo code is provided
+     // Calculate discount. The order can be discounted by either a promo
+     // code the user typed in OR a restaurant-wide active Promotion (the
+     // "Deal of the day" on Home). We take whichever yields the BIGGER
+     // discount — the customer should never be worse off than picking the
+     // alternative. If only one applies, that one wins.
      let appliedDiscount = 0;
+
+     // 1) Promo code branch (only if user supplied one)
      if (promoCodeId) {
        const promoCode = await prisma.promoCode.findUnique({
          where: { id: promoCodeId },
        });
- 
        if (promoCode) {
          const now = new Date();
-         // Verify promo code is valid
          if (promoCode.startDate <= now && promoCode.endDate >= now) {
-           // Calculate discount based on percentage
            appliedDiscount = Math.round((subtotal * promoCode.discountPercentage) / 100 * 100) / 100;
          }
        }
      }
- 
+
+     // 2) Active restaurant promotion (Deal of the day) — auto-applied
+     // when the restaurant currently has a live Promotion row. If multiple
+     // are live at once (rare), use the highest percentage.
+     const nowForPromo = new Date();
+     const livePromotions = await prisma.promotion.findMany({
+       where: {
+         restaurantId,
+         isActive: true,
+         startDate: { lte: nowForPromo },
+         endDate: { gte: nowForPromo },
+       },
+       select: { discountPercentage: true },
+     });
+     if (livePromotions.length > 0) {
+       const topPct = Math.max(
+         ...livePromotions.map((p) => Number(p.discountPercentage)),
+       );
+       const promotionDiscount =
+         Math.round((subtotal * topPct) / 100 * 100) / 100;
+       // Pick whichever discount is larger — user-entered promo code OR
+       // auto-applied restaurant promotion.
+       if (promotionDiscount > appliedDiscount) {
+         appliedDiscount = promotionDiscount;
+       }
+     }
+
      const total = subtotal + tax + deliveryFee - appliedDiscount;
 
 

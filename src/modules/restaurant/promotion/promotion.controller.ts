@@ -183,5 +183,28 @@ export const promotionController = {
       return res.status(500).json({ message: error.message || "Failed to retrieve active promotions" });
     }
   },
+
+  /**
+   * Active promotions across a mall (drives the customer Home "Deal of
+   * the day" carousel).
+   * GET /malls/:mallId/promotions/active
+   */
+  async getActivePromotionsByMall(req: Request, res: Response) {
+    try {
+      const { mallId } = req.params;
+      if (!mallId) {
+        return res.status(400).json({ message: "Mall ID is required" });
+      }
+      const promotions = await promotionService.getActivePromotionsByMall(mallId);
+      return res.json({
+        message: "Active mall promotions retrieved successfully",
+        data: promotions,
+      });
+    } catch (error: any) {
+      return res
+        .status(500)
+        .json({ message: error.message || "Failed to retrieve mall promotions" });
+    }
+  },
 };
 

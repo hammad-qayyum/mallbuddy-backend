@@ -133,6 +133,53 @@ export const promotionService = {
   },
 
   /**
+   * Active promotions across every restaurant in a given mall. Used by the
+   * customer Home "Deal of the day" carousel — each item carries the
+   * restaurant's basic display info so the card can render and tap-through
+   * to the restaurant's menu.
+   */
+  async getActivePromotionsByMall(mallId: string) {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+    const rows = await prisma.promotion.findMany({
+      where: {
+        isActive: true,
+        startDate: { lte: todayEnd },
+        endDate: { gte: todayStart },
+        restaurant: { mallId },
+      },
+      include: {
+        restaurant: {
+          select: {
+            userId: true,
+            name: true,
+            banner: true,
+            cuisines: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return rows.map((p) => ({
+      id: p.id,
+      title: p.title,
+      banner: p.banner,
+      discountPercentage: Number(p.discountPercentage),
+      startDate: p.startDate,
+      endDate: p.endDate,
+      restaurant: {
+        id: p.restaurant.userId,
+        name: p.restaurant.name,
+        banner: p.restaurant.banner,
+        cuisines: p.restaurant.cuisines || [],
+      },
+    }));
+  },
+
+  /**
    * Get active promotions for a restaurant
    */
   async getActivePromotions(restaurantId: string) {

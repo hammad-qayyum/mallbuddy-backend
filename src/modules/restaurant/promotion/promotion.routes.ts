@@ -239,6 +239,31 @@ router.get("/restaurant/:restaurantId/promotions/active", promotionController.ge
 
 /**
  * @swagger
+ * /malls/{mallId}/promotions/active:
+ *   get:
+ *     summary: Active promotions across all restaurants in a mall
+ *     tags: [Promotions]
+ *     description: |
+ *       Returns every currently-active promotion for every restaurant in the
+ *       given mall. Each entry includes its parent restaurant so the customer
+ *       Home "Deal of the day" carousel can render and link straight to that
+ *       restaurant's menu.
+ *     parameters:
+ *       - in: path
+ *         name: mallId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Mall ID
+ *     responses:
+ *       200:
+ *         description: Mall promotions retrieved successfully
+ */
+router.get("/malls/:mallId/promotions/active", promotionController.getActivePromotionsByMall);
+
+/**
+ * @swagger
  * /promotions/{id}:
  *   get:
  *     summary: Get a single promotion by ID
