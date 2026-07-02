@@ -1,4 +1,4 @@
- generator client {
+generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
 }
@@ -9,16 +9,16 @@ datasource db {
 }
 
 model User {
-    amwalCustomerId String? @unique
-  id                String              @id @default(uuid())
-  email             String              @unique
-  role              Role                @default(USER)
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
+  amwalCustomerId   String?  @unique
+  id                String   @id @default(uuid())
+  email             String   @unique
+  role              Role     @default(USER)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
   image             String?
   firstName         String?
   lastName          String?
-  phoneNumber       String?             @unique
+  phoneNumber       String?  @unique
   name              String?
   emailVerified     Boolean?
   phoneVerified     Boolean?
@@ -26,21 +26,22 @@ model User {
   selectedCountryId String?
   selectedMallId    String?
 
-  Status            userStatus          @default(ACTIVE)
-  accounts          Account[]
-  cart              Cart?
-  deliveryAddresses DeliveryAddress[]
-  expoPushToken  String?  @unique
-  favouriteCarts    FavouriteCart[]
-  orders            Order[]
-  PromoCodeUse      PromoCodeUse[]
-  restaurant        Restaurant?
-  sessions          Session[]
-  city              City?               @relation(fields: [selectedCityId], references: [id])
-  country           Country?            @relation(fields: [selectedCountryId], references: [id])
-  mall              Mall?               @relation(fields: [selectedMallId], references: [id])
-  UserPaymentMethod UserPaymentMethod[]
-  userStatusHistory UserStatusHistory[] @relation("userStatusHistory")
+  Status             userStatus          @default(ACTIVE)
+  accounts           Account[]
+  cart               Cart?
+  deliveryAddresses  DeliveryAddress[]
+  expoPushToken      String?             @unique
+  favouriteCarts     FavouriteCart[]
+  favouriteMenuItems FavouriteMenuItem[]
+  orders             Order[]
+  PromoCodeUse       PromoCodeUse[]
+  restaurant         Restaurant?
+  sessions           Session[]
+  city               City?               @relation(fields: [selectedCityId], references: [id])
+  country            Country?            @relation(fields: [selectedCountryId], references: [id])
+  mall               Mall?               @relation(fields: [selectedMallId], references: [id])
+  UserPaymentMethod  UserPaymentMethod[]
+  userStatusHistory  UserStatusHistory[] @relation("userStatusHistory")
 
   @@index([role])
   @@index([Status])
@@ -148,49 +149,49 @@ model UserStatusHistory {
 }
 
 model Restaurant {
-    amwalCustomerId      String? @unique
-    amwalCustomerTokenId String?
-  userId                 String                    @id
-  name                   String?
-  mainCategory           String?
-  banner                 String?
-  description            String?
-  story                  String?
-  location               String?
-  cuisineCategoryId      String?
+  amwalCustomerId       String?   @unique
+  amwalCustomerTokenId  String?
+  userId                String    @id
+  name                  String?
+  mainCategory          String?
+  banner                String?
+  description           String?
+  story                 String?
+  location              String?
+  cuisineCategoryId     String?
   // Hardcoded cuisines a restaurant identifies with (multi-select). Sourced
   // from src/constants/cuisines.ts and validated on write. Replaces the older
   // single-cuisineCategoryId FK (kept for backward compat but no longer used).
-  cuisines               String[]                  @default([])
-  isFavorite             Boolean                   @default(false)
-  mallId                 String
-  address                String?
-  estimatedDeliveryTime  String?
-  phoneNumber            String?
-  createdAt              DateTime                  @default(now())
-  updatedAt              DateTime                  @default(now()) @updatedAt
-  onboardingCompleted    Boolean                   @default(false)
-  onboardingCompletedAt  DateTime?
-  bankAccountAdded       Boolean                   @default(false)
+  cuisines              String[]  @default([])
+  isFavorite            Boolean   @default(false)
+  mallId                String
+  address               String?
+  estimatedDeliveryTime String?
+  phoneNumber           String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @default(now()) @updatedAt
+  onboardingCompleted   Boolean   @default(false)
+  onboardingCompletedAt DateTime?
+  bankAccountAdded      Boolean   @default(false)
   // I10 — Decimal (not Float) so commission math doesn't accumulate
   // floating-point drift across orders.
-  commissionRate         Decimal                   @default(0.1) @db.Decimal(5, 4)
+  commissionRate        Decimal   @default(0.1) @db.Decimal(5, 4)
 
-  RestaurantStatus       RestaurantStatus          @default(ACTIVE)
-  approvalStatus         RestaurantApprovalStatus  @default(PENDING)
-  businessDays           BusinessDay[]
-  cartItems              CartItem[]
-  favouriteCartItems     FavouriteCartItem[]
-  menuCategories         MenuCategory[]
-  orders                 Order[]
-  PromoCode              PromoCode[]
-  promotions             Promotion[]
-  cuisineCategory        CuisineCategory?          @relation(fields: [cuisineCategoryId], references: [id])
-  mall                   Mall                      @relation(fields: [mallId], references: [id])
-  user                   User                      @relation(fields: [userId], references: [id])
-  gallery                RestaurantGallery[]
-  statusHistory          RestaurantStatusHistory[] @relation("statusHistory")
-  subscriptions          RestaurantSubscription[]
+  RestaurantStatus   RestaurantStatus          @default(ACTIVE)
+  approvalStatus     RestaurantApprovalStatus  @default(PENDING)
+  businessDays       BusinessDay[]
+  cartItems          CartItem[]
+  favouriteCartItems FavouriteCartItem[]
+  menuCategories     MenuCategory[]
+  orders             Order[]
+  PromoCode          PromoCode[]
+  promotions         Promotion[]
+  cuisineCategory    CuisineCategory?          @relation(fields: [cuisineCategoryId], references: [id])
+  mall               Mall                      @relation(fields: [mallId], references: [id])
+  user               User                      @relation(fields: [userId], references: [id])
+  gallery            RestaurantGallery[]
+  statusHistory      RestaurantStatusHistory[] @relation("statusHistory")
+  subscriptions      RestaurantSubscription[]
 
   @@index([mallId])
   @@index([cuisineCategoryId])
@@ -214,13 +215,13 @@ enum SlotType {
 }
 
 model BusinessDay {
-  id           String               @id @default(uuid())
+  id           String             @id @default(uuid())
   restaurantId String
   day          DayOfWeek
-  isClosed     Boolean              @default(false)
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
-  restaurant   Restaurant           @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
+  isClosed     Boolean            @default(false)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  restaurant   Restaurant         @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
   timeSlots    BusinessTimeSlot[]
 
   @@unique([restaurantId, day])
@@ -228,14 +229,14 @@ model BusinessDay {
 }
 
 model BusinessTimeSlot {
-  id           String      @id @default(uuid())
+  id            String      @id @default(uuid())
   businessDayId String
-  slotType     SlotType
-  openTime     String
-  closeTime    String
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-  businessDay  BusinessDay @relation(fields: [businessDayId], references: [id], onDelete: Cascade)
+  slotType      SlotType
+  openTime      String
+  closeTime     String
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  businessDay   BusinessDay @relation(fields: [businessDayId], references: [id], onDelete: Cascade)
 
   // Prevent exact duplicate slots for the same day
   @@unique([businessDayId, openTime, closeTime])
@@ -307,45 +308,44 @@ model PromoCodeUse {
 }
 
 model SubscriptionPlan {
-    amwalPlanId String?
-  id            String                   @id @default(uuid())
-  name          String
-  price         Decimal
+  amwalPlanId String?
+  id          String               @id @default(uuid())
+  name        String
+  price       Decimal
   // N3 — per-plan currency (ISO 4217 alpha code, e.g. "OMR", "AED").
   // Defaults to "OMR" since the platform launched Oman-only. Existing rows
   // get OMR via the default. When the platform expands, new plans can be
   // priced in their target currency without code changes elsewhere.
-  currency      String                   @default("OMR")
-  interval      SubscriptionInterval
-  features      Json
-  isActive      Boolean                  @default(true)
-  createdAt     DateTime                 @default(now())
-  updatedAt     DateTime                 @updatedAt
+  currency    String               @default("OMR")
+  interval    SubscriptionInterval
+  features    Json
+  isActive    Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
 
   subscriptions RestaurantSubscription[]
 }
 
 model RestaurantSubscription {
-    // N7 — Prisma field renamed from `amwalSubscriptionId` (which referred to
-    // the abandoned recurring-link flow). The underlying DB column still
-    // has the legacy name (via @map) so no destructive migration is needed.
-    // Stores the per-transaction id from Amwal's SystemReference (webhook)
-    // or Pay-by-Token transactionId (renewal cron).
-    lastAmwalTransactionId String? @unique @map("amwalSubscriptionId")
-  id                   String             @id @default(uuid())
-  restaurantId         String
-  planId               String
-  startDate            DateTime           @default(now())
-  endDate              DateTime?
-  status               SubscriptionStatus
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
+  // N7 — Prisma field renamed from `amwalSubscriptionId` (which referred to
+  // the abandoned recurring-link flow). The underlying DB column still
+  // has the legacy name (via @map) so no destructive migration is needed.
+  // Stores the per-transaction id from Amwal's SystemReference (webhook)
+  // or Pay-by-Token transactionId (renewal cron).
+  lastAmwalTransactionId String?            @unique @map("amwalSubscriptionId")
+  id                     String             @id @default(uuid())
+  restaurantId           String
+  planId                 String
+  startDate              DateTime           @default(now())
+  endDate                DateTime?
+  status                 SubscriptionStatus
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
 
-  plan                 SubscriptionPlan   @relation(fields: [planId], references: [id])
-  restaurant           Restaurant         @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
+  plan       SubscriptionPlan @relation(fields: [planId], references: [id])
+  restaurant Restaurant       @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
 
   @@index([restaurantId])
-
   @@index([status])
 }
 
@@ -381,12 +381,28 @@ model MenuItem {
   categoryId         String
   cartItems          CartItem[]
   favouriteCartItems FavouriteCartItem[]
+  favouritedBy       FavouriteMenuItem[]
   category           MenuCategory        @relation(fields: [categoryId], references: [id])
   orderItems         OrderItem[]
   addOns             ProductAddOn[]
   variations         ProductVariation[]
 
   @@index([categoryId])
+}
+
+// Individual menu-item favourites (heart icon) — distinct from FavouriteCart,
+// which saves whole carts. One row per (user, menuItem). (BUG-004)
+model FavouriteMenuItem {
+  id         String   @id @default(uuid())
+  userId     String
+  menuItemId String
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, menuItemId])
+  @@index([userId])
+  @@index([menuItemId])
 }
 
 model ProductVariation {
@@ -525,34 +541,34 @@ model DeliveryAddress {
 }
 
 model Order {
-    amwalPaymentIntentId String? @unique
-  id                    String          @id @default(uuid())
-  orderNumber           String          @unique
+  amwalPaymentIntentId  String?       @unique
+  id                    String        @id @default(uuid())
+  orderNumber           String        @unique
   userId                String
   restaurantId          String
   deliveryAddressId     String
   subtotal              Decimal
-  tax                   Decimal         @default(0)
-  deliveryFee           Decimal         @default(0)
-  discount              Decimal         @default(0)
+  tax                   Decimal       @default(0)
+  deliveryFee           Decimal       @default(0)
+  discount              Decimal       @default(0)
   total                 Decimal
-  paymentMethod         PaymentMethod   @default(CASH)
-  status                OrderStatus     @default(PENDING)
+  paymentMethod         PaymentMethod @default(CASH)
+  status                OrderStatus   @default(PENDING)
   estimatedDeliveryTime String?
   actualDeliveryTime    DateTime?
   specialInstructions   String?
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
   promoCodeId           String?
   paidAt                DateTime?
-  paymentStatus         PaymentStatus   @default(PENDING)
+  paymentStatus         PaymentStatus @default(PENDING)
 
-  deliveryAddress       DeliveryAddress @relation(fields: [deliveryAddressId], references: [id], onDelete: Cascade)
-  promoCode             PromoCode?      @relation(fields: [promoCodeId], references: [id])
-  restaurant            Restaurant      @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
-  user                  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items                 OrderItem[]
-  promoCodeUses         PromoCodeUse[]
+  deliveryAddress DeliveryAddress @relation(fields: [deliveryAddressId], references: [id], onDelete: Cascade)
+  promoCode       PromoCode?      @relation(fields: [promoCodeId], references: [id])
+  restaurant      Restaurant      @relation(fields: [restaurantId], references: [userId], onDelete: Cascade)
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items           OrderItem[]
+  promoCodeUses   PromoCodeUse[]
 
   @@index([userId])
   @@index([restaurantId])
@@ -586,23 +602,21 @@ model OrderItem {
 }
 
 model UserPaymentMethod {
-    amwalPaymentMethodId String? @unique
-  id         String   @id @default(uuid())
-  userId     String
+  amwalPaymentMethodId String? @unique
+  id                   String  @id @default(uuid())
+  userId               String
 
-  brand      String?
-  last4      String?
-  expMonth   Int?
-  expYear    Int?
-  isDefault  Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand     String?
+  last4     String?
+  expMonth  Int?
+  expYear   Int?
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
-
-
 
 enum Role {
   USER
@@ -671,6 +685,3 @@ enum PaymentStatus {
   FAILED
   REFUNDED
 }
-
-
-

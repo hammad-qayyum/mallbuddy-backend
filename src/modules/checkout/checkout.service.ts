@@ -302,6 +302,12 @@ export const checkoutService = {
             mainCategory: true,
             banner: true,
             estimatedDeliveryTime: true,
+            user: {
+              select: {
+                id: true,
+                expoPushToken: true,
+              },
+            },
           },
         },
         deliveryAddress: {

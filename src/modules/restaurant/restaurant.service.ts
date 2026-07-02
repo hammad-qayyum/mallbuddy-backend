@@ -26,6 +26,37 @@ function hasGalleryModel() {
   }
 }
 
+// Current day-of-week + HH:MM in Asia/Muscat, independent of server TZ.
+// Mirrors the business-hours check in checkout.service.ts so the customer
+// "Open now" filter matches what checkout will actually allow.
+function getOmanNow() {
+  const omanFmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Muscat",
+    weekday: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const parts = omanFmt.formatToParts(new Date());
+  const today = (parts.find((p) => p.type === "weekday")?.value || "").toUpperCase();
+  const hourRaw = parts.find((p) => p.type === "hour")?.value || "00";
+  const minute = parts.find((p) => p.type === "minute")?.value || "00";
+  const hour = hourRaw === "24" ? "00" : hourRaw;
+  const currentTime = `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
+  return { today, currentTime };
+}
+
+// Whether the restaurant is open right now, given its businessDays (with
+// timeSlots) and the precomputed Oman day/time.
+function computeIsOpenNow(businessDays: any[], today: string, currentTime: string): boolean {
+  const todayBusiness = (businessDays || []).find((d: any) => d.day === today);
+  if (!todayBusiness || todayBusiness.isClosed) return false;
+  return (todayBusiness.timeSlots || []).some((slot: any) => {
+    if (slot.slotType !== "OPEN") return false;
+    return slot.openTime <= currentTime && currentTime < slot.closeTime;
+  });
+}
+
 export const restaurantService = {
   // ============================
   // Existing CRUD
@@ -38,6 +69,7 @@ export const restaurantService = {
     page: number = 1,
     limit: number = 10,
     cuisine?: string,
+    isOpen?: boolean,
   ) {
     // Customer-facing list — only show restaurants with an active, paid
     // subscription. Restaurants without one are hidden entirely (not just
@@ -49,47 +81,55 @@ export const restaurantService = {
     // this hardcoded cuisine name. Postgres array contains via Prisma `has`.
     if (cuisine) where.cuisines = { has: cuisine };
 
-    const total = await prisma.restaurant.count({ where });
+    const include = {
+      user: true,
+      mall: { select: { name: true } },
+      // Needed to compute "open now" (BUG-006).
+      businessDays: { include: { timeSlots: true } },
+      subscriptions: {
+        where: { status: "ACTIVE" as const },
+        include: { plan: { select: { name: true } } },
+        take: 1,
+        orderBy: { createdAt: "desc" as const },
+      },
+    };
 
+    const { today, currentTime } = getOmanNow();
+
+    // Strip businessDays from the payload (only used to derive isOpenNow) and
+    // attach the computed flag + convenience fields.
+    const transform = (restaurant: any) => {
+      const { businessDays, ...rest } = restaurant;
+      return {
+        ...rest,
+        restaurantId: restaurant.userId,
+        membershipPlan: restaurant.subscriptions[0]?.plan?.name || null,
+        mallName: restaurant.mall?.name || null,
+        isOpenNow: computeIsOpenNow(businessDays, today, currentTime),
+      };
+    };
+
+    // "Open now" filter: availability is computed from businessDays, not a
+    // column, so we filter after fetching and paginate in memory to keep the
+    // total/page counts correct.
+    if (isOpen) {
+      const all = await prisma.restaurant.findMany({ where, include });
+      const openOnly = all.map(transform).filter((r) => r.isOpenNow);
+      const total = openOnly.length;
+      const start = (page - 1) * limit;
+      const data = openOnly.slice(start, start + limit);
+      return { data, total, page, limit };
+    }
+
+    const total = await prisma.restaurant.count({ where });
     const data = await prisma.restaurant.findMany({
       where,
       skip: (page - 1) * limit,
       take: limit,
-      include: { 
-        user: true,
-        mall: {
-          select: {
-            name: true
-          }
-        },
-        subscriptions: {
-          where: {
-            status: 'ACTIVE'
-          },
-          include: {
-            plan: {
-              select: {
-                name: true
-              }
-            }
-          },
-          take: 1,
-          orderBy: {
-            createdAt: 'desc'
-          }
-        }
-      },
+      include,
     });
 
-    // Transform data to include restaurantId, membershipPlan, and mallName
-    const transformedData = data.map(restaurant => ({
-      ...restaurant,
-      restaurantId: restaurant.userId,
-      membershipPlan: restaurant.subscriptions[0]?.plan?.name || null,
-      mallName: restaurant.mall?.name || null
-    }));
-
-    return { data: transformedData, total, page, limit };
+    return { data: data.map(transform), total, page, limit };
   },
 
   // Get all restaurants system-wide (public access - no sensitive info).
@@ -675,13 +715,21 @@ export const restaurantService = {
     //   }
     // }
 
-  //   // Notify restaurant and admin about order cancellation/rejection
-  //   try {
-  //     await notifyRestaurantAndAdminCancelled(updatedOrder);
-  //   } catch (error: any) {
-  //     console.error("[Restaurant] Failed to send order rejection notification:", error.message);
-  //     // Don't fail order rejection if notification fails
-  //   }
+    // Notify the user that their order was rejected (REJECTED template)
+    try {
+      await notifyUserOrderStatus(updatedOrder);
+    } catch (error: any) {
+      console.error("[Restaurant] Failed to send order rejection notification to user:", error.message);
+      // Don't fail order rejection if notification fails
+    }
+
+    // Notify restaurant and admin about order cancellation/rejection
+    try {
+      await notifyRestaurantAndAdminCancelled(updatedOrder);
+    } catch (error: any) {
+      console.error("[Restaurant] Failed to send order rejection notification:", error.message);
+      // Don't fail order rejection if notification fails
+    }
 
     return {
       id: updatedOrder.id,

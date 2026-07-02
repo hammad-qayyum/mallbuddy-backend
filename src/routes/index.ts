@@ -16,6 +16,7 @@ import menuRoutes from "../modules/menu/menu.routes";
 import menuSearchRoutes from "../modules/menu-search/menu-search.routes";
 import cartRoutes from "../modules/cart/cart.routes";
 import favouriteCartRoutes from "../modules/favourite-cart/favourite-cart.routes";
+import favouriteMenuItemRoutes from "../modules/favourite-menu-item/favourite-menu-item.routes";
 import productDetailRoutes from "../modules/product-detail/product-detail.routes";
 import checkoutRoutes from "../modules/checkout/checkout.routes";
 import deliveryAddressRoutes from "../modules/delivery-address/delivery-address.routes";
@@ -174,6 +175,9 @@ router.use("/", analyticsRoutes);
 
 // Favourite Cart routes (last)
 router.use("/favourite-carts", favouriteCartRoutes);
+
+// Favourite Menu Item routes (heart icon on individual menu items)
+router.use("/favourite-menu-items", favouriteMenuItemRoutes);
 
 // Order Payment routes
 //router.use("/payments", orderPaymentRoutes);

@@ -67,9 +67,12 @@ export const restaurantController = {
   // GET /malls/:mallId/restaurants
   async getAll(req: Request, res: Response) {
     const { mallId } = req.params;
-    const { category, page, limit, cuisine } = req.query;
+    const { category, page, limit, cuisine, isOpen } = req.query;
 
     if (!mallId) return res.status(400).json({ message: "Mall ID is required" });
+
+    // ?isOpen=true restricts to restaurants open right now (BUG-006).
+    const isOpenFilter = isOpen === "true" || isOpen === "1";
 
     const data = await restaurantService.getAllRestaurants(
       mallId,
@@ -77,6 +80,7 @@ export const restaurantController = {
       Number(page) || 1,
       Number(limit) || 10,
       cuisine as string | undefined,
+      isOpenFilter,
     );
 
     return res.json(data);

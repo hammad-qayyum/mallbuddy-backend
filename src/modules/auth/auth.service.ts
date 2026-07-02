@@ -13,7 +13,10 @@ import { hashPassword } from "better-auth/crypto";
 
 const resolveIdentifier = (email?: string, phoneNumber?: string) => {
     if (email) {
-        return {email, normalizedPhone: phoneNumber ? normalizePhoneNumber(phoneNumber) : undefined};
+        // Normalize email to lowercase + trim so login/signup are case-insensitive
+        // and immune to leading/trailing whitespace (BUG-011 / BUG-008).
+        const normalizedEmail = email.trim().toLowerCase();
+        return {email: normalizedEmail, normalizedPhone: phoneNumber ? normalizePhoneNumber(phoneNumber) : undefined};
     }
 
     if (phoneNumber) {
@@ -73,7 +76,7 @@ export const authService = {
                 select: { email: true },
             });
             identifierEmail = userRow?.email
-                ? userRow.email
+                ? userRow.email.trim().toLowerCase()
                 : resolveIdentifier(undefined, phoneNumber).email;
         } else {
             identifierEmail = resolveIdentifier(email, phoneNumber).email;
