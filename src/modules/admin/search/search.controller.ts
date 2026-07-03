@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { adminSearchService } from "./search.service";
+import { getMallScope } from "../../../middlewares/role.middleware";
 
 export const adminSearchController = {
   // Unified search across malls, restaurants, and users
@@ -11,6 +12,7 @@ export const adminSearchController = {
         name: name as string,
         page: Number(page),
         limit: Number(limit),
+        scopeMallId: getMallScope(req),
       });
 
       return res.json(result);

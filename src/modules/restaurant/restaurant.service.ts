@@ -147,8 +147,11 @@ export const restaurantService = {
     category?: string,
     cityId?: string,
     countryId?: string,
+    // Admin listings need to see pending/blocked/unsubscribed restaurants;
+    // the public (unauthenticated or user) listing must not leak them.
+    includeHidden: boolean = false,
   ) {
-    const where: any = {};
+    const where: any = includeHidden ? {} : { ...activeSubscriptionWhere() };
     if (mallId) where.mallId = mallId;
     if (category) where.mainCategory = category;
     if (cityId) where.mall = { ...(where.mall || {}), cityId };
@@ -945,15 +948,18 @@ export const restaurantService = {
   async getRestaurantOrdersAndRevenue(
     restaurantId: string,
     page: number = 1,
-    limit: number = 10
+    limit: number = 10,
+    // GAP-018: when set (MALL_ADMIN) the restaurant must belong to that
+    // mall — cross-mall access reads as "not found".
+    scopeMallId?: string | null
   ) {
     // Verify restaurant exists
     const restaurant = await prisma.restaurant.findUnique({
       where: { userId: restaurantId },
-      select: { userId: true, name: true },
+      select: { userId: true, name: true, mallId: true },
     });
 
-    if (!restaurant) {
+    if (!restaurant || (scopeMallId && restaurant.mallId !== scopeMallId)) {
       throw new Error("Restaurant not found");
     }
 

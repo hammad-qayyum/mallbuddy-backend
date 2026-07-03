@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { analyticsController } from "./analytics.controller";
-import { requireAuth, requireAdminRole, requireRestaurantRole, requireRole } from "../../middlewares/role.middleware";
+import { requireAuth, requireAdminRole, requireAnyAdminRole, requireRestaurantRole, requireRole } from "../../middlewares/role.middleware";
 
 const router = Router();
 
@@ -50,7 +50,7 @@ const router = Router();
  *                       description: Order count breakdown by status
  */
 // Admin-only analytics
-router.get("/analytics/overall", requireAuth, requireAdminRole, analyticsController.getOverallStatistics);
+router.get("/analytics/overall", requireAuth, requireAnyAdminRole, analyticsController.getOverallStatistics);
 
 /**
  * @swagger
@@ -100,7 +100,7 @@ router.get("/analytics/overall", requireAuth, requireAdminRole, analyticsControl
  *       404:
  *         description: Mall not found
  */
-router.get("/analytics/mall/:mallId", requireAuth, requireAdminRole, analyticsController.getMallAnalytics);
+router.get("/analytics/mall/:mallId", requireAuth, requireAnyAdminRole, analyticsController.getMallAnalytics);
 
 /**
  * @swagger
@@ -151,7 +151,7 @@ router.get("/analytics/mall/:mallId", requireAuth, requireAdminRole, analyticsCo
  *         description: Restaurant not found
  */
 // Restaurant analytics - restaurants can view their own, admins can view any
-router.get("/analytics/restaurant/:restaurantId/sales-summary", requireAuth, requireRole("ADMIN", "RESTAURANT"), analyticsController.getRestaurantSalesSummary);
+router.get("/analytics/restaurant/:restaurantId/sales-summary", requireAuth, requireRole("ADMIN", "RESTAURANT", "MALL_ADMIN"), analyticsController.getRestaurantSalesSummary);
 
 /**
  * @swagger
@@ -176,7 +176,7 @@ router.get("/analytics/restaurant/:restaurantId/sales-summary", requireAuth, req
  *       404:
  *         description: PromoCode not found
  */
-router.get("/analytics/promo-code/:promoCodeId/details", requireAuth, requireAdminRole, analyticsController.getPromoCodeDetails);
+router.get("/analytics/promo-code/:promoCodeId/details", requireAuth, requireAnyAdminRole, analyticsController.getPromoCodeDetails);
 
 /**
  * @swagger
@@ -210,7 +210,7 @@ router.get("/analytics/promo-code/:promoCodeId/details", requireAuth, requireAdm
  *       404:
  *         description: PromoCode not found
  */
-router.get("/analytics/promo-code/:promoCodeId/usage-over-time", requireAuth, requireAdminRole, analyticsController.getPromoCodeUsageOverTime);
+router.get("/analytics/promo-code/:promoCodeId/usage-over-time", requireAuth, requireAnyAdminRole, analyticsController.getPromoCodeUsageOverTime);
 
 /**
  * @swagger
@@ -235,7 +235,7 @@ router.get("/analytics/promo-code/:promoCodeId/usage-over-time", requireAuth, re
  *       404:
  *         description: PromoCode not found
  */
-router.get("/analytics/promo-code/:promoCodeId/discount-impact", requireAuth, requireAdminRole, analyticsController.getPromoCodeDiscountImpact);
+router.get("/analytics/promo-code/:promoCodeId/discount-impact", requireAuth, requireAnyAdminRole, analyticsController.getPromoCodeDiscountImpact);
 
 /**
  * @swagger
@@ -279,7 +279,7 @@ router.get("/analytics/promo-code/:promoCodeId/discount-impact", requireAuth, re
  *       404:
  *         description: PromoCode not found
  */
-router.get("/analytics/promo-code/:promoCodeId/orders", requireAuth, requireAdminRole, analyticsController.getPromoCodeOrders);
+router.get("/analytics/promo-code/:promoCodeId/orders", requireAuth, requireAnyAdminRole, analyticsController.getPromoCodeOrders);
 
 /**
  * @swagger
@@ -328,6 +328,6 @@ router.get("/analytics/promo-code/:promoCodeId/orders", requireAuth, requireAdmi
  *       200:
  *         description: Restaurants retrieved successfully
  */
-router.get("/analytics/restaurants/all", requireAuth, requireAdminRole, analyticsController.getAllRestaurantsSystemWide);
+router.get("/analytics/restaurants/all", requireAuth, requireAnyAdminRole, analyticsController.getAllRestaurantsSystemWide);
 
 export default router;

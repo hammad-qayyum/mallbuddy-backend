@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { restaurantController } from "./restaurant.controller";
 import { uploadRestaurantBanner, verifyUploadedImagesAreReal } from "../../config/upload";
-import { requireAuth, requireAdminRole, requireRestaurantRole, requireRestaurantOwnership, requireRole } from "../../middlewares/role.middleware";
+import { requireAuth, requireAdminRole, requireAnyAdminRole, requireRestaurantRole, requireRestaurantOwnership, requireRole } from "../../middlewares/role.middleware";
 import { requireActiveSubscription } from "./subscription/requireActiveSubscription.middleware";
 
 const router = Router();
@@ -153,7 +153,7 @@ const router = Router();
  *         description: Email already registered
  */
 // Admin route - require admin role
-router.post("/admin/restaurants/create", requireAuth, requireAdminRole, uploadRestaurantBanner.single("banner"), verifyUploadedImagesAreReal, restaurantController.createByAdmin);
+router.post("/admin/restaurants/create", requireAuth, requireAnyAdminRole, uploadRestaurantBanner.single("banner"), verifyUploadedImagesAreReal, restaurantController.createByAdmin);
 
 /**
  * @swagger
@@ -1436,11 +1436,12 @@ router.patch(
  *       404:
  *         description: Restaurant not found
  */
-// Restaurant analytics - restaurants can view their own, admins can view any
+// Restaurant analytics - restaurants can view their own, admins can view
+// any, mall admins only restaurants of their mall (GAP-018).
 router.get(
   "/restaurants/:restaurantId/analytics/orders-revenue",
   requireAuth,
-  requireRole("ADMIN", "RESTAURANT"),
+  requireRole("ADMIN", "RESTAURANT", "MALL_ADMIN"),
   restaurantController.getRestaurantAnalytics
 );
 

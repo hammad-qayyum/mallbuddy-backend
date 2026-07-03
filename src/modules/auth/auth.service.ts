@@ -11,6 +11,26 @@ import { RestaurantSignupInput } from "../restaurant/restaurant.schema";
 import { otpService } from "./otp.service";
 import { hashPassword } from "better-auth/crypto";
 
+// Accept the session token from any of:
+//   1) the better-auth cookie (browser, when cross-origin cookies work)
+//   2) `Authorization: Bearer <token>` (admin web — Redux-stored token,
+//      survives third-party-cookie blocking on Safari/ITP/strict modes)
+//   3) custom `better-auth.session_token` header (mobile apps —
+//      SecureStore-stored token)
+const resolveSessionToken = (req: Request): string | null => {
+    const authHeader = (req.headers.authorization || "").toString();
+    const bearerToken = authHeader.toLowerCase().startsWith("bearer ")
+        ? authHeader.slice(7).trim()
+        : null;
+    const customHeaderToken =
+        (req.headers["better-auth.session_token"] as string | undefined) ?? null;
+    const cookieToken =
+        (req as any).cookies?.["better-auth.session_token"] ??
+        (req as any).cookies?.betterAuthSessionToken;
+
+    return cookieToken || bearerToken || customHeaderToken || null;
+};
+
 const resolveIdentifier = (email?: string, phoneNumber?: string) => {
     if (email) {
         // Normalize email to lowercase + trim so login/signup are case-insensitive
@@ -90,18 +110,18 @@ export const authService = {
 
 
     //Logout user
+    // Resolves the token from cookie OR Bearer/custom header so Bearer-only
+    // clients (mobile apps, admin web without cookies) can log out (SMOKE BUG-04).
     async logout(req: Request){
-        const cookieToken =
-            (req as any).cookies?.["better-auth.session_token"] ??
-            (req as any).cookies?.betterAuthSessionToken;
+        const token = resolveSessionToken(req);
 
-        if (!cookieToken) {
+        if (!token) {
             throw new Error("Failed to get session");
         }
 
         try {
             await prisma.session.delete({
-                where: {token: cookieToken},
+                where: {token},
             });
         } catch {
             // If no session found, treat as already logged out
@@ -543,27 +563,11 @@ export const authService = {
 
     //Get current session
     async getSession(req: Request){
-        // Accept the session token from any of:
-        //   1) the better-auth cookie (browser, when cross-origin cookies work)
-        //   2) `Authorization: Bearer <token>` (admin web — Redux-stored token,
-        //      survives third-party-cookie blocking on Safari/ITP/strict modes)
-        //   3) custom `better-auth.session_token` header (mobile apps —
-        //      SecureStore-stored token)
         // The cookie-only flow was the source of intermittent
         // "Access denied / not an admin" on the web panel: when the browser
         // dropped the cookie, /auth/me returned null even though a valid
         // Bearer token was sitting in the request headers.
-        const authHeader = (req.headers.authorization || "").toString();
-        const bearerToken = authHeader.toLowerCase().startsWith("bearer ")
-            ? authHeader.slice(7).trim()
-            : null;
-        const customHeaderToken =
-            (req.headers["better-auth.session_token"] as string | undefined) ?? null;
-        const cookieToken =
-            (req as any).cookies?.["better-auth.session_token"] ??
-            (req as any).cookies?.betterAuthSessionToken;
-
-        const token = cookieToken || bearerToken || customHeaderToken;
+        const token = resolveSessionToken(req);
         if (!token) {
             return null;
         }
@@ -601,8 +605,8 @@ export const authService = {
             }
         }
 
-        // CRITICAL: Validate USER/ADMIN never have a Restaurant
-        if ((session.user.role === "USER" || session.user.role === "ADMIN") && session.user.restaurant) {
+        // CRITICAL: Validate USER/ADMIN/MALL_ADMIN never have a Restaurant
+        if ((session.user.role === "USER" || session.user.role === "ADMIN" || session.user.role === "MALL_ADMIN") && session.user.restaurant) {
             console.error(
                 `SYSTEM ERROR: User ${session.user.id} has role ${session.user.role} but has Restaurant record`
             );

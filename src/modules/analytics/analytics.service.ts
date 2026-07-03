@@ -9,19 +9,25 @@ import {
 
 export const analyticsService = {
   /**
-   * Get overall statistics: total customers, total restaurants, total revenue
+   * Get overall statistics: total customers, total restaurants, total revenue.
+   * Optional `mallId` (GAP-018) confines every figure to one mall — customers
+   * via selectedMallId, restaurants via mallId, orders via their restaurant's
+   * mall — while keeping the response shape identical to the unscoped call.
    */
-  async getOverallStatistics() {
+  async getOverallStatistics(mallId?: string | null) {
     // Get total customers (users with role USER)
     const totalCustomers = await prisma.user.count({
-      where: { role: "USER" },
+      where: { role: "USER", ...(mallId && { selectedMallId: mallId }) },
     });
 
     // Get total restaurants
-    const totalRestaurants = await prisma.restaurant.count();
+    const totalRestaurants = await prisma.restaurant.count({
+      where: { ...(mallId && { mallId }) },
+    });
 
     // Get all orders and calculate total revenue
     const orders = await prisma.order.findMany({
+      where: { ...(mallId && { restaurant: { mallId } }) },
       select: {
         total: true,
         status: true,
@@ -253,16 +259,18 @@ export const analyticsService = {
   },
 
   /**
-   * Get restaurant sales summary with time period filtering and trends
+   * Get restaurant sales summary with time period filtering and trends.
+   * `scopeMallId` (GAP-018): when set (MALL_ADMIN), the restaurant must
+   * belong to that mall — cross-mall access reads as "not found".
    */
-  async getRestaurantSalesSummary(input: GetRestaurantSalesSummaryInput) {
+  async getRestaurantSalesSummary(input: GetRestaurantSalesSummaryInput, scopeMallId?: string | null) {
     // Verify restaurant exists
     const restaurant = await prisma.restaurant.findUnique({
       where: { userId: input.restaurantId },
       select: { userId: true, name: true, mallId: true },
     });
 
-    if (!restaurant) {
+    if (!restaurant || (scopeMallId && restaurant.mallId !== scopeMallId)) {
       throw new Error("Restaurant not found");
     }
 
@@ -473,7 +481,7 @@ export const analyticsService = {
   /**
    * Get promoCode details: users, orders, total discount
    */
-  async getPromoCodeDetails(input: GetPromoCodeDetailsInput) {
+  async getPromoCodeDetails(input: GetPromoCodeDetailsInput, scopeMallId?: string | null) {
     const promoCode = await (prisma as any).promoCode.findUnique({
       where: { id: input.promoCodeId },
       select: {
@@ -485,10 +493,11 @@ export const analyticsService = {
         validFrom: true,
         validUntil: true,
         isActive: true,
+        mallId: true,
       },
     });
 
-    if (!promoCode) {
+    if (!promoCode || (scopeMallId && promoCode.mallId !== scopeMallId)) {
       throw new Error("PromoCode not found");
     }
 
@@ -540,12 +549,12 @@ export const analyticsService = {
   /**
    * Get promoCode usage over time
    */
-  async getPromoCodeUsageOverTime(input: GetPromoCodeUsageOverTimeInput) {
+  async getPromoCodeUsageOverTime(input: GetPromoCodeUsageOverTimeInput, scopeMallId?: string | null) {
     const promoCode = await (prisma as any).promoCode.findUnique({
       where: { id: input.promoCodeId },
     });
 
-    if (!promoCode) {
+    if (!promoCode || (scopeMallId && promoCode.mallId !== scopeMallId)) {
       throw new Error("PromoCode not found");
     }
 
@@ -626,12 +635,12 @@ export const analyticsService = {
   /**
    * Get discount impact by order value ranges
    */
-  async getPromoCodeDiscountImpact(promoCodeId: string) {
+  async getPromoCodeDiscountImpact(promoCodeId: string, scopeMallId?: string | null) {
     const promoCode = await (prisma as any).promoCode.findUnique({
       where: { id: promoCodeId },
     });
 
-    if (!promoCode) {
+    if (!promoCode || (scopeMallId && promoCode.mallId !== scopeMallId)) {
       throw new Error("PromoCode not found");
     }
 
@@ -681,12 +690,12 @@ export const analyticsService = {
   /**
    * Get orders using promoCode with pagination
    */
-  async getPromoCodeOrders(input: GetPromoCodeOrdersInput) {
+  async getPromoCodeOrders(input: GetPromoCodeOrdersInput, scopeMallId?: string | null) {
     const promoCode = await (prisma as any).promoCode.findUnique({
       where: { id: input.promoCodeId },
     });
 
-    if (!promoCode) {
+    if (!promoCode || (scopeMallId && promoCode.mallId !== scopeMallId)) {
       throw new Error("PromoCode not found");
     }
 

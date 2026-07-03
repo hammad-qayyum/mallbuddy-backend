@@ -14,6 +14,8 @@ import {
   getAllRestaurantsSystemWideSchema,
 } from "./restaurant.schema";
 import { getRestaurantBannerUrl } from "../../config/upload";
+import { getAuthRole, getAuthUserId } from "../common/utils";
+import { getMallScope } from "../../middlewares/role.middleware";
 
 export const restaurantController = {
   /**
@@ -34,6 +36,13 @@ export const restaurantController = {
     const data = { ...parseResult.data };
     if (req.file) {
       data.banner = getRestaurantBannerUrl(req.file.filename);
+    }
+
+    // GAP-018: a mall admin always creates restaurants in their own mall,
+    // regardless of the mallId sent by the client.
+    const scope = getMallScope(req);
+    if (scope) {
+      data.mallId = scope;
     }
 
     try {
@@ -113,13 +122,25 @@ export const restaurantController = {
         });
       }
 
+      // Only admin viewers may see pending/blocked/unsubscribed restaurants;
+      // the endpoint is public (SMOKE BUG-01), so everyone else gets the
+      // customer-visible set only.
+      const isAdminViewer = ["ADMIN", "MALL_ADMIN"].includes(
+        getAuthRole(req) ?? "",
+      );
+
+      // GAP-018: a mall admin's listing is pinned to their mall — the mallId
+      // query param is overridden and the wider city/country filters dropped.
+      const scope = getMallScope(req);
+
       const result = await restaurantService.getAllRestaurantsSystemWidePublic(
         parseResult.data.page || 1,
         parseResult.data.limit || 10,
-        parseResult.data.mallId,
+        scope ?? parseResult.data.mallId,
         parseResult.data.category,
-        parseResult.data.cityId,
-        parseResult.data.countryId,
+        scope ? undefined : parseResult.data.cityId,
+        scope ? undefined : parseResult.data.countryId,
+        isAdminViewer,
       );
 
       return res.json({
@@ -478,10 +499,23 @@ export const restaurantController = {
         });
       }
 
+      // A RESTAURANT caller may only read their own analytics (the
+      // restaurant id doubles as the owner's user id); MALL_ADMIN may only
+      // read restaurants of their own mall (verified in the service via
+      // scope). GAP-018.
+      if (
+        getAuthRole(req) === "RESTAURANT" &&
+        getAuthUserId(req) !== parseResult.data.restaurantId
+      ) {
+        return res.status(403).json({ message: "Forbidden: not your restaurant" });
+      }
+      const scope = getMallScope(req);
+
       const result = await restaurantService.getRestaurantOrdersAndRevenue(
         parseResult.data.restaurantId,
         parseResult.data.page || 1,
-        parseResult.data.limit || 10
+        parseResult.data.limit || 10,
+        scope,
       );
 
       return res.json({

@@ -1,18 +1,24 @@
 import prisma from "../../../config/prisma";
 
 export const adminSearchService = {
-  // Unified search across malls, restaurants, and users by name
+  // Unified search across malls, restaurants, and users by name.
+  // `scopeMallId` (GAP-018): null for the super admin; for MALL_ADMIN the
+  // search is confined to their mall — only their own mall record,
+  // restaurants of that mall, and USER accounts shopping that mall.
   async unifiedSearch(params: {
     name?: string;
     page: number;
     limit: number;
+    scopeMallId?: string | null;
   }) {
     const searchName = params.name || '';
     const skip = (params.page - 1) * params.limit;
     const take = params.limit;
+    const scopeMallId = params.scopeMallId;
 
     const where = {
       name: { contains: searchName, mode: 'insensitive' as const },
+      ...(scopeMallId && { id: scopeMallId }),
     };
 
     // Search malls
@@ -39,6 +45,7 @@ export const adminSearchService = {
     // Search restaurants
     const restaurantWhere = {
       name: { contains: searchName, mode: 'insensitive' as const },
+      ...(scopeMallId && { mallId: scopeMallId }),
     };
     const [restaurants, restaurantCount] = await Promise.all([
       prisma.restaurant.findMany({
@@ -61,6 +68,7 @@ export const adminSearchService = {
 
     // Search users by name (firstName, lastName, and name fields)
     const userWhere = {
+      ...(scopeMallId && { role: 'USER' as const, selectedMallId: scopeMallId }),
       OR: [
         { name: { contains: searchName, mode: 'insensitive' as const } },
         { firstName: { contains: searchName, mode: 'insensitive' as const } },

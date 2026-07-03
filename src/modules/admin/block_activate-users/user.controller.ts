@@ -1,18 +1,20 @@
 import { Request, Response } from "express";
 import { userAdminService } from "./user.service";
+import { getMallScope } from "../../../middlewares/role.middleware";
 
 export const userAdminController = {
   // Admin: Activate user
   async activateUser(req: Request, res: Response) {
     const { userId } = req.params as { userId: string };
     const { reason, actionById } = req.body || {};
-    
+
     if (!userId) {
       return res.status(400).json({ message: 'User ID is required' });
     }
-    
+
     try {
-      const user = await userAdminService.setUserStatus(userId, 'ACTIVE', reason, actionById);
+      const scope = getMallScope(req);
+      const user = await userAdminService.setUserStatus(userId, 'ACTIVE', reason, actionById, scope);
       return res.json({ message: 'User activated', user });
     } catch (err: any) {
       return res.status(404).json({ message: 'User not found' });
@@ -23,13 +25,14 @@ export const userAdminController = {
   async blockUser(req: Request, res: Response) {
     const { userId } = req.params as { userId: string };
     const { reason, actionById } = req.body || {};
-    
+
     if (!userId) {
       return res.status(400).json({ message: 'User ID is required' });
     }
-    
+
     try {
-      const user = await userAdminService.setUserStatus(userId, 'BLOCKED', reason, actionById);
+      const scope = getMallScope(req);
+      const user = await userAdminService.setUserStatus(userId, 'BLOCKED', reason, actionById, scope);
       return res.json({ message: 'User blocked', user });
     } catch (err: any) {
       return res.status(404).json({ message: 'User not found' });
@@ -39,7 +42,7 @@ export const userAdminController = {
   // Admin: Get all active users
   async getActiveUsers(req: Request, res: Response) {
     try {
-      const users = await userAdminService.getActiveUsers();
+      const users = await userAdminService.getActiveUsers(getMallScope(req));
       return res.json({ users, total: users.length });
     } catch (err: any) {
       return res.status(500).json({ message: 'Failed to fetch active users', error: err.message });
@@ -49,7 +52,7 @@ export const userAdminController = {
   // Admin: Get all blocked users
   async getBlockedUsers(req: Request, res: Response) {
     try {
-      const users = await userAdminService.getBlockedUsers();
+      const users = await userAdminService.getBlockedUsers(getMallScope(req));
       return res.json({ users, total: users.length });
     } catch (err: any) {
       return res.status(500).json({ message: 'Failed to fetch blocked users', error: err.message });
@@ -60,12 +63,12 @@ export const userAdminController = {
   async searchUsers(req: Request, res: Response) {
     try {
       const { search } = req.query;
-      
+
       if (!search || typeof search !== 'string') {
         return res.status(400).json({ message: 'Search term is required' });
       }
-      
-      const users = await userAdminService.searchUsers(search);
+
+      const users = await userAdminService.searchUsers(search, getMallScope(req));
       return res.json({ users, total: users.length });
     } catch (err: any) {
       return res.status(500).json({ message: 'Failed to search users', error: err.message });

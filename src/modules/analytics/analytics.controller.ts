@@ -8,14 +8,18 @@ import {
   getPromoCodeOrdersSchema,
   getAllRestaurantsSystemWideSchema,
 } from "./analytics.schema";
+import { getMallScope } from "../../middlewares/role.middleware";
+import { getAuthRole, getAuthUserId } from "../common/utils";
 
 export const analyticsController = {
   /**
-   * GET /analytics/overall - Get overall statistics
+   * GET /analytics/overall - Get overall statistics.
+   * For MALL_ADMIN the figures are confined to their mall (GAP-018); the
+   * response shape is identical to the super-admin (platform-wide) call.
    */
   async getOverallStatistics(req: Request, res: Response) {
     try {
-      const statistics = await analyticsService.getOverallStatistics();
+      const statistics = await analyticsService.getOverallStatistics(getMallScope(req));
 
       return res.json({
         message: "Overall statistics retrieved successfully",
@@ -32,6 +36,13 @@ export const analyticsController = {
   async getMallAnalytics(req: Request, res: Response) {
     try {
       const { mallId } = req.params;
+
+      // GAP-018: a mall admin may only read their own mall's analytics.
+      const scope = getMallScope(req);
+      if (scope && mallId !== scope) {
+        return res.status(403).json({ message: "Forbidden: not your mall" });
+      }
+
       const period = (req.query.period ?? "all") as string;
       const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
       const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
@@ -88,7 +99,16 @@ export const analyticsController = {
         });
       }
 
-      const result = await analyticsService.getRestaurantSalesSummary(parseResult.data);
+      // GAP-018: MALL_ADMIN is confined to restaurants of their mall.
+      // A RESTAURANT caller may only read their own summary (the restaurant
+      // id doubles as the owner's user id).
+      const role = getAuthRole(req);
+      if (role === "RESTAURANT" && getAuthUserId(req) !== parseResult.data.restaurantId) {
+        return res.status(403).json({ message: "Forbidden: not your restaurant" });
+      }
+      const scope = role === "MALL_ADMIN" ? getMallScope(req) : null;
+
+      const result = await analyticsService.getRestaurantSalesSummary(parseResult.data, scope);
 
       return res.json({
         message: "Restaurant sales summary retrieved successfully",
@@ -120,7 +140,7 @@ export const analyticsController = {
         });
       }
 
-      const result = await analyticsService.getPromoCodeDetails(parseResult.data);
+      const result = await analyticsService.getPromoCodeDetails(parseResult.data, getMallScope(req));
 
       return res.json({
         message: "PromoCode details retrieved successfully",
@@ -154,7 +174,7 @@ export const analyticsController = {
         });
       }
 
-      const result = await analyticsService.getPromoCodeUsageOverTime(parseResult.data);
+      const result = await analyticsService.getPromoCodeUsageOverTime(parseResult.data, getMallScope(req));
 
       return res.json({
         message: "PromoCode usage over time retrieved successfully",
@@ -179,7 +199,7 @@ export const analyticsController = {
         return res.status(400).json({ message: "PromoCode ID is required" });
       }
 
-      const result = await analyticsService.getPromoCodeDiscountImpact(promoCodeId);
+      const result = await analyticsService.getPromoCodeDiscountImpact(promoCodeId, getMallScope(req));
 
       return res.json({
         message: "PromoCode discount impact retrieved successfully",
@@ -215,7 +235,7 @@ export const analyticsController = {
         });
       }
 
-      const result = await analyticsService.getPromoCodeOrders(parseResult.data);
+      const result = await analyticsService.getPromoCodeOrders(parseResult.data, getMallScope(req));
 
       return res.json({
         message: "PromoCode orders retrieved successfully",
@@ -254,10 +274,14 @@ export const analyticsController = {
         });
       }
 
+      // GAP-018: MALL_ADMIN listings are pinned to their mall regardless of
+      // the mallId query param.
+      const scope = getMallScope(req);
+
       const result = await analyticsService.getAllRestaurantsSystemWide(
         parseResult.data.page || 1,
         parseResult.data.limit || 10,
-        parseResult.data.mallId,
+        scope ?? parseResult.data.mallId,
         parseResult.data.category
       );
 

@@ -1,11 +1,13 @@
 import { Router } from "express";
 import { adminPromoCodeController } from "./promo-code.controller";
-import { requireAuth, requireAdminRole } from "../../../middlewares/role.middleware";
+import { requireAuth, requireAnyAdminRole } from "../../../middlewares/role.middleware";
 
 const router = Router();
 
-// Apply admin role to all admin promo code routes (requireAuth is applied globally)
-router.use(requireAdminRole);
+// Apply admin role to all admin promo code routes (requireAuth is applied
+// globally). MALL_ADMIN is admitted too; every handler scopes data via
+// getMallScope (GAP-018) so a mall admin only manages their own mall's codes.
+router.use(requireAnyAdminRole);
 
 /**
  * @swagger

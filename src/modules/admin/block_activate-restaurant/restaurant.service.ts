@@ -1,17 +1,32 @@
 import prisma from "../../../config/prisma";
 
+// GAP-018 — mall scoping. `scopeMallId` is null/undefined for the global
+// super admin (unscoped) and the managed mall id for MALL_ADMIN. Cross-mall
+// object access fails with "Restaurant not found" (404 semantics) so probing
+// doesn't disclose existence.
 export const restaurantAdminService = {
   // Set restaurant block status (ACTIVE/BLOCKED)
   async setRestaurantBlockStatus(
-    restaurantId: string, 
-    isBlocked: boolean, 
-    reason?: string, 
-    actionById?: string
+    restaurantId: string,
+    isBlocked: boolean,
+    reason?: string,
+    actionById?: string,
+    scopeMallId?: string | null
   ) {
     const status = isBlocked ? 'BLOCKED' : 'ACTIVE';
-    
+
     // Update restaurant status and create history entry in a transaction
     return prisma.$transaction(async (tx) => {
+      if (scopeMallId) {
+        const target = await tx.restaurant.findUnique({
+          where: { userId: restaurantId },
+          select: { mallId: true },
+        });
+        if (!target || target.mallId !== scopeMallId) {
+          throw new Error('Restaurant not found');
+        }
+      }
+
       const restaurant = await tx.restaurant.update({
         where: { userId: restaurantId },
         data: { RestaurantStatus: status },
@@ -33,20 +48,21 @@ export const restaurantAdminService = {
 
   // Set restaurant approval status (PENDING/APPROVED/REJECTED)
   async setRestaurantApprovalStatus(
-    restaurantId: string, 
-    approvalStatus: string, 
-    reason?: string, 
-    actionById?: string
+    restaurantId: string,
+    approvalStatus: string,
+    reason?: string,
+    actionById?: string,
+    scopeMallId?: string | null
   ) {
     // Update approval status and create history entry in a transaction
     return prisma.$transaction(async (tx) => {
       // Get current restaurant status to log in history
       const restaurant = await tx.restaurant.findUnique({
         where: { userId: restaurantId },
-        select: { RestaurantStatus: true },
+        select: { RestaurantStatus: true, mallId: true },
       });
 
-      if (!restaurant) {
+      if (!restaurant || (scopeMallId && restaurant.mallId !== scopeMallId)) {
         throw new Error('Restaurant not found');
       }
 
@@ -70,27 +86,34 @@ export const restaurantAdminService = {
   },
 
   // Get all active restaurants
-  async getActiveRestaurants() {
+  async getActiveRestaurants(scopeMallId?: string | null) {
     return prisma.restaurant.findMany({
-      where: { RestaurantStatus: 'ACTIVE' },
+      where: {
+        RestaurantStatus: 'ACTIVE',
+        ...(scopeMallId && { mallId: scopeMallId }),
+      },
     });
   },
 
   // Get all blocked restaurants
-  async getBlockedRestaurants() {
+  async getBlockedRestaurants(scopeMallId?: string | null) {
     return prisma.restaurant.findMany({
-      where: { RestaurantStatus: 'BLOCKED' },
+      where: {
+        RestaurantStatus: 'BLOCKED',
+        ...(scopeMallId && { mallId: scopeMallId }),
+      },
     });
   },
 
   // Search restaurants by name
-  async searchRestaurants(searchTerm: string) {
+  async searchRestaurants(searchTerm: string, scopeMallId?: string | null) {
     return prisma.restaurant.findMany({
       where: {
         name: {
           contains: searchTerm,
           mode: 'insensitive',
         },
+        ...(scopeMallId && { mallId: scopeMallId }),
       },
       include: {
         user: {

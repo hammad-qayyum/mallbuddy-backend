@@ -25,6 +25,9 @@ model User {
   selectedCityId    String?
   selectedCountryId String?
   selectedMallId    String?
+  // For MALL_ADMIN accounts: the single mall this admin manages (GAP-018).
+  // Null for every other role.
+  managedMallId     String?
 
   Status             userStatus          @default(ACTIVE)
   accounts           Account[]
@@ -40,12 +43,14 @@ model User {
   city               City?               @relation(fields: [selectedCityId], references: [id])
   country            Country?            @relation(fields: [selectedCountryId], references: [id])
   mall               Mall?               @relation(fields: [selectedMallId], references: [id])
+  managedMall        Mall?               @relation("MallAdmins", fields: [managedMallId], references: [id])
   UserPaymentMethod  UserPaymentMethod[]
   userStatusHistory  UserStatusHistory[] @relation("userStatusHistory")
 
   @@index([role])
   @@index([Status])
   @@index([selectedMallId])
+  @@index([managedMallId])
 }
 
 model Account {
@@ -122,6 +127,7 @@ model Mall {
   promoCodes        PromoCode[]
   restaurants       Restaurant[]
   users             User[]
+  mallAdmins        User[]            @relation("MallAdmins")
 
   @@unique([name, cityId])
 }
@@ -622,6 +628,10 @@ enum Role {
   USER
   ADMIN
   RESTAURANT
+  // Mall-scoped administrator (GAP-018): admin-panel access limited to the
+  // single mall referenced by User.managedMallId. ADMIN remains the global
+  // super admin.
+  MALL_ADMIN
 }
 
 enum userStatus {

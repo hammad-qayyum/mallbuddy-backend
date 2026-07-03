@@ -1,31 +1,36 @@
 import { Request, Response, NextFunction } from "express";
 
-type AppRole = "USER" | "ADMIN" | "RESTAURANT";
+type AppRole = "USER" | "ADMIN" | "RESTAURANT" | "MALL_ADMIN";
 
-function getAuthUser(req: Request): { id: string; role?: AppRole } | null {
+function getAuthUser(
+  req: Request
+): { id: string; role?: AppRole; managedMallId?: string | null } | null {
   const auth = (req as any).auth;
   if (!auth || !auth.user) {
     return null;
   }
-  
+
   const user = auth.user;
   // N10 — defensive uppercasing. Prisma's `Role` enum is uppercase
-  // (USER/ADMIN/RESTAURANT) and Postgres stores it uppercase, so this
-  // *should* be a no-op. Kept as a belt-and-suspenders guard against any
+  // (USER/ADMIN/RESTAURANT/MALL_ADMIN) and Postgres stores it uppercase, so
+  // this *should* be a no-op. Kept as a belt-and-suspenders guard against any
   // future better-auth release that returns the role as a JS string.
   let role: AppRole | undefined = undefined;
 
   if (user.role) {
     const roleStr = String(user.role).toUpperCase();
-    if (roleStr === 'USER' || roleStr === 'ADMIN' || roleStr === 'RESTAURANT') {
+    if (roleStr === 'USER' || roleStr === 'ADMIN' || roleStr === 'RESTAURANT' || roleStr === 'MALL_ADMIN') {
       role = roleStr as AppRole;
     }
   }
 
   // Ensure the returned object does not include an explicit "role" key if undefined
-  const result: { id: string; role?: AppRole } = { id: user.id };
+  const result: { id: string; role?: AppRole; managedMallId?: string | null } = { id: user.id };
   if (role !== undefined) {
     result.role = role;
+  }
+  if (user.managedMallId !== undefined) {
+    result.managedMallId = user.managedMallId;
   }
   return result;
 }
@@ -94,6 +99,36 @@ export const requireAdminRole = requireRole("ADMIN");
  * Require either ADMIN or RESTAURANT role
  */
 export const requireAdminOrRestaurant = requireRole("ADMIN", "RESTAURANT");
+
+/**
+ * Require an admin-panel role: global super admin (ADMIN) or mall-scoped
+ * admin (MALL_ADMIN). MALL_ADMIN gets NO blanket bypass in requireRole — it
+ * must be explicitly listed, and every handler behind this middleware is
+ * responsible for scoping its data with getMallScope() (GAP-018).
+ */
+export const requireAnyAdminRole = requireRole("ADMIN", "MALL_ADMIN");
+
+/**
+ * Mall scope for admin-panel queries (GAP-018).
+ *
+ * Returns `null` for the global super admin (ADMIN — unscoped) and the
+ * managed mall id for MALL_ADMIN. Only call behind requireAnyAdminRole.
+ * Backend services are the source of truth for tenancy: they must force
+ * (lists/creates) or verify (single-object access) the mall id whenever a
+ * non-null scope is returned.
+ */
+export function getMallScope(req: Request): string | null {
+  const user = getAuthUser(req);
+  if (user?.role === "MALL_ADMIN") {
+    if (!user.managedMallId) {
+      // Misprovisioned account — fail closed rather than falling through
+      // to unscoped (super admin) behavior.
+      throw new Error("MALL_ADMIN account has no managed mall assigned");
+    }
+    return user.managedMallId;
+  }
+  return null;
+}
 
 /**
  * Require either RESTAURANT or USER role

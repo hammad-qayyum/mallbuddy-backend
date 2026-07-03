@@ -63,6 +63,16 @@ function isExempt(req: Request): boolean {
     if (path.startsWith(prefix) || url.includes(prefix)) return true;
   }
 
+  // Requests authenticated via explicit headers are not CSRF-able: browsers
+  // never attach Authorization (or a custom header) implicitly, and a
+  // cross-origin page that sets one programmatically makes the request
+  // non-simple, triggering a CORS preflight our allowlist rejects. The
+  // header's presence itself proves this is not a forged simple request
+  // (SMOKE BUG-05). Cookie-only requests remain fully guarded.
+  const authHeader = (req.headers.authorization || "").toString();
+  if (authHeader.toLowerCase().startsWith("bearer ")) return true;
+  if (req.headers["better-auth.session_token"]) return true;
+
   return false;
 }
 

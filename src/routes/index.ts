@@ -27,6 +27,7 @@ import adminRestaurantRoutes from "../modules/admin/block_activate-restaurant/re
 import adminUserRoutes from "../modules/admin/block_activate-users/user.routes";
 import adminSearchRoutes from "../modules/admin/search/search.routes";
 import adminPromoCodeRoutes from "../modules/admin/promo-code/promo-code.routes";
+import adminMallAdminRoutes from "../modules/admin/mall-admins/mall-admin.routes";
 import amwalRoutes from "../modules/payments/amwal.routes";
 //import paymentMethodRoutes from "../modules/payments/payment-method/paymentMethod.routes";
 import analyticsRoutes from "../modules/analytics/analytics.routes";
@@ -63,6 +64,24 @@ router.use("/countries", countryRoutes);
 router.use("/cities", cityRoutes);
 router.use("/malls", mallRoutes);
 
+// Read-only discovery endpoints that must work without a session (pre-login
+// browsing — SMOKE BUG-01/02/03). Exact shapes only; keep in sync with the
+// route files (restaurant.routes.ts, menu routes, explore.routes.ts,
+// promo-code.routes.ts).
+const PUBLIC_DISCOVERY_GET_ROUTES: RegExp[] = [
+  /^\/restaurants\/all\/?$/,
+  /^\/restaurant\/get-all\/[^/]+\/?$/,
+  /^\/restaurant\/get-details\/[^/]+\/?$/,
+  /^\/restaurant\/get-menu\/[^/]+\/?$/,
+  /^\/menu\/get-all\/[^/]+\/?$/,
+  /^\/menu\/get-item\/[^/]+\/?$/,
+  /^\/explore\/restaurants\/?$/,
+  /^\/explore\/restaurants\/[^/]+\/?$/,
+  /^\/explore\/restaurants\/[^/]+\/(story|gallery)\/?$/,
+  /^\/promo-codes\/?$/,
+  /^\/promo-codes\/restaurant\/[^/]+\/?$/,
+];
+
 // Apply requireAuth to all routes after auth routes
 // This ensures all routes except auth routes require authentication
 router.use((req, res, next) => {
@@ -96,7 +115,17 @@ router.use((req, res, next) => {
   const isPublicCuisinesList =
     path === "/cuisines/list" || originalUrl.endsWith("/cuisines/list");
 
-  if (isAuthRoute || isPublicAmwalRoute || isPublicCuisinesList) {
+  // SMOKE BUG-01/02/03 — discovery reads are public so users can browse
+  // restaurants, menus, explore, and promotions before logging in. GET-only
+  // and exact-match regexes (not prefixes) so sibling mutations/admin routes
+  // and any future sub-routes stay behind requireAuth. attachAuth (app.ts)
+  // still populates req.auth for authed callers on these paths, so
+  // role-dependent behavior (e.g. admin seeing unapproved restaurants on
+  // /restaurants/all) keeps working.
+  const isPublicDiscoveryRead =
+    req.method === "GET" && PUBLIC_DISCOVERY_GET_ROUTES.some((r) => r.test(path));
+
+  if (isAuthRoute || isPublicAmwalRoute || isPublicCuisinesList || isPublicDiscoveryRead) {
     return next();
   }
   
@@ -120,6 +149,7 @@ router.use("/admin/restaurants", adminRestaurantRoutes);
 router.use("/admin/users", adminUserRoutes);
 router.use("/admin/search", adminSearchRoutes);
 router.use("/admin/promo-codes", adminPromoCodeRoutes);
+router.use("/admin/mall-admins", adminMallAdminRoutes);
 
 // Restaurant Info routes (personal info and business hours)
 router.use("/", restaurantInfoRoutes);

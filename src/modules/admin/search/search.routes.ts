@@ -1,11 +1,13 @@
 import { Router } from "express";
 import { adminSearchController } from "./search.controller";
-import { requireAuth, requireAdminRole } from "../../../middlewares/role.middleware";
+import { requireAuth, requireAnyAdminRole } from "../../../middlewares/role.middleware";
 
 const router = Router();
 
-// Apply admin role to all admin search routes (requireAuth is applied globally)
-router.use(requireAdminRole);
+// Apply admin role to all admin search routes (requireAuth is applied
+// globally). MALL_ADMIN is admitted too; results are scoped via getMallScope
+// (GAP-018) to the admin's own mall.
+router.use(requireAnyAdminRole);
 
 /**
  * @swagger
