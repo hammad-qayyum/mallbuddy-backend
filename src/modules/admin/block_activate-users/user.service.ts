@@ -18,6 +18,9 @@ const USER_LIST_SELECT = {
   role: true,
   Status: true,
   createdAt: true,
+  // The customer's currently selected mall (shown as a column in the admin
+  // User Management screen; also what mall-scoping keys off).
+  mall: { select: { id: true, name: true } },
 } as const;
 
 export const userAdminService = {
