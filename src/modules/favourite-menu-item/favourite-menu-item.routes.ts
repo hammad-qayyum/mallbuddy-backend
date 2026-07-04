@@ -27,7 +27,7 @@ router.get("/", favouriteMenuItemController.getFavourites);
  *     tags: [Favourite Menu Items]
  *     responses:
  *       200:
- *         description: { menuItemIds: string[] }
+ *         description: Object with a menuItemIds array of strings
  */
 router.get("/ids", favouriteMenuItemController.getFavouriteIds);
 
