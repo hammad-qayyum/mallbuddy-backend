@@ -9,9 +9,26 @@ import prisma from "../../config/prisma";
  */
 export const favouriteMenuItemService = {
   // List the user's favourite menu items with enough detail to render a card.
+  // GAP-006: per the PRD, the Favourites section is "filtered by current
+  // mall" — only favourites whose restaurant is in the user's selected mall
+  // are listed. (listFavouriteIds stays UNfiltered so heart states render
+  // correctly on any menu the user opens.) No selected mall → unfiltered.
   async listFavourites(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { selectedMallId: true },
+    });
+    const selectedMallId = user?.selectedMallId ?? null;
+
     const favourites = await prisma.favouriteMenuItem.findMany({
-      where: { userId },
+      where: {
+        userId,
+        ...(selectedMallId && {
+          menuItem: {
+            category: { restaurant: { mallId: selectedMallId } },
+          },
+        }),
+      },
       orderBy: { createdAt: "desc" },
       include: {
         menuItem: {

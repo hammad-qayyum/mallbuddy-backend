@@ -978,7 +978,9 @@ router.get("/me", authController.me);
  *       409:
  *         description: Email already registered
  */
-router.post("/restaurant/signup", authController.restaurantSignup);
+// GAP-008: account creation that returns a live session — throttled like
+// /register (was previously unlimited: spam-signup vector).
+router.post("/restaurant/signup", registerRateLimiter, authController.restaurantSignup);
 
 /**
  * @swagger

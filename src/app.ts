@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import swaggerUi from "swagger-ui-express";
 import path from "path";
@@ -10,6 +11,24 @@ import { errorHandler } from "./middlewares/error.middleware";
 import { csrfHeaderGuard } from "./middlewares/csrf.middleware";
 
 const app = express();
+
+// The app runs behind one reverse-proxy hop (TLS terminates in front of
+// Node on the VPS). trust proxy = 1 makes req.ip the real client IP so the
+// express-rate-limit throttles apply per client, not per proxy.
+app.set("trust proxy", 1);
+
+// GAP-008 — standard security headers on every response (this origin also
+// serves user-uploaded files at /uploads and Swagger at /api-docs):
+// X-Content-Type-Options: nosniff, X-Frame-Options, HSTS, Referrer-Policy…
+// CSP is disabled (it breaks Swagger UI's inline scripts; the API serves
+// JSON, not pages) and cross-origin-resource-policy is relaxed so the
+// mobile apps and the Vercel-proxied admin web can still load /uploads.
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
 
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
   .split(",")

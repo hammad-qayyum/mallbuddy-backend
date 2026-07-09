@@ -135,10 +135,24 @@ export const favouriteCartService = {
     return favouriteCart;
   },
 
-  // Get all favourite carts for a user
+  // Get all favourite carts for a user.
+  // GAP-006: Favourites are "filtered by current mall" per the PRD — only
+  // carts containing at least one item from a restaurant in the user's
+  // selected mall are listed. No selected mall → unfiltered.
   async getFavouriteCarts(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { selectedMallId: true },
+    });
+    const selectedMallId = user?.selectedMallId ?? null;
+
     const favouriteCarts = await prisma.favouriteCart.findMany({
-      where: { userId },
+      where: {
+        userId,
+        ...(selectedMallId && {
+          items: { some: { restaurant: { mallId: selectedMallId } } },
+        }),
+      },
       select: {
         id: true,
         userId: true,
