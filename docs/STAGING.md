@@ -18,11 +18,21 @@ is untouched.
 | Admin web | `mallbuddy-web-app.vercel.app` | separate Vercel project, `REACT_APP_BACKEND_URL` set to staging |
 | Mobile apps | default build (prod URL baked in) | `eas build --profile staging` (staging URL injected via `EXPO_PUBLIC_API_URL`) |
 
-## 1. Staging database (Neon)
+## 1. Staging database (Neon) — prefer a BRANCH
 
-In the Neon console: create a **branch** of the production database (instant,
-copy-on-write — gives staging realistic data) or a fresh project if you want
-an empty DB. Copy its connection string.
+In the Neon console, create a **branch** of the production database (instant,
+copy-on-write — realistic data for QA). A branch also copies the
+`_prisma_migrations` table, so all migrations already show as applied and
+`prisma migrate deploy` is a clean no-op. Copy its connection string.
+
+> ⚠️ **Do not use `prisma migrate deploy` on an EMPTY database.** The
+> migration history contains a `20260509000000_baseline_after_drift`
+> re-baseline that recreates objects `20251212070808_init` already created,
+> so a from-scratch `migrate deploy` fails with `type "Role" already exists`.
+> The migration files can't be edited (Prisma checksums them; changing them
+> would break production's `migrate status`). A Neon **branch** avoids this
+> entirely. If you genuinely need an empty DB, use the baselining path in
+> step 2b instead.
 
 ## 2. Backend clone on the VPS
 
@@ -36,7 +46,24 @@ nano .env        # fill in: staging DATABASE_URL, a NEW BETTER_AUTH_SECRET,
                  # Resend/Twilio/Amwal values (copy from prod .env where shared)
 npm install
 npm run build
-npx prisma migrate deploy       # runs migrations against the STAGING DB
+```
+
+### 2a. If staging DB is a Neon BRANCH (recommended)
+```bash
+npx prisma migrate deploy       # no-op: migrations already applied on the branch
+```
+
+### 2b. If staging DB is EMPTY (fresh Neon project)
+`migrate deploy` would collide (see the warning above). Materialize the
+schema directly from `schema.prisma`, then baseline the migration table so
+future deploys work normally:
+```bash
+npx prisma db push              # builds the full schema (source of truth)
+# Mark every existing migration as already-applied so `migrate deploy`
+# is consistent from here on:
+for m in prisma/migrations/*/; do
+  npx prisma migrate resolve --applied "$(basename "$m")"
+done
 ```
 
 ## 3. PM2
