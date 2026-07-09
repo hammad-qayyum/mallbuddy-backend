@@ -660,6 +660,30 @@ router.get("/cancellation-reasons", requireAuth, requireUserRole, ordersControll
 // Restaurant routes - require authentication and restaurant role
 router.get("/restaurant/:restaurantId/accepted", requireAuth, requireRestaurantRole, ordersController.getAcceptedOrders);
 
+/**
+ * @swagger
+ * /orders/group/{groupId}:
+ *   get:
+ *     summary: Get a combined order group with all its child orders (GAP-007)
+ *     tags: [Orders]
+ *     description: |
+ *       One multi-restaurant checkout creates one order group and a child
+ *       order per restaurant. Returns the group with every child order's
+ *       status, items, and pricing, plus the derived grand total. Owner-only.
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Order group retrieved successfully
+ *       404:
+ *         description: Order group not found
+ */
+// Registered above the generic /:orderId route (specific-before-generic).
+router.get("/group/:groupId", requireAuth, requireUserRole, ordersController.getOrderGroup);
+
 // Both users and restaurants can view order details
 router.get("/:orderId", requireAuth, requireRole("USER", "RESTAURANT"), ordersController.getOrderDetails);
 

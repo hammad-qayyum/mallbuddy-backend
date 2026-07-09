@@ -264,6 +264,32 @@ export const ordersController = {
   },
 
   /**
+   * GET /orders/group/:groupId — GAP-007 combined order view.
+   * Returns the order group with all child orders (one per restaurant),
+   * each carrying its own status and pricing. Owner-only.
+   */
+  async getOrderGroup(req: Request, res: Response) {
+    try {
+      const userId = requireAuthUserId(req, res);
+      if (!userId) return;
+
+      const { groupId } = req.params;
+      if (!groupId) {
+        return res.status(400).json({ message: "Group ID is required" });
+      }
+
+      const group = await ordersService.getOrderGroup(groupId, userId);
+      return res.json({ message: "Order group retrieved successfully", data: group });
+    } catch (error: any) {
+      if (error.message.includes("not found")) {
+        return res.status(404).json({ message: error.message });
+      }
+      console.error("[orders]", error);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  },
+
+  /**
    * GET /orders/:orderId/summary - Get quick order summary
    * Same access rule as getOrderDetails.
    */

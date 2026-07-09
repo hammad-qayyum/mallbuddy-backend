@@ -50,6 +50,9 @@ export const ordersService = {
             address: true,
           },
         },
+        orderGroup: {
+          select: { id: true, groupNumber: true },
+        },
       },
       orderBy: { createdAt: "desc" },
       take: limit,
@@ -62,6 +65,8 @@ export const ordersService = {
       data: orders.map((order) => ({
         id: order.id,
         orderNumber: order.orderNumber,
+        orderGroupId: order.orderGroupId,
+        groupNumber: order.orderGroup?.groupNumber ?? null,
         restaurantName: order.restaurant.user.name,
         restaurantImage: order.restaurant.banner,
         totalAmount: Number.parseFloat(order.total.toString()),
@@ -118,6 +123,9 @@ export const ordersService = {
             },
           },
         },
+        orderGroup: {
+          select: { id: true, groupNumber: true },
+        },
       },
       orderBy: { createdAt: "desc" },
       take: limit,
@@ -130,6 +138,8 @@ export const ordersService = {
       data: orders.map((order) => ({
         id: order.id,
         orderNumber: order.orderNumber,
+        orderGroupId: order.orderGroupId,
+        groupNumber: order.orderGroup?.groupNumber ?? null,
         restaurantName: order.restaurant.user.name,
         restaurantImage: order.restaurant.banner,
         totalAmount: Number.parseFloat(order.total.toString()),
@@ -187,6 +197,9 @@ export const ordersService = {
             },
           },
         },
+        orderGroup: {
+          select: { id: true, groupNumber: true },
+        },
       },
       orderBy: { createdAt: "desc" },
       take: limit,
@@ -199,6 +212,8 @@ export const ordersService = {
       data: orders.map((order) => ({
         id: order.id,
         orderNumber: order.orderNumber,
+        orderGroupId: order.orderGroupId,
+        groupNumber: order.orderGroup?.groupNumber ?? null,
         restaurantName: order.restaurant.user.name,
         restaurantImage: order.restaurant.banner,
         totalAmount: Number.parseFloat(order.total.toString()),
@@ -482,6 +497,13 @@ export const ordersService = {
             image: true,
           },
         },
+        orderGroup: {
+          select: {
+            id: true,
+            groupNumber: true,
+            _count: { select: { orders: true } },
+          },
+        },
       },
     });
 
@@ -510,6 +532,14 @@ export const ordersService = {
       estimatedDeliveryTime: order.estimatedDeliveryTime,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
+      // GAP-007: combined-order context (null for legacy/standalone orders)
+      orderGroup: order.orderGroup
+        ? {
+            id: order.orderGroup.id,
+            groupNumber: order.orderGroup.groupNumber,
+            orderCount: order.orderGroup._count.orders,
+          }
+        : null,
       user: {
         id: order.user.id,
         name: `${order.user.firstName} ${order.user.lastName}`,
@@ -549,6 +579,86 @@ export const ordersService = {
         discount: parseFloat(order.discount.toString()),
         total: parseFloat(order.total.toString()),
       },
+    };
+  },
+
+  /**
+   * GAP-007 — Combined order view: the group and all its child orders (one
+   * per restaurant), each with its own status and pricing. Owner-only:
+   * cross-user access reads as "not found".
+   */
+  async getOrderGroup(groupId: string, authUserId: string) {
+    const group = await prisma.orderGroup.findUnique({
+      where: { id: groupId },
+      include: {
+        deliveryAddress: {
+          select: { label: true, address: true, city: true },
+        },
+        orders: {
+          orderBy: { orderNumber: "asc" },
+          include: {
+            restaurant: {
+              select: {
+                userId: true,
+                name: true,
+                banner: true,
+              },
+            },
+            items: {
+              include: {
+                menuItem: { select: { image: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!group || group.userId !== authUserId) {
+      throw new Error("Order group not found");
+    }
+
+    const orders = group.orders.map((order) => ({
+      id: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      paymentMethod: order.paymentMethod,
+      estimatedDeliveryTime: order.estimatedDeliveryTime,
+      createdAt: order.createdAt,
+      updatedAt: order.updatedAt,
+      restaurant: {
+        id: order.restaurant.userId,
+        name: order.restaurant.name,
+        banner: order.restaurant.banner,
+      },
+      items: order.items.map((item) => ({
+        id: item.id,
+        itemName: item.itemName,
+        quantity: item.quantity,
+        unitPrice: parseFloat(item.unitPrice.toString()),
+        totalPrice: parseFloat(item.totalPrice.toString()),
+        image: item.menuItem.image,
+      })),
+      pricing: {
+        subtotal: parseFloat(order.subtotal.toString()),
+        tax: parseFloat(order.tax.toString()),
+        deliveryFee: parseFloat(order.deliveryFee.toString()),
+        discount: parseFloat(order.discount.toString()),
+        total: parseFloat(order.total.toString()),
+      },
+    }));
+
+    const grandTotal =
+      Math.round(orders.reduce((sum, o) => sum + o.pricing.total, 0) * 100) / 100;
+
+    return {
+      id: group.id,
+      groupNumber: group.groupNumber,
+      createdAt: group.createdAt,
+      specialInstructions: group.specialInstructions,
+      deliveryAddress: group.deliveryAddress,
+      grandTotal,
+      orders,
     };
   },
 

@@ -1,6 +1,99 @@
 import prisma from "../../config/prisma";
 import { notifyRestaurantAndAdminNewOrder } from "../notifications/notification.service";
 import { CheckoutInput, UpdateOrderStatusInput } from "./checkout.schema";
+import {
+  round2,
+  generateGroupNumber,
+  deriveChildOrderNumbers,
+  computeDiscount,
+} from "./checkout.helpers";
+
+// Hydrated shape returned for each created order — extracted from the old
+// inline select so every child order in a group is hydrated identically.
+// MUST keep restaurant.user.expoPushToken: notifyRestaurantAndAdminNewOrder
+// reads it (BUG-021).
+const CREATED_ORDER_SELECT = {
+  id: true,
+  orderNumber: true,
+  orderGroupId: true,
+  userId: true,
+  restaurantId: true,
+  deliveryAddressId: true,
+  paymentMethod: true,
+  specialInstructions: true,
+  promoCodeId: true,
+  subtotal: true,
+  tax: true,
+  deliveryFee: true,
+  discount: true,
+  total: true,
+  status: true,
+  estimatedDeliveryTime: true,
+  actualDeliveryTime: true,
+  paymentStatus: true,
+  paidAt: true,
+  createdAt: true,
+  updatedAt: true,
+  items: {
+    select: {
+      id: true,
+      orderId: true,
+      menuItemId: true,
+      quantity: true,
+      unitPrice: true,
+      totalPrice: true,
+      itemName: true,
+      specialNotes: true,
+      selectedVariations: true,
+      selectedAddOns: true,
+      createdAt: true,
+      updatedAt: true,
+      menuItem: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          price: true,
+          image: true,
+        },
+      },
+    },
+  },
+  restaurant: {
+    select: {
+      userId: true,
+      name: true,
+      mainCategory: true,
+      banner: true,
+      estimatedDeliveryTime: true,
+      user: {
+        select: {
+          id: true,
+          expoPushToken: true,
+        },
+      },
+    },
+  },
+  deliveryAddress: {
+    select: {
+      id: true,
+      label: true,
+      address: true,
+      city: true,
+      postalCode: true,
+      isDefault: true,
+    },
+  },
+  user: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phoneNumber: true,
+      image: true,
+    },
+  },
+} as const;
 
 export const checkoutService = {
   // Create order from cart. userId comes from the authenticated session,
@@ -39,21 +132,28 @@ export const checkoutService = {
       throw new Error("Delivery address does not belong to this user");
     }
 
-    // Check if all items are from the same restaurant
-    const restaurantIds = new Set(cart.items.map((item) => item.restaurantId));
-    if (restaurantIds.size > 1) {
-      throw new Error("All items in cart must be from the same restaurant");
+    // GAP-007 — Multiple Orders, Single Checkout. The cart may span several
+    // restaurants of the same mall: one checkout creates one OrderGroup and
+    // one child Order per restaurant. Group the items by restaurant.
+    const itemsByRestaurant = new Map<string, typeof cart.items>();
+    for (const item of cart.items) {
+      if (!item.restaurantId) {
+        throw new Error("Invalid restaurant ID");
+      }
+      const group = itemsByRestaurant.get(item.restaurantId);
+      if (group) {
+        group.push(item);
+      } else {
+        itemsByRestaurant.set(item.restaurantId, [item]);
+      }
     }
+    const restaurantIds = Array.from(itemsByRestaurant.keys());
 
-    const restaurantId = Array.from(restaurantIds)[0];
-    if (!restaurantId) {
-      throw new Error("Invalid restaurant ID");
-    }
-
-    // --- BUSINESS HOURS CHECK ---
-    // Fetch business hours for the restaurant
+    // --- BUSINESS HOURS CHECK (all restaurants up front, all-or-nothing) ---
+    // If ANY restaurant in the cart is closed, the whole checkout fails with
+    // a message naming it — no partial order creation.
     const businessDays = await prisma.businessDay.findMany({
-      where: { restaurantId },
+      where: { restaurantId: { in: restaurantIds } },
       include: { timeSlots: true },
     });
 
@@ -75,17 +175,30 @@ export const checkoutService = {
     const hour = hourRaw === "24" ? "00" : hourRaw;
     const currentTime = `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
 
-    const todayBusiness = businessDays.find((d: any) => d.day === today);
-    if (!todayBusiness || todayBusiness.isClosed) {
-      throw new Error("Restaurant is closed today. Cannot place order.");
-    }
+    for (const rid of restaurantIds) {
+      // Restaurant name for a clear error message (cart items carry the
+      // restaurant relation).
+      const restaurantName =
+        itemsByRestaurant.get(rid)?.[0]?.restaurant?.name || "A restaurant in your cart";
 
-    const isOpen = (todayBusiness.timeSlots || []).some((slot: any) => {
-      if (slot.slotType !== "OPEN") return false;
-      return slot.openTime <= currentTime && currentTime < slot.closeTime;
-    });
-    if (!isOpen) {
-      throw new Error("Restaurant is currently closed. Cannot place order.");
+      const todayBusiness = businessDays.find(
+        (d: any) => d.restaurantId === rid && d.day === today,
+      );
+      if (!todayBusiness || todayBusiness.isClosed) {
+        throw new Error(
+          `${restaurantName} is closed today. Please remove its items or try again later.`,
+        );
+      }
+
+      const isOpen = (todayBusiness.timeSlots || []).some((slot: any) => {
+        if (slot.slotType !== "OPEN") return false;
+        return slot.openTime <= currentTime && currentTime < slot.closeTime;
+      });
+      if (!isOpen) {
+        throw new Error(
+          `${restaurantName} is currently closed. Please remove its items or try again later.`,
+        );
+      }
     }
 
     // Collect all variation and add-on option IDs to batch query
@@ -123,14 +236,10 @@ export const checkoutService = {
     const variationOptionMap = new Map(variationOptions.map((opt) => [opt.id, opt.priceModifier.toNumber()]));
     const addOnOptionMap = new Map(addOnOptions.map((opt) => [opt.id, opt.price.toNumber()]));
 
-    // Calculate subtotal from cart items including variations and add-ons
-    let subtotal = 0;
-    const orderItemsData = [];
-
-    for (const item of cart.items) {
+    // Per-item unit price incl. variations/add-ons (using the cached maps).
+    const priceCartItem = (item: (typeof cart.items)[number]) => {
       let itemUnitPrice = item.menuItem.price.toNumber();
 
-      // Add variation option prices (using cached map)
       if (item.selectedVariations) {
         const variations = item.selectedVariations as Array<{
           variationId: string;
@@ -144,7 +253,6 @@ export const checkoutService = {
         });
       }
 
-      // Add add-on option prices (using cached map)
       if (item.selectedAddOns) {
         const addOns = item.selectedAddOns as Array<{
           addOnId: string;
@@ -160,192 +268,191 @@ export const checkoutService = {
         });
       }
 
-      const itemTotal = itemUnitPrice * item.quantity;
-      subtotal += itemTotal;
+      return itemUnitPrice;
+    };
 
-      // Prepare order item data with variations and add-ons
-      orderItemsData.push({
-        menuItemId: item.menuItemId,
-        quantity: item.quantity,
-        unitPrice: itemUnitPrice.toString(),
-        totalPrice: itemTotal.toString(),
-        itemName: item.menuItem.name,
-        specialNotes: item.specialNotes,
-        selectedVariations: item.selectedVariations ? (item.selectedVariations as any) : null,
-        selectedAddOns: item.selectedAddOns ? (item.selectedAddOns as any) : null,
+    // Promo code (user-entered) — fetched once; it belongs to exactly one
+    // restaurant (PromoCode.restaurantId is required) and only discounts
+    // that restaurant's child order.
+    let promoPct: number | null = null;
+    let promoRestaurantId: string | null = null;
+    if (promoCodeId) {
+      const promoCode = await prisma.promoCode.findUnique({
+        where: { id: promoCodeId },
       });
+      if (promoCode) {
+        const now = new Date();
+        if (promoCode.startDate <= now && promoCode.endDate >= now) {
+          promoPct = promoCode.discountPercentage;
+          promoRestaurantId = promoCode.restaurantId;
+        }
+      }
     }
 
-  
-     // Calculate discount. The order can be discounted by either a promo
-     // code the user typed in OR a restaurant-wide active Promotion (the
-     // "Deal of the day" on Home). We take whichever yields the BIGGER
-     // discount — the customer should never be worse off than picking the
-     // alternative. If only one applies, that one wins.
-     let appliedDiscount = 0;
-
-     // 1) Promo code branch (only if user supplied one)
-     if (promoCodeId) {
-       const promoCode = await prisma.promoCode.findUnique({
-         where: { id: promoCodeId },
-       });
-       if (promoCode) {
-         const now = new Date();
-         if (promoCode.startDate <= now && promoCode.endDate >= now) {
-           appliedDiscount = Math.round((subtotal * promoCode.discountPercentage) / 100 * 100) / 100;
-         }
-       }
-     }
-
-     // 2) Active restaurant promotion (Deal of the day) — auto-applied
-     // when the restaurant currently has a live Promotion row. If multiple
-     // are live at once (rare), use the highest percentage.
-     const nowForPromo = new Date();
-     const livePromotions = await prisma.promotion.findMany({
-       where: {
-         restaurantId,
-         isActive: true,
-         startDate: { lte: nowForPromo },
-         endDate: { gte: nowForPromo },
-       },
-       select: { discountPercentage: true },
-     });
-     if (livePromotions.length > 0) {
-       const topPct = Math.max(
-         ...livePromotions.map((p) => Number(p.discountPercentage)),
-       );
-       const promotionDiscount =
-         Math.round((subtotal * topPct) / 100 * 100) / 100;
-       // Pick whichever discount is larger — user-entered promo code OR
-       // auto-applied restaurant promotion.
-       if (promotionDiscount > appliedDiscount) {
-         appliedDiscount = promotionDiscount;
-       }
-     }
-
-     const total = subtotal + tax + deliveryFee - appliedDiscount;
-
-
-    // Generate unique order number
-    const orderNumber = "#" + Date.now().toString().slice(-4) + Math.random().toString(36).substring(2, 6).toUpperCase();
-
-    // Create order
-    const order = await prisma.order.create({
-      data: {
-        orderNumber,
-        userId,
-        restaurantId: restaurantId,
-        deliveryAddressId,
-        paymentMethod,
-        specialInstructions: specialInstructions || null,
-        promoCodeId: promoCodeId || null, // Link promo code to order
-        subtotal: subtotal.toString(),
-        tax: tax.toString(),
-        deliveryFee: deliveryFee.toString(),
-        discount: appliedDiscount.toString(),
-        total: total.toString(),
-        status: "PENDING",
-        items: {
-          create: orderItemsData,
-        },
+    // Live "Deal of the day" Promotions for ALL cart restaurants in one
+    // query; per restaurant we use the highest live percentage.
+    const nowForPromo = new Date();
+    const livePromotions = await prisma.promotion.findMany({
+      where: {
+        restaurantId: { in: restaurantIds },
+        isActive: true,
+        startDate: { lte: nowForPromo },
+        endDate: { gte: nowForPromo },
       },
-      select: {
-        id: true,
-        orderNumber: true,
-        userId: true,
-        restaurantId: true,
-        deliveryAddressId: true,
-        paymentMethod: true,
-        specialInstructions: true,
-        promoCodeId: true,
-        subtotal: true,
-        tax: true,
-        deliveryFee: true,
-        discount: true,
-        total: true,
-        status: true,
-        estimatedDeliveryTime: true,
-        actualDeliveryTime: true,
-        paymentStatus: true,
-        paidAt: true,
-        createdAt: true,
-        updatedAt: true,
-        items: {
-          select: {
-            id: true,
-            orderId: true,
-            menuItemId: true,
-            quantity: true,
-            unitPrice: true,
-            totalPrice: true,
-            itemName: true,
-            specialNotes: true,
-            selectedVariations: true,
-            selectedAddOns: true,
-            createdAt: true,
-            updatedAt: true,
-            menuItem: {
-              select: {
-                id: true,
-                name: true,
-                description: true,
-                price: true,
-                image: true,
-              },
-            },
-          },
-        },
-        restaurant: {
-          select: {
-            userId: true,
-            name: true,
-            mainCategory: true,
-            banner: true,
-            estimatedDeliveryTime: true,
-            user: {
-              select: {
-                id: true,
-                expoPushToken: true,
-              },
-            },
-          },
-        },
-        deliveryAddress: {
-          select: {
-            id: true,
-            label: true,
-            address: true,
-            city: true,
-            postalCode: true,
-            isDefault: true,
-          },
-        },
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phoneNumber: true,
-            image: true,
-          },
-        },
-      },
+      select: { restaurantId: true, discountPercentage: true },
     });
-
-    // Clear the cart
-    await prisma.cartItem.deleteMany({
-      where: { cartId: cart.id },
-    });
-
-    // Notify restaurant and admin about new order
-    try {
-      await notifyRestaurantAndAdminNewOrder(order);
-    } catch (error: any) {
-      console.error("[Checkout] Failed to send new order notification:", error.message);
-      // Don't fail order creation if notification fails
+    const topPromotionPctByRestaurant = new Map<string, number>();
+    for (const promo of livePromotions) {
+      const pct = Number(promo.discountPercentage);
+      const current = topPromotionPctByRestaurant.get(promo.restaurantId) ?? 0;
+      if (pct > current) topPromotionPctByRestaurant.set(promo.restaurantId, pct);
     }
 
-    return order;
+    // Build each child order's data. Per the locked business rules:
+    // deliveryFee and tax from the payload apply PER RESTAURANT (each
+    // restaurant delivers separately); the discount is the larger of the
+    // matching promo code and the restaurant's own live promotion.
+    const childOrderData = restaurantIds.map((rid) => {
+      const items = itemsByRestaurant.get(rid)!;
+
+      let subtotal = 0;
+      const orderItemsData = items.map((item) => {
+        const itemUnitPrice = priceCartItem(item);
+        const itemTotal = itemUnitPrice * item.quantity;
+        subtotal += itemTotal;
+        return {
+          menuItemId: item.menuItemId,
+          quantity: item.quantity,
+          unitPrice: itemUnitPrice.toString(),
+          totalPrice: itemTotal.toString(),
+          itemName: item.menuItem.name,
+          specialNotes: item.specialNotes,
+          selectedVariations: item.selectedVariations ? (item.selectedVariations as any) : null,
+          selectedAddOns: item.selectedAddOns ? (item.selectedAddOns as any) : null,
+        };
+      });
+      subtotal = round2(subtotal);
+
+      const promoMatches = promoRestaurantId === rid;
+      const discount = computeDiscount(
+        subtotal,
+        promoMatches ? promoPct : null,
+        topPromotionPctByRestaurant.get(rid) ?? null,
+      );
+      const total = round2(subtotal + tax + deliveryFee - discount);
+
+      return {
+        restaurantId: rid,
+        orderItemsData,
+        subtotal,
+        discount,
+        total,
+        // Link the promo code only to the child it actually discounted.
+        promoCodeId: promoMatches && promoPct !== null ? promoCodeId! : null,
+      };
+    });
+
+    // Create the group + all child orders + clear the cart atomically.
+    // Retry up to 3 times on the (unlikely) group/order-number unique
+    // collision — the DB constraints are the backstop.
+    let createdOrders: any[] = [];
+    let orderGroup: { id: string; groupNumber: string } | null = null;
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const groupNumber = generateGroupNumber();
+      const childOrderNumbers = deriveChildOrderNumbers(groupNumber, childOrderData.length);
+
+      try {
+        const result = await prisma.$transaction(async (tx) => {
+          const group = await tx.orderGroup.create({
+            data: {
+              groupNumber,
+              userId,
+              deliveryAddressId,
+              specialInstructions: specialInstructions || null,
+            },
+          });
+
+          const created = [];
+          for (const [i, child] of childOrderData.entries()) {
+            created.push(
+              await tx.order.create({
+                data: {
+                  orderNumber: childOrderNumbers[i]!,
+                  orderGroupId: group.id,
+                  userId,
+                  restaurantId: child.restaurantId,
+                  deliveryAddressId,
+                  paymentMethod,
+                  specialInstructions: specialInstructions || null,
+                  promoCodeId: child.promoCodeId,
+                  subtotal: child.subtotal.toString(),
+                  tax: tax.toString(),
+                  deliveryFee: deliveryFee.toString(),
+                  discount: child.discount.toString(),
+                  total: child.total.toString(),
+                  status: "PENDING",
+                  items: {
+                    create: child.orderItemsData,
+                  },
+                },
+                select: CREATED_ORDER_SELECT,
+              }),
+            );
+          }
+
+          // Checkout consumes the entire cart.
+          await tx.cartItem.deleteMany({
+            where: { cartId: cart.id },
+          });
+
+          return { group, created };
+        },
+        // Many-restaurant carts do N sequential order creates — give the
+        // interactive transaction headroom over the 5s default.
+        { timeout: 15000 });
+
+        orderGroup = result.group;
+        createdOrders = result.created;
+        break;
+      } catch (error: any) {
+        // P2002 = unique constraint violation (orderNumber/groupNumber clash)
+        if (error?.code === "P2002" && attempt < 3) {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    if (!orderGroup || createdOrders.length === 0) {
+      throw new Error("Failed to create order. Please try again.");
+    }
+
+    // Notify each restaurant (and admins) about its own new order. One
+    // failed push must not affect the others or the checkout response.
+    for (const order of createdOrders) {
+      try {
+        await notifyRestaurantAndAdminNewOrder(order);
+      } catch (error: any) {
+        console.error("[Checkout] Failed to send new order notification:", error.message);
+      }
+    }
+
+    const grandTotal = round2(
+      createdOrders.reduce((sum, order) => sum + Number(order.total), 0),
+    );
+
+    // Backward-compatible response (GAP-007): the first child order is
+    // spread at the top level so existing clients that read data.id /
+    // data.orderNumber / data.total keep working; new clients read the
+    // group fields + orders[].
+    return {
+      ...createdOrders[0],
+      orderGroupId: orderGroup.id,
+      groupNumber: orderGroup.groupNumber,
+      grandTotal,
+      orders: createdOrders,
+    };
   },
 
   // Get order by ID
@@ -690,11 +797,8 @@ export const checkoutService = {
       throw new Error("Cart is empty");
     }
 
-    // Check if all items are from same restaurant
-    const restaurantIds = new Set(cart.items.map((item) => item.restaurantId));
-    if (restaurantIds.size > 1) {
-      throw new Error("All items must be from the same restaurant");
-    }
+    // GAP-007: carts may span multiple restaurants — the summary groups
+    // per restaurant instead of rejecting.
 
     // Get delivery addresses
     const addresses = await prisma.deliveryAddress.findMany({
@@ -782,10 +886,14 @@ export const checkoutService = {
         itemsByRestaurant[restaurantId] = {
           restaurantId,
           restaurantName: item.restaurant.name || "Restaurant",
+          subtotal: 0,
           items: [],
         };
       }
 
+      itemsByRestaurant[restaurantId].subtotal = round2(
+        itemsByRestaurant[restaurantId].subtotal + itemTotal,
+      );
       itemsByRestaurant[restaurantId].items.push({
         id: item.id,
         name: item.menuItem.name,
@@ -798,9 +906,12 @@ export const checkoutService = {
       });
     }
 
+    const restaurantGroups = Object.values(itemsByRestaurant);
+
     return {
-      subtotal,
-      itemsByRestaurant: Object.values(itemsByRestaurant),
+      subtotal: round2(subtotal),
+      restaurantCount: restaurantGroups.length,
+      itemsByRestaurant: restaurantGroups,
       addresses,
       cartItemCount: cart.items.length,
     };
