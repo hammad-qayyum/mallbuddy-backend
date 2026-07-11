@@ -278,7 +278,8 @@ export const authService = {
             // Update the email field in User table with the real email
             // This will also update Better Auth's user email
             // User can still login with phone (via resolveIdentifier conversion)
-            updateData.email = additionalEmailToStore;
+            // Lowercase so a later email login (which lowercases) can match it.
+            updateData.email = additionalEmailToStore.trim().toLowerCase();
             updateData.emailVerified = false; // Added but not verified
         }
 
@@ -498,11 +499,14 @@ export const authService = {
             throw new Error("Invalid token for password reset");
         }
 
-        // Find user by identifier
+        // Find user by identifier. Emails are stored lowercased at every
+        // account-creation path, so normalize the OTP identifier the same
+        // way — otherwise resetting with a differently-cased email
+        // ("John@x.com") finds no row and reset is impossible.
         let user;
         if (verifiedData.identifierType === "email") {
             user = await prisma.user.findUnique({
-                where: { email: verifiedData.identifier },
+                where: { email: verifiedData.identifier.trim().toLowerCase() },
                 include: {
                     accounts: {
                         where: {

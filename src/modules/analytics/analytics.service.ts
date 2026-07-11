@@ -482,17 +482,18 @@ export const analyticsService = {
    * Get promoCode details: users, orders, total discount
    */
   async getPromoCodeDetails(input: GetPromoCodeDetailsInput, scopeMallId?: string | null) {
+    // NOTE: the PromoCode model only has code/discountPercentage/startDate/
+    // endDate/mallId/restaurantId. Selecting description/discountType/
+    // discountValue/validFrom/validUntil/isActive (which don't exist) made
+    // this endpoint throw a Prisma validation error → 500 on every call.
     const promoCode = await (prisma as any).promoCode.findUnique({
       where: { id: input.promoCodeId },
       select: {
         id: true,
         code: true,
-        description: true,
-        discountType: true,
-        discountValue: true,
-        validFrom: true,
-        validUntil: true,
-        isActive: true,
+        discountPercentage: true,
+        startDate: true,
+        endDate: true,
         mallId: true,
       },
     });
@@ -526,16 +527,18 @@ export const analyticsService = {
       return sum + Number.parseFloat(order.total.toString());
     }, 0);
 
+    const now = new Date();
     return {
       promoCode: {
         id: promoCode.id,
         code: promoCode.code,
-        description: promoCode.description,
-        discountType: promoCode.discountType,
-        discountValue: Number.parseFloat(promoCode.discountValue.toString()),
-        validFrom: promoCode.validFrom,
-        validUntil: promoCode.validUntil,
-        isActive: promoCode.isActive,
+        // Map the real columns to the response shape consumers expect.
+        description: null,
+        discountType: "PERCENTAGE",
+        discountValue: Number(promoCode.discountPercentage),
+        validFrom: promoCode.startDate,
+        validUntil: promoCode.endDate,
+        isActive: promoCode.startDate <= now && promoCode.endDate >= now,
       },
       statistics: {
         totalUsers,

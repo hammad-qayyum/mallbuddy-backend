@@ -72,9 +72,10 @@ export const userService = {
 
         const updateData: any = {};
         
-        // Handle email if provided and not empty
+        // Handle email if provided and not empty. Lowercase so a later
+        // email login (which lowercases the lookup) can still match it.
         if (data.email !== undefined && data.email !== null && data.email.trim() !== "") {
-            updateData.email = data.email;
+            updateData.email = data.email.trim().toLowerCase();
         }
         
         // Handle phone number normalization if provided
