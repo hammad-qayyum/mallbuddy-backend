@@ -41,7 +41,14 @@ export const createRestaurantService = {
     const normalizedPhone = data.phoneNumber 
       ? normalizePhoneNumber(data.phoneNumber) 
       : undefined;
-    const identifierEmail = data.email || (normalizedPhone ? phoneAsAliasEmail(normalizedPhone) : null);
+    // Normalize the email (trim + lowercase) so it's stored the same way
+    // login looks it up (resolveIdentifier in auth.service.ts lowercases).
+    // Without this a restaurant signing up as "Owner@Rest.com" is stored
+    // mixed-case but can never log in (lookup is lowercased) — BUG-011 for
+    // the restaurant-create paths, which bypass resolveIdentifier.
+    const identifierEmail = data.email
+      ? data.email.trim().toLowerCase()
+      : (normalizedPhone ? phoneAsAliasEmail(normalizedPhone) : null);
 
     if (!identifierEmail) {
       throw new Error("Email or phone number is required");
@@ -181,7 +188,14 @@ export const createRestaurantService = {
     const normalizedPhone = data.phoneNumber 
       ? normalizePhoneNumber(data.phoneNumber) 
       : undefined;
-    const identifierEmail = data.email || (normalizedPhone ? phoneAsAliasEmail(normalizedPhone) : null);
+    // Normalize the email (trim + lowercase) so it's stored the same way
+    // login looks it up (resolveIdentifier in auth.service.ts lowercases).
+    // Without this a restaurant signing up as "Owner@Rest.com" is stored
+    // mixed-case but can never log in (lookup is lowercased) — BUG-011 for
+    // the restaurant-create paths, which bypass resolveIdentifier.
+    const identifierEmail = data.email
+      ? data.email.trim().toLowerCase()
+      : (normalizedPhone ? phoneAsAliasEmail(normalizedPhone) : null);
 
     if (!identifierEmail) {
       throw new Error("Email or phone number is required");
